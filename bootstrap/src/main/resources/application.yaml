@@ -46,8 +46,8 @@ agent:
       - name: default
         url: http://localhost:9099
   chat:
-    provider: deepseek   # 引用 ai.providers 下的供应商，取其 url / api-key / endpoints.chat
-    model: deepseek-flash    # 直接传给 OpenAI 兼容端点的模型名
+    provider: ollama   # 本地 Ollama 的 OpenAI 兼容端点
+    model: qwen3.5:2b
   max-iters: 10         # ReAct 循环上限，超出后熔断收尾
   max-retries: 1        # 最大尝试次数含首次，1 即不重试
   sse-timeout-ms: 900000
@@ -204,6 +204,7 @@ ai:
   providers:
     ollama:
       url: http://localhost:11434
+      api-key: ollama   # OpenAI 兼容客户端需要非空值；本地 Ollama 不校验此值
       endpoints:
         chat: /v1/chat/completions
         embedding: /v1/embeddings
@@ -243,7 +244,8 @@ ai:
         model: qwen-flash
       - id: qwen3-local
         provider: ollama
-        model: qwen3:8b-fp16
+        model: qwen3.5:2b
+        supports-thinking: true
       - id: qwen3-max
         provider: bailian
         model: qwen3-max
@@ -261,13 +263,13 @@ ai:
 
     tiers:
       fast:
-        candidates: [ qwen-flash, qwen-plus, qwen3-local ]
-        timeout-ms: 5000
+        candidates: [ qwen3-local ]
+        timeout-ms: 120000
       standard:
-        candidates: [ qwen3-max, qwen-plus, deepseek-flash, qwen3-local, gpt-5.4 ]
+        candidates: [ qwen3-local ]
         timeout-ms: 120000
       deep:
-        candidates: [ qwen3-max, deepseek-flash ]
+        candidates: [ qwen3-local ]
         timeout-ms: 180000
 
   embedding:
