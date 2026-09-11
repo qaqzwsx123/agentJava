@@ -79,14 +79,19 @@ public class AgentConversationServiceImpl implements AgentConversationService {
 
     @Override
     public String touchConversation(String conversationId, String userId, String question) {
+        // 先按会话 ID + 用户查已有记录（带 userId 校验，防越权）
         AgentConversationDO existing = selectConversation(conversationId, userId);
+        // 已存在 → 只刷新活跃时间并返回原标题（续聊路径）
         if (existing != null) {
             return touchLastTime(existing);
         }
+        // 不存在 → 先清理可能的残留数据（上一轮启动失败留下的半成品），避免脏数据干扰
         purgeResidue(conversationId, userId);
 
         // v1 简化：截断首问作标题，不走 LLM 生成
+        // 空值兜底 + trim，再按最大长度截断作为标题
         String title = StrUtil.sub(StrUtil.emptyIfNull(question).trim(), 0, TITLE_MAX_LENGTH);
+        // 组装新会话记录（雪花 ID 由上游生成，这里只负责落库）
         AgentConversationDO conversation = AgentConversationDO.builder()
                 .conversationId(conversationId)
                 .userId(userId)
@@ -94,26 +99,33 @@ public class AgentConversationServiceImpl implements AgentConversationService {
                 .lastTime(new Date())
                 .build();
         try {
+            // 插入新会话记录
             conversationMapper.insert(conversation);
         } catch (DuplicateKeyException dke) {
             // 并发首问唯一键冲突，重查已有记录
+            // 说明同一会话被并发创建，自己不是 winner，改为复用对方已插入的记录
             AgentConversationDO winner = selectConversation(conversationId, userId);
+            // 仍查不到说明不是并发冲突导致，属异常情况，原样抛出
             if (winner == null) {
                 throw dke;
             }
+            // 复用 winner 记录，刷新活跃时间并返回其标题
             return touchLastTime(winner);
         }
+        // 插入成功，返回本次生成的标题
         return title;
     }
 
     private AgentConversationDO selectConversation(String conversationId, String userId) {
         return conversationMapper.selectOne(Wrappers.lambdaQuery(AgentConversationDO.class)
                 .eq(AgentConversationDO::getConversationId, conversationId)
-                .eq(AgentConversationDO::getUserId, userId));
+                .eq(AgentConversationDO::getUserId, userId));  //执行查询，返回一条记录：查到 → 返回 AgentConversationDO。     查不到 → 返回 null。
     }
 
     private String touchLastTime(AgentConversationDO conversation) {
+        // 刷新会话的最后活跃时间为当前时刻
         conversation.setLastTime(new Date());
+        // 按主键 id 更新该记录（把新的 lastTime 落库）
         conversationMapper.updateById(conversation);
         return conversation.getTitle();
     }
@@ -122,10 +134,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
      * 会话行不存在但同 ID 还残留状态/消息时，先清理再建新会话
      */
     private void purgeResidue(String conversationId, String userId) {
+        // 清掉该会话在状态存储里的运行态（内存/Redis 中的 Agent 状态）
         agentStateStore.delete(userId, conversationId);
+        // 物理删除该会话下、属于该用户的所有历史消息（防止脏数据带到新会话）
         messageMapper.delete(Wrappers.lambdaQuery(AgentMessageDO.class)
                 .eq(AgentMessageDO::getConversationId, conversationId)
                 .eq(AgentMessageDO::getUserId, userId));
+        // 逐出本地状态缓存，避免内存里还留着这个已废弃会话的旧状态
         evictStateCache(userId, conversationId);
     }
 
@@ -358,8 +373,11 @@ public class AgentConversationServiceImpl implements AgentConversationService {
     }
 
     private void evictStateCache(String userId, String conversationId) {
+        // 延迟获取 ReActAgentProvider（可选依赖，避免循环依赖/启动失败，拿不到返回 null）
         ReActAgentProvider agentProvider = agentProviderRef.getIfAvailable();
+        // 拿得到才清理，避免 NPE；拿不到就跳过（容错）
         if (agentProvider != null) {
+            // 转调 provider 清掉该用户该会话的 Agent 状态缓存，防止废弃会话的旧状态被复用
             agentProvider.evictStateCache(userId, conversationId);
         }
     }

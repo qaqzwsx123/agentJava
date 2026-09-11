@@ -29,7 +29,7 @@ import java.util.List;
  */
 @SuppressWarnings({"SqlDialectInspection", "SqlNoDataSourceInspection", "SqlResolve"})
 public interface AgentStateMapper {
-
+    //冲突时，用"新数据的 payload"覆盖"旧数据的 payload"，并刷新 update_time。
     @Insert("""
             INSERT INTO t_agent_state (user_id, session_id, state_key, payload, create_time, update_time)
             VALUES (#{userId}, #{sessionId}, #{stateKey}, #{payload}::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -50,6 +50,7 @@ public interface AgentStateMapper {
                          @Param("sessionId") String sessionId,
                          @Param("stateKey") String stateKey);
 
+    //判断会话是否存在状态  用 PG 的 EXISTS 返回布尔，存在任意状态即 true。 比 COUNT(*) > 0 更高效（找到一条就返回）。
     @Select("""
             SELECT EXISTS (
                 SELECT 1
@@ -70,6 +71,7 @@ public interface AgentStateMapper {
                      @Param("sessionId") String sessionId,
                      @Param("stateKey") String stateKey);
 
+    // 列出所有会话 ID   去重并表示顺序
     @Select("""
             SELECT DISTINCT session_id
             FROM t_agent_state

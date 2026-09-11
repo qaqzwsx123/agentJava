@@ -54,7 +54,13 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.INTENT_CLASSIFIER
 /**
  * LLM 树形意图分类器（串行实现）
  * <p>
- * 将当前编排模式可用的意图节点一次性发送给 LLM 进行识别打分，适用于意图数量较少的场景
+ * 核心职责：
+ * 1. 从缓存/数据库加载意图树，构建内存结构；
+ * 2. 根据当前编排模式（Agent / Workflow）筛选出可用的候选叶子节点；
+ * 3. 构造 Prompt，把候选节点的 id、路径、描述、示例发给 LLM；
+ * 4. 解析 LLM 返回的 JSON 打分，按 score 降序返回。
+ * <p>
+ * 适用场景：意图数量较少的场景，一次性发送给 LLM 进行识别打分。
  */
 @Slf4j
 @Service
@@ -68,14 +74,14 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
     private final OrchestrationProperties orchestrationProperties;
 
     /**
-     * 从Redis加载意图树并构建内存结构
-     * 每次调用都会重新从Redis读取，确保数据是最新的
+     * 从 Redis 加载意图树并构建内存结构
+     * 每次调用都会重新从 Redis 读取，确保数据是最新的（意图树可能被后台动态修改）
      */
     private IntentTreeData loadIntentTreeData() {
-        // 1. 从Redis读取（如果不存在会自动从数据库加载）
+        // 1. 从 Redis 读取（如果不存在会自动从数据库加载并回写缓存）
         List<IntentNode> roots = intentTreeCacheManager.getIntentTreeFromCache();
 
-        // 2. 如果Redis也没有，从数据库加载并缓存
+        // 2. 如果 Redis 也没有，从数据库加载并缓存（兜底逻辑）
         if (CollUtil.isEmpty(roots)) {
             roots = loadIntentTreeFromDB();
             if (!roots.isEmpty()) {
@@ -83,15 +89,18 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             }
         }
 
-        // 3. 构建内存结构（临时使用）
+        // 3. 构建临时内存结构，方便快速查找
         if (CollUtil.isEmpty(roots)) {
             return new IntentTreeData(List.of(), List.of(), Map.of());
         }
 
+        // 展平树结构，拿到所有节点
         List<IntentNode> allNodes = flatten(roots);
+        // 筛选出叶子节点（只有叶子节点才参与意图分类）
         List<IntentNode> leafNodes = allNodes.stream()
                 .filter(IntentNode::isLeaf)
                 .collect(Collectors.toList());
+        // 构建 id -> 节点 的映射，方便 O(1) 查找
         Map<String, IntentNode> id2Node = allNodes.stream()
                 .collect(Collectors.toMap(IntentNode::getId, n -> n));
 
@@ -109,6 +118,9 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         return data.id2Node.get(id);
     }
 
+    /**
+     * 获取所有 MCP 工具节点（供 ToolCatalogResolver 解析 MCP 工具使用）
+     */
     @Override
     public List<IntentNode> listMcpToolNodes() {
         return loadIntentTreeData().leafNodes.stream()
@@ -119,7 +131,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
     }
 
     /**
-     * 意图树数据结构（临时对象，不持久化）
+     * 意图树数据结构（临时对象，不持久化，仅用于内存传递）
      */
     private record IntentTreeData(
             List<IntentNode> allNodes,
@@ -128,6 +140,10 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
     ) {
     }
 
+    /**
+     * 深度优先遍历（DFS）展平树结构
+     * 使用 Deque 替代递归，避免意图树过深导致 StackOverflow
+     */
     private List<IntentNode> flatten(List<IntentNode> roots) {
         List<IntentNode> result = new ArrayList<>();
         Deque<IntentNode> stack = new ArrayDeque<>(roots);
@@ -145,18 +161,19 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
 
     /**
      * 对所有"叶子分类节点"做意图识别，由 LLM 输出每个分类的 score
-     * - 返回结果已按 score 从高到低排序
+     * 返回结果已按 score 从高到低排序
      */
     @Override
     public List<NodeScore> classifyTargets(String question) {
-        // 每次都从Redis读取最新数据
+        // 每次都从 Redis 读取最新数据（保证意图树动态更新后能立即生效）
         IntentTreeData data = loadIntentTreeData();
         if (data.leafNodes.isEmpty()) {
             log.debug("意图树没有可用叶子节点，跳过 LLM 意图识别");
             return List.of();
         }
 
-        // Agent 的知识库工具只识别 KB，Workflow 额外保留 SYSTEM 应答
+        // Agent 模式下只识别知识库（KB）意图；
+        // Workflow 模式下额外保留 SYSTEM 应答意图
         List<IntentNode> candidates = data.leafNodes.stream()
                 .filter(node -> node.isKB()
                         || (orchestrationProperties.getMode() == OrchestrationMode.WORKFLOW && node.isSystem()))
@@ -169,7 +186,11 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         Map<String, IntentNode> candidateById = candidates.stream()
                 .collect(Collectors.toMap(IntentNode::getId, node -> node));
 
+        // 构造 Prompt：包含所有候选节点的 id、路径、描述、示例
         String systemPrompt = buildPrompt(candidates);
+
+        // 构造 LLM 请求：温度设低（0.1），topP 设低（0.3），关闭思考（thinking=false）
+        // 意图分类需要的是确定性输出，不需要模型发挥创造力
         ChatRequest request = ChatRequest.builder()
                 .messages(List.of(
                         ChatMessage.system(systemPrompt),
@@ -196,11 +217,12 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
      */
     private List<NodeScore> parseScores(String raw, Map<String, IntentNode> candidateById, String question) {
         try {
-            // 移除可能的 markdown 代码块标记
+            // 移除 LLM 可能返回的 Markdown 代码块标记（如 ```json ... ```）
             String cleanedRaw = LLMResponseCleaner.stripMarkdownCodeFence(raw);
             JsonElement root = JsonParser.parseString(cleanedRaw);
             JsonArray arr;
             if (root.isJsonArray()) {
+                // 标准格式：[{"id": "...", "score": 0.9}, ...]
                 arr = root.getAsJsonArray();
             } else if (root.isJsonObject() && root.getAsJsonObject().has("results")) {
                 // 容错：如果模型外面又包了一层 { "results": [...] }
@@ -215,11 +237,13 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
                 if (!el.isJsonObject()) continue;
                 JsonObject obj = el.getAsJsonObject();
 
+                // 必须同时包含 id 和 score 字段
                 if (!obj.has("id") || !obj.has("score")) continue;
 
                 String id = obj.get("id").getAsString();
                 IntentNode node = candidateById.get(id);
                 if (node == null) {
+                    // 模型可能幻觉出不存在的 ID，跳过并记录警告
                     log.warn("LLM 返回了未知或当前模式不可用的意图节点 ID: {}, 已跳过", id);
                     continue;
                 }
@@ -227,15 +251,16 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
                 scores.add(new NodeScore(node, obj.get("score").getAsDouble()));
             }
 
-            // 降序排序
+            // 降序排序（分数高的排前面）
             scores.sort(Comparator.comparingDouble(NodeScore::getScore).reversed());
 
+            // 打印详细日志，方便排查意图识别效果
             log.info("当前问题：{}\n意图识别树如下所示：{}\n",
                     question,
                     JSONUtil.toJsonPrettyStr(
                             scores.stream().peek(each -> {
                                 IntentNode node = each.getNode();
-                                node.setChildren(null);
+                                node.setChildren(null); // 日志里不打印 children，避免输出爆炸
                             }).collect(Collectors.toList())
                     )
             );
@@ -261,8 +286,10 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             sb.append("  path=").append(node.getFullPath()).append("\n");
             sb.append("  description=").append(node.getDescription()).append("\n");
 
+            // 标识节点类型：SYSTEM（系统交互）还是 KB（知识库）
             sb.append(node.isSystem() ? "  type=SYSTEM\n" : "  type=KB\n");
 
+            // 拼接示例问题，帮助 LLM 理解意图边界
             if (node.getExamples() != null && !node.getExamples().isEmpty()) {
                 sb.append("  examples=");
                 sb.append(String.join(" / ", node.getExamples()));
@@ -271,12 +298,16 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             sb.append("\n");
         }
 
+        // 渲染 Prompt 模板，把动态生成的意图列表塞进去
         return promptTemplateLoader.render(
                 INTENT_CLASSIFIER_PROMPT_PATH,
                 Map.of("intent_list", sb.toString())
         );
     }
 
+    /**
+     * 从数据库加载意图树（扁平结构 -> 树形结构）
+     */
     private List<IntentNode> loadIntentTreeFromDB() {
         // 1. 查出所有未删除且已启用的节点（扁平结构）
         List<IntentNodeDO> intentNodeDOList = intentNodeMapper.selectList(
@@ -299,6 +330,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             node.setMcpToolId(each.getMcpToolId());
             node.setRequireConfirm(Objects.equals(each.getRequireConfirm(), 1));
             node.setExamples(parseExamples(each.getExamples()));
+            // 处理 collectionNames：兼容单字段和多字段的情况
             if (CollUtil.isEmpty(each.getCollectionNames())) {
                 node.setCollectionNames(
                         each.getCollectionName() == null || each.getCollectionName().isBlank()
@@ -325,7 +357,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
 
             IntentNode parent = id2Node.get(parentId);
             if (parent == null) {
-                // 找不到父节点，兜底也当作根节点，避免节点丢失
+                // 找不到父节点（数据异常），兜底也当作根节点，避免节点丢失
                 roots.add(node);
                 continue;
             }
@@ -337,7 +369,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             parent.getChildren().add(node);
         }
 
-        // 4. 填充 fullPath（跟你原来的 fillFullPath 一样的逻辑）
+        // 4. 递归填充 fullPath（例如：集团信息化 > 人事 > 招聘）
         fillFullPath(roots, null);
 
         return roots;
@@ -345,7 +377,9 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
 
     /**
      * examples 在库里是 GSON 序列化后的 JSON 数组文本
+     * 例如：["怎么查工资", "工资条在哪看"]
      * BeanUtil 只会去掉方括号再按英文逗号切分，元素两侧的引号会原样进到意图识别提示词里
+     * 所以这里必须手动用 Gson 解析，保证示例文本干净
      */
     private List<String> parseExamples(String examples) {
         if (examples == null || examples.isBlank()) {
@@ -371,7 +405,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
     }
 
     /**
-     * 填充 fullPath 字段，效果类似：
+     * 递归填充 fullPath 字段，效果类似：
      * - 集团信息化
      * - 集团信息化 > 人事
      * - 业务系统 > OA系统 > 系统介绍
@@ -386,6 +420,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
                 node.setFullPath(parent.getFullPath() + " > " + node.getName());
             }
 
+            // 递归处理子节点
             if (node.getChildren() != null && !node.getChildren().isEmpty()) {
                 fillFullPath(node.getChildren(), node);
             }

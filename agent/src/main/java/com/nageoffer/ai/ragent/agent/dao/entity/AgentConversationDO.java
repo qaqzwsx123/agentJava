@@ -37,10 +37,10 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@TableName("t_agent_conversation")
+@TableName("t_agent_conversation") //作用是告诉框架：这个 Java 类对应数据库里的哪张表
 public class AgentConversationDO {
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.ASSIGN_ID) //字段 → 主键；ASSIGN_ID = 由 MyBatis-Plus 自动生成雪花 ID 赋值
     private String id;
 
     private String conversationId;
@@ -51,12 +51,12 @@ public class AgentConversationDO {
 
     private Date lastTime;
 
-    @TableField(fill = FieldFill.INSERT)
+    @TableField(fill = FieldFill.INSERT) //字段 → 插入时自动填充（如 createTime）
     private Date createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @TableField(fill = FieldFill.INSERT_UPDATE) //插入和更新时都自动填充（如 updateTime）
     private Date updateTime;
 
-    @TableLogic
+    @TableLogic //字段 → 逻辑删除（delete 时改为 update 标记，不物理删）
     private Integer deleted;
 }
