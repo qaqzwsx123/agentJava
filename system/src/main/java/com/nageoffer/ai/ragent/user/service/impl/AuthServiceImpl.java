@@ -37,8 +37,13 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserMapper userMapper;
 
+    /**
+     * 校验登录参数和数据库账号，成功后创建 Sa-Token 登录态。
+     * 响应携带账号 ID、角色、Token 和头像，头像为空时使用默认值。
+     */
     @Override
     public LoginVO login(LoginRequest requestParam) {
+        // 先检查账号密码是否为空，再查询未删除账号并核对当前存储的密码值。
         String username = requestParam.getUsername();
         String password = requestParam.getPassword();
         if (StrUtil.isBlank(username) || StrUtil.isBlank(password)) {
@@ -52,17 +57,28 @@ public class AuthServiceImpl implements AuthService {
             throw new ClientException("用户信息异常");
         }
         String loginId = user.getId().toString();
+        // 认证通过后登记登录态，随后从认证框架取得本次 Token。
         StpUtil.login(loginId);
         String avatar = StrUtil.isBlank(user.getAvatar()) ? DEFAULT_AVATAR_URL : user.getAvatar();
         return new LoginVO(loginId, user.getRole(), StpUtil.getTokenValue(), avatar);
     }
 
+    /**
+     * 注销当前认证会话。
+     * 登录状态由 Sa-Token 管理，不根据请求参数选择其他账号。
+     */
     @Override
     public void logout() {
+        // 让认证框架失效当前 Token 对应的登录态。
         StpUtil.logout();
     }
 
+    /**
+     * 按用户名查找有效账号，供登录校验使用。
+     * 空用户名直接返回 null，查询显式排除已删除记录。
+     */
     private UserDO findByUsername(String username) {
+        // 登录校验只接受尚未删除的用户记录。
         if (StrUtil.isBlank(username)) {
             return null;
         }
@@ -73,7 +89,12 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * 按当前账号存储方式比较输入密码与数据库值。
+     * 此处使用字符串相等比较；存储值为空时仅接受同样为空的输入。
+     */
     private boolean passwordMatches(String input, String stored) {
+        // 比较规则与现有数据保持一致，这里没有额外执行摘要或加密转换。
         if (stored == null) {
             return input == null;
         }

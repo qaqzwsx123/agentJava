@@ -38,8 +38,13 @@ public class BizChangeLogServiceImpl implements BizChangeLogService {
 
     private final BizChangeLogMapper bizChangeLogMapper;
 
+    /**
+     * 按业务、操作类型、操作人、成功状态和时间范围筛选审计日志。
+     * 未提供的筛选项不参与查询，结果按创建时间倒序分页返回。
+     */
     @Override
     public IPage<BizChangeLogVO> page(BizChangeLogPageRequest requestParam) {
+        // 审计查询直接读取日志表，不触发被审计业务的写操作。
         Page<BizChangeLogDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
         LambdaQueryWrapper<BizChangeLogDO> queryWrapper = Wrappers.lambdaQuery(BizChangeLogDO.class)
                 .eq(StringUtils.hasText(requestParam.getBizType()), BizChangeLogDO::getBizType, requestParam.getBizType())
@@ -55,8 +60,13 @@ public class BizChangeLogServiceImpl implements BizChangeLogService {
                 .convert(each -> BeanUtil.toBean(each, BizChangeLogVO.class));
     }
 
+    /**
+     * 按日志 ID 读取一条业务变更详情。
+     * 查不到记录时抛出明确的业务异常。
+     */
     @Override
     public BizChangeLogVO get(String id) {
+        // 将持久化日志转换为接口视图，保留审计内容供前端展示。
         BizChangeLogDO record = bizChangeLogMapper.selectById(id);
         if (record == null) {
             throw new ClientException("变更审计日志不存在");

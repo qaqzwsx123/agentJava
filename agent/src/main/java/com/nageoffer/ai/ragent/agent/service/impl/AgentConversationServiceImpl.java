@@ -77,6 +77,10 @@ public class AgentConversationServiceImpl implements AgentConversationService {
      */
     private final ObjectProvider<ReActAgentProvider> agentProviderRef;
 
+    /**
+     * 创建新 Agent 会话或刷新已有会话的活跃时间。
+     * 查询带用户 ID；首次创建冲突时重新读取已落库记录，复用同一会话。
+     */
     @Override
     public String touchConversation(String conversationId, String userId, String question) {
         // 先按会话 ID + 用户查已有记录（带 userId 校验，防越权）
@@ -144,8 +148,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         evictStateCache(userId, conversationId);
     }
 
+    /**
+     * 持久化本轮用户提问并返回消息 ID。
+     * 用户消息状态设为 NORMAL，消息 ID 用于关联后续助手回复。
+     */
     @Override
     public String addUserMessage(String conversationId, String userId, String content) {
+        // 用户身份和会话范围由调用方传入，避免异步线程再次读取登录上下文。
         AgentMessageDO message = AgentMessageDO.builder()
                 .conversationId(conversationId)
                 .userId(userId)
@@ -157,10 +166,15 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         return message.getId();
     }
 
+    /**
+     * 保存助手回复、思考内容及工具或确认卡片块。
+     * replyToMessageId 关联原始提问，status 与 durationMs 描述本次回复结果。
+     */
     @Override
     public String addAssistantMessage(String conversationId, String userId, String content, String thinkingContent,
                                       List<AgentBlock> blocks, String replyToMessageId, AgentMessageStatus status,
                                       Long durationMs) {
+        // 思考内容为空时存为 null，工具块与正文一并保存以便恢复前端时间线。
         AgentMessageDO message = AgentMessageDO.builder()
                 .conversationId(conversationId)
                 .userId(userId)
@@ -176,8 +190,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         return message.getId();
     }
 
+    /**
+     * 只读验证会话及待确认消息，返回续跑需要的标题和原提问关联。
+     * 当前用户无此会话、消息已处理或没有 pending 卡片时拒绝续跑。
+     */
     @Override
     public AgentConfirmSettlement getPendingConfirm(String conversationId, String userId, String messageId) {
+        // 查询同时限定会话和用户，避免仅凭消息 ID 操作他人确认卡片。
         AgentConversationDO conversation = selectConversation(conversationId, userId);
         if (conversation == null) {
             throw new ClientException("会话不存在");
@@ -189,9 +208,14 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         return new AgentConfirmSettlement(conversation.getTitle(), pending.message().getReplyToMessageId());
     }
 
+    /**
+     * 将待确认卡片结算为批准或拒绝状态。
+     * 没有可结算的 pending 卡片时抛出异常，成功后返回原提问关联信息。
+     */
     @Override
     public AgentConfirmSettlement settlePendingConfirm(String conversationId, String userId,
                                                       String messageId, boolean approved) {
+        // 先验证会话归属，再按 approved 决定卡片终态。
         AgentConversationDO conversation = selectConversation(conversationId, userId);
         if (conversation == null) {
             throw new ClientException("会话不存在");
@@ -204,8 +228,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         return new AgentConfirmSettlement(conversation.getTitle(), message.getReplyToMessageId());
     }
 
+    /**
+     * 把已经失去对应工具状态的待确认卡片标记为过期。
+     * 卡片已结算时不重复改写，成功过期后解除会话的新提问阻塞。
+     */
     @Override
     public void expirePendingConfirm(String conversationId, String userId, String messageId) {
+        // 过期处理只调整确认消息，不补执行已经失效的工具操作。
         // 卡片标记失效，没找到说明已被结算过
         if (settleConfirmBlock(conversationId, userId, messageId, CONFIRM_STATUS_EXPIRED) != null) {
             log.warn("待确认卡片已失效，标记结算, conversationId: {}, messageId: {}", conversationId, messageId);
@@ -214,9 +243,12 @@ public class AgentConversationServiceImpl implements AgentConversationService {
 
     /**
      * 把挂起的确认卡片改写成终态并落库，返回结算后的消息，没有可结算的卡片返回 null
+     * 修改 pending 确认块状态，并将消息从待确认恢复为普通状态。
+     * 只处理仍可结算的卡片，找不到时返回 null，避免重复结算已完成的确认。
      */
     private AgentMessageDO settleConfirmBlock(String conversationId, String userId,
                                               String messageId, String blockStatus) {
+        // 卡片终态和消息状态一起更新，解除后续新提问的阻塞条件。
         PendingConfirm pending = selectPendingConfirm(conversationId, userId, messageId);
         if (pending == null) {
             return null;
@@ -231,8 +263,11 @@ public class AgentConversationServiceImpl implements AgentConversationService {
 
     /**
      * 查出仍挂着 pending 确认卡片的消息，连同卡片块一起返回，没有则返回 null
+     * 按用户、会话及消息 ID 查询仍有效的确认卡片。
+     * 消息必须处于 AWAITING_CONFIRM，内部确认块也必须仍是 pending。
      */
     private PendingConfirm selectPendingConfirm(String conversationId, String userId, String messageId) {
+        // 同时检查消息级与卡片级状态，不能只依靠其中一个标记。
         AgentMessageDO message = messageMapper.selectOne(Wrappers.lambdaQuery(AgentMessageDO.class)
                 .eq(AgentMessageDO::getId, messageId)
                 .eq(AgentMessageDO::getConversationId, conversationId)
@@ -250,8 +285,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
     private record PendingConfirm(AgentMessageDO message, AgentBlock block) {
     }
 
+    /**
+     * 判断当前用户的指定会话中是否仍有等待确认的回复。
+     * 新提问入口用此结果阻止用户跳过尚未处理的确认卡片。
+     */
     @Override
     public boolean hasPendingConfirm(String conversationId, String userId) {
+        // 通过消息状态 AWAITING_CONFIRM 判断，而非检查普通回复正文。
         return messageMapper.exists(Wrappers.lambdaQuery(AgentMessageDO.class)
                 .eq(AgentMessageDO::getConversationId, conversationId)
                 .eq(AgentMessageDO::getUserId, userId)
@@ -269,8 +309,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
                 .orElse(null);
     }
 
+    /**
+     * 返回当前用户的 Agent 会话列表及每个会话的提问轮次。
+     * 会话按最后活跃时间倒序，轮次按用户消息数量批量统计。
+     */
     @Override
     public List<AgentConversationVO> listByUserId(String userId) {
+        // 会话基础查询带用户条件，再集中补充统计结果，避免逐会话查询。
         List<AgentConversationDO> conversations = conversationMapper.selectList(
                 Wrappers.lambdaQuery(AgentConversationDO.class)
                         .eq(AgentConversationDO::getUserId, userId)
@@ -288,8 +333,11 @@ public class AgentConversationServiceImpl implements AgentConversationService {
 
     /**
      * 按会话统计用户提问数，一次 groupBy 避免 N+1
+     * 对一组会话一次性统计用户提问数。
+     * 只统计 user 角色消息；空会话集合直接返回空映射。
      */
     private Map<String, Long> countTurns(List<AgentConversationDO> conversations, String userId) {
+        // 使用 groupBy 批量聚合，避免为每个会话单独执行 COUNT 查询。
         if (conversations.isEmpty()) {
             return Map.of();
         }
@@ -306,8 +354,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
                         row -> ((Number) row.get("turn_count")).longValue()));
     }
 
+    /**
+     * 修改当前用户的 Agent 会话标题。
+     * 标题去除首尾空格后不能为空，超过展示上限的内容会被截断。
+     */
     @Override
     public void rename(String conversationId, String userId, String title) {
+        // 在数据库更新前同时校验标题和会话所属用户。
         String trimmed = StrUtil.trimToEmpty(title);
         if (trimmed.isEmpty()) {
             throw new ClientException("会话标题不能为空");
@@ -323,8 +376,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         conversationMapper.updateById(conversation);
     }
 
+    /**
+     * 按消息 ID 顺序读取当前用户在指定 Agent 会话中的消息。
+     * 响应包含正文、思考、工具块、消息状态和耗时，供前端恢复完整对话。
+     */
     @Override
     public List<AgentMessageVO> listMessages(String conversationId, String userId) {
+        // 数据库查询同时限定 conversationId 和 userId。
         return messageMapper.selectList(Wrappers.lambdaQuery(AgentMessageDO.class)
                         .eq(AgentMessageDO::getConversationId, conversationId)
                         .eq(AgentMessageDO::getUserId, userId)
@@ -343,9 +401,14 @@ public class AgentConversationServiceImpl implements AgentConversationService {
                 .toList();
     }
 
+    /**
+     * 在事务内清理会话、消息与持久化 Agent 状态。
+     * 若同用户该会话仍在运行则拒绝删除；事务提交后再驱逐本地缓存。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(String conversationId, String userId) {
+        // 先挡住会继续回写消息的在途运行，避免删除后又出现残留数据。
         // 在途流收尾会把状态和消息写回来，必须先拦住
         if (runGate.runningTaskId(userId, conversationId) != null) {
             throw new ClientException("该会话消息正在生成中，请先停止后再删除");
@@ -362,9 +425,14 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         afterCommit(() -> evictStateCache(userId, conversationId));
     }
 
+    /**
+     * 在同一事务中删除多个 Agent 会话。
+     * 空集合直接返回，重复 ID 去重；单个会话删除规则在当前事务内复用。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBatch(List<String> conversationIds, String userId) {
+        // 这里的类内调用不另开代理事务，所有删除共享当前事务边界。
         if (conversationIds == null || conversationIds.isEmpty()) {
             return;
         }
@@ -372,6 +440,10 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         conversationIds.stream().distinct().forEach(id -> delete(id, userId));
     }
 
+    /**
+     * 驱逐当前节点指定会话的 Agent 内存状态。
+     * 延迟获取 Provider 以避免循环依赖，组件不存在时跳过缓存清理。
+     */
     private void evictStateCache(String userId, String conversationId) {
         // 延迟获取 ReActAgentProvider（可选依赖，避免循环依赖/启动失败，拿不到返回 null）
         ReActAgentProvider agentProvider = agentProviderRef.getIfAvailable();
@@ -384,8 +456,11 @@ public class AgentConversationServiceImpl implements AgentConversationService {
 
     /**
      * 事务提交后执行，无事务时立即执行
+     * 将缓存驱逐等副作用延迟到数据库事务提交之后。
+     * 没有事务同步环境时立即执行，有事务时注册提交回调。
      */
     private void afterCommit(Runnable action) {
+        // 避免数据库最终回滚时提前清掉仍有效的本地状态。
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             action.run();
             return;

@@ -47,17 +47,32 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
     @Value("${rag.knowledge.schedule.min-interval-seconds:60}")
     private long scheduleMinIntervalSeconds;
 
+    /**
+     * 按文档当前来源与定时配置创建或更新调度记录。
+     * 仅 URL 文档参与调度，文档停用或 cron 为空会让调度停用。
+     */
     @Override
     public void upsertSchedule(KnowledgeDocumentDO documentDO) {
+        // allowCreate=true 允许首次分块时建立调度记录。
         syncSchedule(documentDO, true);
     }
 
+    /**
+     * 同步已经存在的文档调度记录，但不主动创建新调度。
+     * 用于文档启停等状态同步，避免只操作启用状态就额外生成调度任务。
+     */
     @Override
     public void syncScheduleIfExists(KnowledgeDocumentDO documentDO) {
+        // allowCreate=false 时找不到调度记录便直接返回。
         syncSchedule(documentDO, false);
     }
 
+    /**
+     * 按 URL 文档有效状态计算调度启用标记和下一次运行时间。
+     * 启用调度时验证 cron 周期；不存在的记录是否允许创建由 allowCreate 决定。
+     */
     private void syncSchedule(KnowledgeDocumentDO documentDO, boolean allowCreate) {
+        // 文件来源不参与定时拉取，文档或关键标识为空时直接跳过同步。
         if (documentDO == null) {
             return;
         }
@@ -118,9 +133,14 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
         }
     }
 
+    /**
+     * 删除文档对应的定时抓取执行记录与调度配置。
+     * 空文档 ID 不执行查询，执行明细先于调度主记录清理。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteByDocId(String docId) {
+        // 文档删除时复用该方法，防止已删除来源仍被定时任务再次拉取。
         if (!StringUtils.hasText(docId)) {
             return;
         }

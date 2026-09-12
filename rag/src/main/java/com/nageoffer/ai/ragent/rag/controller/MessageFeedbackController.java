@@ -39,19 +39,25 @@ public class MessageFeedbackController {
 
     /**
      * 提交点赞/踩反馈（异步，通过 MQ 持久化）
+     * 提交用户对某条回答的评价，异步保存反馈。
+     * messageId 指定回答，请求体提供赞踩或反馈内容；成功表示反馈事件已发送。
      */
     @PostMapping("/conversations/messages/{messageId}/feedback")
     public Result<Void> submitFeedback(@PathVariable String messageId,
                                        @RequestBody MessageFeedbackRequest request) {
+        // 反馈服务发送消息队列事件，数据库状态由消费者随后更新。
         feedbackService.submitFeedbackAsync(messageId, request);
         return Results.success();
     }
 
     /**
      * 取消点赞/踩反馈（异步，通过 MQ 持久化）
+     * 撤销当前用户对指定回答的评价。
+     * messageId 是回答消息 ID；接口只提交撤销事件，不等待消费落库。
      */
     @DeleteMapping("/conversations/messages/{messageId}/feedback")
     public Result<Void> cancelFeedback(@PathVariable String messageId) {
+        // 撤销与提交反馈共用异步消息链路。
         feedbackService.cancelFeedbackAsync(messageId);
         return Results.success();
     }

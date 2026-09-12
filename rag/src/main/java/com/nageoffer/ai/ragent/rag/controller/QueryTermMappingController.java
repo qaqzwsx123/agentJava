@@ -45,42 +45,57 @@ public class QueryTermMappingController {
 
     /**
      * 分页查询映射规则
+     * 分页查询检索词映射规则。
+     * 查询对象包含关键字与分页条件，供管理端筛选规则。
      */
     @GetMapping("/mappings")
     public Result<IPage<QueryTermMappingVO>> pageQuery(QueryTermMappingPageRequest requestParam) {
+        // 这里只查询规则，不执行用户问题改写。
         return Results.success(queryTermMappingAdminService.pageQuery(requestParam));
     }
 
     /**
      * 查询映射规则详情
+     * 读取一条检索词映射规则详情。
+     * id 是映射记录 ID，返回原词、标准词及启用状态等配置。
      */
     @GetMapping("/mappings/{id}")
     public Result<QueryTermMappingVO> queryById(@PathVariable String id) {
+        // 不存在的记录由规则服务统一报错。
         return Results.success(queryTermMappingAdminService.queryById(id));
     }
 
     /**
      * 创建映射规则
+     * 新增检索词映射，用于将用户用词归一到配置词。
+     * 请求体提供映射内容和状态，返回新记录 ID。
      */
     @PostMapping("/mappings")
     public Result<String> create(@RequestBody QueryTermMappingCreateRequest requestParam) {
+        // 服务层校验原词和目标词，并在保存后刷新规则缓存。
         return Results.success(queryTermMappingAdminService.create(requestParam));
     }
 
     /**
      * 更新映射规则
+     * 修改指定检索词映射规则。
+     * id 指定规则，请求体提供待更新字段。
      */
     @PutMapping("/mappings/{id}")
     public Result<Void> update(@PathVariable String id, @RequestBody QueryTermMappingUpdateRequest requestParam) {
+        // 管理端更新与运行时缓存刷新由同一业务方法处理。
         queryTermMappingAdminService.update(id, requestParam);
         return Results.success();
     }
 
     /**
      * 删除映射规则
+     * 删除指定检索词映射规则。
+     * id 是规则记录 ID，删除后不再用于后续术语归一。
      */
     @DeleteMapping("/mappings/{id}")
     public Result<Void> delete(@PathVariable String id) {
+        // 服务层清理规则记录并使运行时缓存失效。
         queryTermMappingAdminService.delete(id);
         return Results.success();
     }

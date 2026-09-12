@@ -50,6 +50,10 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
     private final SampleQuestionMapper sampleQuestionMapper;
     private final BizChangeLogContext bizChangeLogContext;
 
+    /**
+     * 保存一条首页示例问题，并登记创建审计快照。
+     * 问题正文必填，标题和描述允许为空，返回新增记录 ID。
+     */
     @Override
     @LogRecord(
             success = "创建示例问题：{{#requestParam.question}}",
@@ -61,6 +65,7 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(SampleQuestionCreateRequest requestParam) {
+        // 先去除空白并校验问题正文，展示文案不参与真正的问答执行。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         String question = StrUtil.trimToNull(requestParam.getQuestion());
         Assert.notBlank(question, () -> new ClientException("示例问题内容不能为空"));
@@ -75,6 +80,10 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
         return String.valueOf(record.getId());
     }
 
+    /**
+     * 局部更新示例问题正文、标题或描述。
+     * 只有请求中非 null 字段参与更新，问题正文更新时仍不能为空。
+     */
     @Override
     @LogRecord(
             success = "更新示例问题：{{#id}}",
@@ -86,6 +95,7 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(String id, SampleQuestionUpdateRequest requestParam) {
+        // 读取原记录快照，区分未提交字段与需要清空的展示字段。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         SampleQuestionDO record = loadById(id);
         SampleQuestionDO before = BeanUtil.copyProperties(record, SampleQuestionDO.class);
@@ -106,6 +116,10 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
         bizChangeLogContext.put(id, before, sampleQuestionMapper.selectById(id));
     }
 
+    /**
+     * 删除示例问题配置并记录审计快照。
+     * 先检查记录存在性，再执行删除，不清理用户聊天数据。
+     */
     @Override
     @LogRecord(
             success = "删除示例问题：{{#id}}",
@@ -117,20 +131,31 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String id) {
+        // 审计上下文保留删除前记录，删除后快照设置为空。
         SampleQuestionDO record = loadById(id);
         SampleQuestionDO before = BeanUtil.copyProperties(record, SampleQuestionDO.class);
         sampleQuestionMapper.deleteById(record.getId());
         bizChangeLogContext.put(id, before, null);
     }
 
+    /**
+     * 读取单个有效示例问题并转换为管理视图。
+     * 记录不存在时由统一加载方法抛出业务异常。
+     */
     @Override
     public SampleQuestionVO queryById(String id) {
+        // 详情读取与更新操作共用有效记录校验。
         SampleQuestionDO record = loadById(id);
         return toVO(record);
     }
 
+    /**
+     * 按标题、描述或问题正文关键字分页查询示例问题。
+     * 只查询未删除记录，按更新时间倒序返回。
+     */
     @Override
     public IPage<SampleQuestionVO> pageQuery(SampleQuestionPageRequest requestParam) {
+        // 多个可搜索字段在同一括号条件内用 OR 组合。
         String keyword = StrUtil.trimToNull(requestParam.getKeyword());
         Page<SampleQuestionDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
         IPage<SampleQuestionDO> result = sampleQuestionMapper.selectPage(
@@ -148,8 +173,14 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
         return result.convert(this::toVO);
     }
 
+    /**
+     * 随机读取首页展示的示例问题。
+     * limit 会被限制在 1 到 MAX_LIMIT 之间，没有记录时返回空列表。
+     */
     @Override
     public List<SampleQuestionVO> listRandomQuestions(int limit) {
+        // 先约束数量，再将安全的整数拼入随机排序和 LIMIT 子句。
+        // 先限制返回数量，避免随机展示接口发起无上限扫描和响应。
         int size = Math.min(Math.max(limit, 1), MAX_LIMIT);
         List<SampleQuestionDO> records = sampleQuestionMapper.selectList(
                 Wrappers.lambdaQuery(SampleQuestionDO.class)

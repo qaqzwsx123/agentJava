@@ -55,8 +55,13 @@ public class ConversationServiceImpl implements ConversationService {
     private final MemoryProperties memoryProperties;
     private final ConversationTitleGenerator titleGenerator;
 
+    /**
+     * 按用户查询有效 Workflow/RAG 会话，按最近活跃时间倒序排列。
+     * 用户信息为空或没有记录时返回空列表，不返回其他用户会话。
+     */
     @Override
     public List<ConversationVO> listByUserId(String userId) {
+        // 会话查询显式限定 userId 和逻辑删除标记。
         if (StrUtil.isBlank(userId)) {
             return List.of();
         }
@@ -80,8 +85,13 @@ public class ConversationServiceImpl implements ConversationService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 首次提问时创建会话，后续提问只刷新最后活跃时间。
+     * 新会话通过标题生成器生成标题，续聊沿用原有标题。
+     */
     @Override
     public void createOrUpdate(ConversationCreateBO request) {
+        // 请求对象承载用户、会话与问题信息，便于编排链路显式传递身份。
         String userId = request.getUserId();
         String conversationId = request.getConversationId();
         String question = request.getQuestion();
@@ -112,8 +122,13 @@ public class ConversationServiceImpl implements ConversationService {
         conversationMapper.updateById(existing);
     }
 
+    /**
+     * 修改当前登录用户的会话标题。
+     * 标题不能为空且不能超过配置上限；查询不到所属会话时拒绝更新。
+     */
     @Override
     public void rename(String conversationId, ConversationUpdateRequest request) {
+        // 先从登录上下文取用户，再校验标题长度和会话归属。
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             throw new ClientException("会话信息缺失");
@@ -142,9 +157,14 @@ public class ConversationServiceImpl implements ConversationService {
         conversationMapper.updateById(record);
     }
 
+    /**
+     * 删除当前用户会话及其消息、摘要记录。
+     * 所有删除条件都限定会话和用户，避免清理同 ID 的其他用户数据。
+     */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void delete(String conversationId) {
+        // 先确认会话存在且属于当前用户，再依次清理相关数据。
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             throw new ClientException("会话信息缺失");

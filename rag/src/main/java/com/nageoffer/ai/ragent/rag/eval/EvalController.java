@@ -59,18 +59,30 @@ public class EvalController {
     private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
 
+    /**
+     * 执行问题改写、意图识别与检索，输出离线评测所需中间结果。
+     * question 是评测问题；接口不生成最终聊天答案，也不写入聊天会话。
+     */
     @GetMapping("/rag/eval")
     public Result<EvalResponse> chat(@RequestParam String question) {
+        // 计时从问题改写前开始，空历史输入用于隔离会话上下文影响。
         long start = System.currentTimeMillis();
 
         RewriteResult rewriteResult = queryRewriteService.rewriteWithSplit(question, List.of());
+        // 用改写和拆分后的问题进行意图匹配，再进入统一检索引擎。
         List<SubQuestionIntent> subIntents = intentResolver.resolve(rewriteResult);
         RetrievalContext rc = retrievalEngine.retrieve(subIntents);
 
+        // 输出评测中间结果与总耗时，不进入最终答案生成阶段。
         return Results.success(buildResponse(rc, subIntents, System.currentTimeMillis() - start));
     }
 
+    /**
+     * 整理检索中间结果为外部离线评测格式。
+     * 文档列表按首次出现去重，contextDocIds 保持与 contexts 一一对应并保留 null。
+     */
     private EvalResponse buildResponse(RetrievalContext rc, List<SubQuestionIntent> subIntents, long latencyMs) {
+        // 先按分块 ID 去重，再分别生成分块级和文档级评测字段。
         List<RetrievedChunk> uniqueChunks = flattenChunks(rc);
         List<String> chunkIds = uniqueChunks.stream()
                 .map(RetrievedChunk::getId)
@@ -99,8 +111,11 @@ public class EvalController {
 
     /**
      * 摊平 intentChunks（Map<intentId, List<RetrievedChunk>>），按 chunk id 去重并保留首次顺序
+     * 合并各意图的检索分块，过滤空项并按分块 ID 去重。
+     * 使用保序集合保留首次命中的顺序，供上下文和文档列表稳定对齐。
      */
     private List<RetrievedChunk> flattenChunks(RetrievalContext rc) {
+        // 不同意图命中同一分块时只保留一份，避免评测时重复计数。
         if (rc == null || CollUtil.isEmpty(rc.getIntentChunks())) {
             return Collections.emptyList();
         }
@@ -117,8 +132,11 @@ public class EvalController {
      * 与 chunks 一一对应的业务 docId 列表（长度相同、保留 null、不去重）
      * 链路：chunkId → t_knowledge_chunk.docId（雪花）→ t_knowledge_document.doc_name → 剥文件后缀
      * 评测集的 reference_doc_ids 用业务码（如 `FAQ_VAC_001`），与此处对齐
+     * 把检索分块 ID 映射为评测集所使用的文档业务标识。
+     * 先查分块到内部文档 ID，再用文档名去除后缀得到业务标识，缺失映射保留 null。
      */
     private List<String> resolveContextDocIds(List<RetrievedChunk> chunks) {
+        // 不能直接拿雪花文档 ID 对比外部评测集，需经过两跳批量映射。
         if (CollUtil.isEmpty(chunks)) {
             return Collections.emptyList();
         }
@@ -164,8 +182,11 @@ public class EvalController {
 
     /**
      * 剥掉最后一个 `.` 之后的文件扩展名；无后缀则原样返回
+     * 移除文档名最后一个有效扩展名，得到评测文档标识。
+     * 空名称保持 null，末尾无有效扩展名时沿用原文档名。
      */
     private static String stripExtension(String docName) {
+        // 业务标识只去除最后一段后缀，不改写文件名的其他部分。
         if (docName == null) {
             return null;
         }
@@ -175,8 +196,11 @@ public class EvalController {
 
     /**
      * 按首次出现顺序去重并过滤空值
+     * 过滤空文档标识并按首次出现顺序去重。
+     * 用于文档维度召回列表，不用于必须逐项对齐的 contextDocIds。
      */
     private List<String> dedupNonBlank(List<String> in) {
+        // 不同评测字段对重复和 null 的处理规则不同，不能共用同一种过滤策略。
         if (CollUtil.isEmpty(in)) {
             return Collections.emptyList();
         }
@@ -187,7 +211,12 @@ public class EvalController {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 提取每个子意图对应的子问题文本。
+     * 空结果返回空列表，空白子问题不输出。
+     */
     private List<String> extractSubIntents(List<SubQuestionIntent> intents) {
+        // 该字段反映问题拆分结果，供外部评估意图拆分质量。
         if (CollUtil.isEmpty(intents)) {
             return Collections.emptyList();
         }
@@ -197,7 +226,12 @@ public class EvalController {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 提取每个子问题得分最高的意图节点 ID。
+     * 没有候选节点的子问题保留 null，保持与子问题处理位置的关联。
+     */
     private List<String> extractTopLeafIds(List<SubQuestionIntent> intents) {
+        // 依赖上游 nodeScores 排序，读取第一个候选而不重新计算分数。
         if (CollUtil.isEmpty(intents)) {
             return Collections.emptyList();
         }

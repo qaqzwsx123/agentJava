@@ -43,6 +43,8 @@ public class RAGChatController {
 
     /**
      * 发起 SSE 流式对话
+     * 发起 Workflow/RAG 流式问答，通过 SSE 返回处理过程和答案。
+     * question 为提问，conversationId 可选，deepThinking 默认 false。
      */
     @IdempotentSubmit(
             key = "T(com.nageoffer.ai.ragent.framework.context.UserContext).getUserId()",
@@ -52,6 +54,7 @@ public class RAGChatController {
     public SseEmitter chat(@RequestParam @ChatQuestion String question,
                            @RequestParam(required = false) String conversationId,
                            @RequestParam(required = false, defaultValue = "false") Boolean deepThinking) {
+        // 先创建 SSE 通道，再交给 RAG 服务构建上下文并执行编排。
         SseEmitter emitter = new SseEmitter(ragDefaultProperties.getSseTimeoutMs());
         ragChatService.streamChat(question, conversationId, deepThinking, emitter);
         return emitter;
@@ -59,10 +62,13 @@ public class RAGChatController {
 
     /**
      * 停止指定任务
+     * 按任务 ID 请求停止一次 Workflow/RAG 流式问答。
+     * taskId 标识一次运行，不是会话 ID；成功响应不表示异步收尾已全部完成。
      */
     @IdempotentSubmit
     @PostMapping(value = "/rag/v3/stop")
     public Result<Void> stop(@RequestParam String taskId) {
+        // 用户身份校验及跨节点取消由任务管理器处理。
         ragChatService.stopTask(taskId);
         return Results.success();
     }

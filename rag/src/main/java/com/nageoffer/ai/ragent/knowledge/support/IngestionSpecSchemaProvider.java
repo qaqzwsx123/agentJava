@@ -75,8 +75,11 @@ public class IngestionSpecSchemaProvider {
      * 从注册表推导、不在任何一端写死，{@code (MIME × 档位)} 表里两档命中同一个解析器的格式，档位对它是
      * 空操作、选项必须藏起来；字段名与选项名一并下发，这三段文案要互相说得通（"表格结构"配"规整 / 复杂
      * 表格"），拆到两端各存一半就是改一处漏一处
+     * 向前端描述解析档位、可配置分块预算和整文档模式标记。
+     * 适用扩展名取自实际解析器注册表，预算默认值和边界取自内核配置定义。
      */
     public IngestionSpecSchemaVO describe() {
+        // 只生成配置表单的描述信息，不触发外部解析、嵌入或文档入库。
         ChunkBudget defaults = ChunkBudget.defaults();
         List<IngestionSpecSchemaVO.Option> profiles = List.of(
                 new IngestionSpecSchemaVO.Option(ParseProfile.FAST.getCode(), "规整表格",

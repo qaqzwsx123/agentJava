@@ -52,8 +52,13 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     @Value("message-feedback_topic${unique-name:}")
     private String feedbackTopic;
 
+    /**
+     * 验证当前用户的赞踩参数并发布反馈事件。
+     * vote 只能为 1 或 -1，接口返回时消息尚可能未消费落库。
+     */
     @Override
     public void submitFeedbackAsync(String messageId, MessageFeedbackRequest request) {
+        // 先检查用户、消息 ID 和反馈内容，再构造携带提交时间的事件。
         String userId = UserContext.getUserId();
         Assert.notBlank(userId, () -> new ClientException("未获取到当前登录用户"));
         Assert.notBlank(messageId, () -> new ClientException("消息ID不能为空"));
@@ -70,11 +75,17 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
                 .comment(request.getComment())
                 .submitTime(System.currentTimeMillis())
                 .build();
+        // 生产端发送成功与消费者落库完成不是同一时刻，接口只确认提交结果。
         messageQueueProducer.send(feedbackTopic, userId + ":" + messageId, "消息反馈", event);
     }
 
+    /**
+     * 为当前用户撤销指定回答的评价，发布异步撤销事件。
+     * 事件带 cancelled 标记和提交时间，实际数据库更新由消费者完成。
+     */
     @Override
     public void cancelFeedbackAsync(String messageId) {
+        // 事件用户 ID 来自登录上下文，不接受前端指定他人的评价归属。
         String userId = UserContext.getUserId();
         Assert.notBlank(userId, () -> new ClientException("未获取到当前登录用户"));
         Assert.notBlank(messageId, () -> new ClientException("消息ID不能为空"));
@@ -88,8 +99,13 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         messageQueueProducer.send(feedbackTopic, userId + ":" + messageId, "取消消息反馈", event);
     }
 
+    /**
+     * 同步保存当前用户对某条助手回答的评价。
+     * 先校验消息角色和归属，再使用统一的反馈 upsert 逻辑。
+     */
     @Override
     public void submitFeedback(String messageId, MessageFeedbackRequest request) {
+        // 同步入口与异步入口共用相同的合法赞踩值约束。
         String userId = UserContext.getUserId();
         Assert.notBlank(userId, () -> new ClientException("未获取到当前登录用户"));
         Assert.notBlank(messageId, () -> new ClientException("消息ID不能为空"));
@@ -104,8 +120,13 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
                 vote, request.getReason(), request.getComment(), System.currentTimeMillis());
     }
 
+    /**
+     * 批量查询当前用户对一组回答的赞踩状态。
+     * 没有用户或没有消息 ID 时返回空映射，避免逐消息查询反馈表。
+     */
     @Override
     public Map<String, Integer> getUserVotes(String userId, List<String> messageIds) {
+        // 按 userId 和消息 ID 集合一次读取有效评价记录。
         if (StrUtil.isBlank(userId) || CollUtil.isEmpty(messageIds)) {
             return Collections.emptyMap();
         }
@@ -126,6 +147,10 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
                 ));
     }
 
+    /**
+     * 验证目标消息是当前评价用户自己的有效助手回答。
+     * 消费者传入事件中的 userId；不存在或不符合角色、归属时拒绝写反馈。
+     */
     private ConversationMessageDO loadAssistantMessage(String messageId, String userId) {
         ConversationMessageDO message = conversationMessageMapper.selectOne(
                 Wrappers.lambdaQuery(ConversationMessageDO.class)
@@ -138,8 +163,13 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         return message;
     }
 
+    /**
+     * 新增或修改一个用户对一条回答的反馈。
+     * 已有反馈按提交时间限制覆盖，避免较旧事件覆盖较新的数据库记录。
+     */
     private void doUpsertFeedback(String messageId, String userId, String conversationId,
                                   Integer vote, String reason, String comment, long submitTime) {
+        // 先查当前有效反馈，再选择新增 upsert 或带时间条件的更新分支。
         MessageFeedbackDO existing = feedbackMapper.selectOne(
                 Wrappers.lambdaQuery(MessageFeedbackDO.class)
                         .eq(MessageFeedbackDO::getMessageId, messageId)
@@ -172,12 +202,18 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         }
     }
 
+    /**
+     * 消费反馈事件，根据取消标记选择撤销或保存评价。
+     * 用户身份来自事件本身，不能依赖消息消费线程上的登录上下文。
+     */
     @Override
     public void submitFeedbackByEvent(MessageFeedbackEvent event) {
+        // 先读取并校验事件标识，再按 cancelled 区分两条消费路径。
         String messageId = event.getMessageId();
         String userId = event.getUserId();
         Assert.notBlank(messageId, () -> new ClientException("消息ID不能为空"));
         Assert.notBlank(userId, () -> new ClientException("用户ID不能为空"));
+        // 取消事件使用独立 upsert 路径；普通评价继续使用提交时间参与的保存逻辑。
         if (event.isCancelled()) {
             ConversationMessageDO message = loadAssistantMessage(messageId, userId);
             MessageFeedbackDO feedback = MessageFeedbackDO.builder()
