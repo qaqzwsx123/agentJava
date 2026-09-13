@@ -93,7 +93,7 @@ public class AgentChatServiceImpl implements AgentChatService {
                 ? IdUtil.getSnowflakeNextIdStr()  // 没传 → 新会话，生成雪花 ID
                 : conversationId; // 传了 → 续用旧会话
         String taskId = IdUtil.getSnowflakeNextIdStr();
-        //申请一个运行名额（按 userId/conversationId 限流），拿不到就拒绝。
+        // 按 userId 申请运行名额；同一用户的不同会话也共用一个名额，拿不到就拒绝。
         Runnable releaseGate = runGate.acquire(userId, taskId, actualConversationId);
         try {
             if (StrUtil.isNotBlank(conversationId)
@@ -158,11 +158,13 @@ public class AgentChatServiceImpl implements AgentChatService {
     private void cleanupFailedStart(String taskId, Runnable releaseGate) {
         // 启动成功后的资源释放由运行句柄接管，只有失败路径调用本方法。
         try {
+            // 执行 acquire 返回的回调，最终进入 AgentRunGate.release，按占用值比较后释放 Redis 运行位。
             releaseGate.run();
         } catch (Exception e) {
             log.error("Agent 启动失败后释放闸门失败, taskId: {}", taskId, e);
         }
         try {
+            // 注销本地任务并异步清理 Redis 登记；即使尚未注册也可安全清理。
             taskManager.unregister(taskId);
         } catch (Exception e) {
             log.error("Agent 启动失败后注销任务失败, taskId: {}", taskId, e);
@@ -337,7 +339,7 @@ public class AgentChatServiceImpl implements AgentChatService {
 
             // 10. 在 runHandle 中正式启动流处理
             runHandle.start(() -> {
-                // 结算确认卡片（通常是 UI 层面的预操作）
+                // 在服务端把待确认消息结算为批准或拒绝，再订阅续跑流；普通提问会跳过。
                 settleConfirmCard(scope);
 
                 // events.subscribe(...)：按下启动按钮。这时候 AI 才真正开始干活，事件开始一个接一个地产生。
@@ -486,6 +488,7 @@ public class AgentChatServiceImpl implements AgentChatService {
         if (!memoryProperties.isLongTermEnabled()) {
             return;
         }
+        // 把耗时的抽取放到 boundedElastic；这里的订阅独立于已经完成的回答流。
         Mono.fromCallable(() -> memoryPipeline.extract(userId, conversationId, AgentMemoryTriggerType.BACKGROUND))
                 .subscribeOn(Schedulers.boundedElastic())
                 .subscribe(outcome -> {

@@ -72,6 +72,9 @@ public enum AgentSSEEventType {
 
     private final String value;
 
+    /**
+     * 返回 SSE 的事件名称，供发送端与前端事件监听器使用相同标识。
+     */
     public String value() {
         return value;
     }

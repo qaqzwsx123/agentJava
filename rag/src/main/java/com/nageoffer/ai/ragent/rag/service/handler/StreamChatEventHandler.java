@@ -176,6 +176,9 @@ public class StreamChatEventHandler implements StreamCallback {
         this.groundingChunks = chunks;
     }
 
+    /**
+     * 取消后忽略正文，过滤空白增量，结束思考计时并累积回答，再按配置大小发送 SSE 消息。
+     */
     @Override
     public void onContent(String chunk) {
         if (taskManager.isCancelled(taskId)) {
@@ -191,6 +194,9 @@ public class StreamChatEventHandler implements StreamCallback {
         sendChunked(TYPE_RESPONSE, chunk);
     }
 
+    /**
+     * 取消后忽略思考增量，首次有效思考记录起点，累积文本并通过 think 类型 SSE 消息发送。
+     */
     @Override
     public void onThinking(String chunk) {
         if (taskManager.isCancelled(taskId)) {
@@ -206,11 +212,16 @@ public class StreamChatEventHandler implements StreamCallback {
         sendChunked(TYPE_THINK, chunk);
     }
 
+    /**
+     * 保存正常回复、思考和来源信息后发送 finish、done，注销任务并关闭连接。
+     * 持久化失败记录日志，完成事件中的消息 ID 可为空，仍结束响应流。
+     */
     @Override
     public void onComplete() {
         if (taskManager.isCancelled(taskId)) {
             return;
         }
+        // 先尝试落库再发完成事件，保存失败允许空消息 ID，但仍注销任务并关闭流。
         String messageId = null;
         try {
             String thinkingContent = thinking.isEmpty() ? null : thinking.toString();
@@ -232,6 +243,9 @@ public class StreamChatEventHandler implements StreamCallback {
         sender.complete();
     }
 
+    /**
+     * 非取消场景下注销任务并以错误关闭 SSE；已取消任务交由取消路径收尾。
+     */
     @Override
     public void onError(Throwable t) {
         if (taskManager.isCancelled(taskId)) {
@@ -241,12 +255,16 @@ public class StreamChatEventHandler implements StreamCallback {
         sender.fail(t);
     }
 
+    /**
+     * 按 Unicode 码点数量拆分 SSE 文本，避免把表情等代理对从中间截断，末尾不足一块也发送。
+     */
     private void sendChunked(String type, String content) {
         int length = content.length();
         int idx = 0;
         int count = 0;
         StringBuilder buffer = new StringBuilder();
         while (idx < length) {
+            // 按码点移动索引，避免切断 UTF-16 代理对造成表情等字符损坏。
             int codePoint = content.codePointAt(idx);
             buffer.appendCodePoint(codePoint);
             idx += Character.charCount(codePoint);
@@ -262,10 +280,16 @@ public class StreamChatEventHandler implements StreamCallback {
         }
     }
 
+    /**
+     * 返回已记录的正数思考秒数，尚未产生有效计时时返回 null。
+     */
     private Integer resolveThinkingDuration() {
         return thinkingDurationSeconds > 0 ? thinkingDurationSeconds : null;
     }
 
+    /**
+     * 需要返回标题时按用户和会话查询，缺少有效标题则使用“新对话”；无需标题时返回 null。
+     */
     private String resolveTitleForEvent() {
         if (!sendTitleOnComplete) {
             return null;

@@ -100,6 +100,10 @@ public class MinerUPollingExecutor {
         return future;
     }
 
+    /**
+     * 查询一次解析状态，成功或失败时完成结果并取消调度，未完成时检查截止时间。
+     * 瞬时请求异常在截止前留待下一轮重试，超过截止时间转为失败。
+     */
     private void doPoll(String batchId,
                         CompletableFuture<MinerUStatus> future,
                         Instant deadline,
@@ -129,6 +133,9 @@ public class MinerUPollingExecutor {
         }
     }
 
+    /**
+     * 首次成功完成结果 Future 后取消后续轮询，重复完成不会再次操作调度。
+     */
     private void complete(CompletableFuture<MinerUStatus> future,
                           MinerUStatus status,
                           ScheduledFuture<?>[] holder) {
@@ -137,6 +144,9 @@ public class MinerUPollingExecutor {
         }
     }
 
+    /**
+     * 首次异常完成结果 Future 后取消轮询，让等待方收到原始失败原因。
+     */
     private void completeExceptionally(CompletableFuture<MinerUStatus> future,
                                        Throwable error,
                                        ScheduledFuture<?>[] holder) {
@@ -145,6 +155,9 @@ public class MinerUPollingExecutor {
         }
     }
 
+    /**
+     * 取消已登记的后续调度，不中断当前正在执行的轮询。
+     */
     private void cancelPolling(ScheduledFuture<?>[] holder) {
         ScheduledFuture<?> task = holder[0];
         if (task != null) {

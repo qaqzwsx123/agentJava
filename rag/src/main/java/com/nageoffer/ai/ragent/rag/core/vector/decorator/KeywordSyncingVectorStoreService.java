@@ -43,30 +43,45 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
         this.keywordIndexService = keywordIndexService;
     }
 
+    /**
+     * 先写主向量存储，再通过同步包装逻辑写关键词索引。
+     */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
         delegate.indexDocumentChunks(collectionName, docId, chunks);
         syncKeyword(docId, () -> keywordIndexService.indexDocumentChunks(collectionName, docId, chunks));
     }
 
+    /**
+     * 先更新主向量记录，再同步更新该切片的关键词索引。
+     */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
         delegate.updateChunk(collectionName, docId, chunk);
         syncKeyword(docId, () -> keywordIndexService.updateChunk(collectionName, docId, chunk));
     }
 
+    /**
+     * 先删除文档向量，再同步删除同一集合、文档的关键词记录。
+     */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
         delegate.deleteDocumentVectors(collectionName, docId);
         syncKeyword(docId, () -> keywordIndexService.deleteDocumentIndex(collectionName, docId));
     }
 
+    /**
+     * 先删除向量记录，再同步删除对应切片的关键词索引。
+     */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
         delegate.deleteChunkById(collectionName, chunkId);
         syncKeyword(chunkId, () -> keywordIndexService.deleteChunkById(collectionName, chunkId));
     }
 
+    /**
+     * 先批量删除向量，再将同一批切片 ID 交给关键词索引同步逻辑。
+     */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
         delegate.deleteChunksByIds(collectionName, chunkIds);

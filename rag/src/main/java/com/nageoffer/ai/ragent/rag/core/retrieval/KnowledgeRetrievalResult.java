@@ -45,10 +45,16 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
                 : Set.copyOf(directedIntentIds);
     }
 
+    /**
+     * 构造没有切片、归因和定向意图的空召回结果。
+     */
     public static KnowledgeRetrievalResult empty() {
         return new KnowledgeRetrievalResult(List.of(), Map.of(), Set.of());
     }
 
+    /**
+     * 汇总最终切片实际归因的意图 ID，去重后返回不可修改集合。
+     */
     public Set<String> retrievedIntentIds() {
         Set<String> intentIds = new LinkedHashSet<>();
         intentIdsByChunkKey.values().stream()
@@ -57,6 +63,9 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
         return Collections.unmodifiableSet(intentIds);
     }
 
+    /**
+     * 定向检索的意图必须实际召回证据才准入，非定向意图按候选保留，返回可用于提示词的意图 ID。
+     */
     public Set<String> eligibleIntentIds(List<NodeScore> candidateIntents) {
         Set<String> retrievedIntentIds = retrievedIntentIds();
         return candidateIntents.stream()
@@ -70,6 +79,9 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    /**
+     * 按最终切片的归因意图分组，一片可属于多个意图；无归因切片放入全局分组。
+     */
     public Map<String, List<RetrievedChunk>> groupByIntent(String globalKey) {
         Map<String, List<RetrievedChunk>> grouped = new LinkedHashMap<>();
         for (RetrievedChunk chunk : chunks) {

@@ -50,6 +50,7 @@ public class ChunkEmbeddingService {
         if (chunks == null || chunks.isEmpty()) {
             return List.of();
         }
+        // 嵌入输入使用 embeddingText，展示用 Markdown、URL 等内容可由块类型策略单独处理。
         List<String> texts = chunks.stream().map(Chunk::embeddingText).toList();
         List<List<Float>> vectors = embeddingService.embedBatch(texts, target.embeddingModel());
         if (vectors == null || vectors.size() != chunks.size()) {
@@ -63,6 +64,7 @@ public class ChunkEmbeddingService {
             if (row == null || row.isEmpty()) {
                 throw new ServiceException("向量结果缺失，序号：" + i);
             }
+            // 逐条检查输出维度与部署向量空间一致，再按原切片顺序配对，防止向量错位。
             if (row.size() != target.dimension()) {
                 throw new ServiceException(String.format(
                         "嵌入维度与部署级向量空间不符：模型 %s 输出 %d 维，物理空间要求 %d 维（分区 %s）"

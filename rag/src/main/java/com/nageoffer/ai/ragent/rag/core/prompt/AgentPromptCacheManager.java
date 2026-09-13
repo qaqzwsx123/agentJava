@@ -63,6 +63,9 @@ public class AgentPromptCacheManager {
         }
     }
 
+    /**
+     * 序列化解析后的提示词槽位并设置 Redis 过期时间，缓存写入失败只记录日志。
+     */
     public void saveToCache(Map<String, String> prompts) {
         try {
             String cacheJson = objectMapper.writeValueAsString(prompts);

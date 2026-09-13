@@ -126,6 +126,9 @@ public class RAGPromptService {
         return messages;
     }
 
+    /**
+     * 仅在证据准入后恰有一个不同意图时使用该节点的自定义提示词，多意图或无意图返回 null。
+     */
     private String configuredTemplate(List<NodeScore> intents, Set<String> eligibleIntentIds) {
         List<NodeScore> safeIntents = intents == null ? List.of() : intents;
         Map<String, NodeScore> eligibleById = new LinkedHashMap<>();
@@ -146,6 +149,9 @@ public class RAGPromptService {
         return StrUtil.trimToNull(only.getPromptTemplate());
     }
 
+    /**
+     * 多个子问题按编号渲染，单问题使用单问题模板，空问题返回空字符串。
+     */
     private String buildUserQuestion(String question, List<String> subQuestions) {
         if (CollUtil.isNotEmpty(subQuestions) && subQuestions.size() > 1) {
             String numbered = IntStream.range(0, subQuestions.size())
@@ -159,6 +165,9 @@ public class RAGPromptService {
         return renderSection("single-question", Map.of("question", question));
     }
 
+    /**
+     * 把非空证据和问题用空行连接，任一部分为空时直接使用另一部分。
+     */
     private String mergeEvidenceAndQuestion(String evidenceBody, String question) {
         if (StrUtil.isBlank(evidenceBody)) {
             return question;
@@ -178,6 +187,9 @@ public class RAGPromptService {
                 : renderSection("kb-evidence", Map.of("body", context.getKbContext().trim())).trim();
     }
 
+    /**
+     * 调用统一模板加载器渲染上下文配置中的指定区段。
+     */
     private String renderSection(String section, Map<String, String> slots) {
         return templateLoader.renderSection(CONTEXT_FORMAT_PATH, section, slots);
     }

@@ -219,6 +219,9 @@ public class ParserRegistry {
         return wildcard.getOrDefault(profile, Map.of()).get(mime.substring(0, slash));
     }
 
+    /**
+     * 规范 MIME 大小写并去除 charset 等参数，得到注册表匹配键，空类型返回 null。
+     */
     private static String normalize(String mimeType) {
         if (!StringUtils.hasText(mimeType)) {
             return null;

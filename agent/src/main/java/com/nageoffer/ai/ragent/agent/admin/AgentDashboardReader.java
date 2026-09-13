@@ -202,6 +202,9 @@ public class AgentDashboardReader {
                 AND create_time >= :start AND create_time < :end GROUP BY 1, 2
             """;
 
+    /**
+     * 复用同一窗口参数分别查询概览、回复、消息块、记忆和趋势数据，交给服务层统一组装。
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 10)
     public Rows read(AgentDashboardWindow window) {
         Map<String, Object> params = Map.of("start", window.start(), "end", window.end(),

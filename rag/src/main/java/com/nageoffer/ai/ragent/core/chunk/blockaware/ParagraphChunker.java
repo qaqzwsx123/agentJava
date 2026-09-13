@@ -40,6 +40,9 @@ public class ParagraphChunker implements BlockChunker<ParagraphBlock> {
         return ParagraphBlock.class;
     }
 
+    /**
+     * 先按容忍上限尝试保留整段，确需切分时按目标大小和重叠长度重新分段，附带章节与溯源信息。
+     */
     @Override
     public List<ChunkDraft> chunk(ParagraphBlock block, ChunkContext ctx) {
         if (block == null) {

@@ -30,10 +30,16 @@ public record MinerUStatus(
         String errorMessage
 ) {
 
+    /**
+     * 仅当远端任务状态为 DONE 时判定解析完成。
+     */
     public boolean completed() {
         return state == MinerUTaskState.DONE;
     }
 
+    /**
+     * 仅当远端任务状态为 FAILED 时判定解析失败。
+     */
     public boolean failed() {
         return state == MinerUTaskState.FAILED;
     }

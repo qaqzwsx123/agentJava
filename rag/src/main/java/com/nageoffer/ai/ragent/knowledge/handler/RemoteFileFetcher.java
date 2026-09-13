@@ -125,6 +125,9 @@ public class RemoteFileFetcher {
         }
     }
 
+    /**
+     * 尝试预读远程元信息，服务器不支持 HEAD 或请求失败时返回 null，让主流程继续下载检查。
+     */
     private HttpClientHelper.HttpHeadResponse tryHead(String url) {
         try {
             return httpClientHelper.head(url, Map.of());
@@ -134,16 +137,24 @@ public class RemoteFileFetcher {
         }
     }
 
+    /**
+     * 对已知文件长度执行下载前预检，未知长度不在此拒绝，仍需依靠实际读取限额。
+     */
     private void checkSizeLimit(long maxBytes, Long contentLength) {
         if (maxBytes > 0 && contentLength != null && contentLength > maxBytes) {
             throw new ClientException("远程文件大小超过限制: " + maxBytes + " bytes");
         }
     }
 
+    /**
+     * 先把远程流按限额写入临时文件，取得准确长度后上传对象存储，空文件拒绝上传。
+     * finally 删除临时文件，删除失败只记日志；上传输入流使用完立即关闭。
+     */
     private StoredFileDTO uploadViaTemp(String bucketName, InputStream remoteStream, String fileName,
                                         String contentType, long maxBytes) {
         Path tempFile = null;
         try {
+            // 临时落盘用于获得准确上传长度，复制过程仍按实际字节数限额。
             tempFile = Files.createTempFile("knowledge-upload-", ".tmp");
             long size = copyWithLimit(remoteStream, tempFile, maxBytes);
             if (size == 0) {
@@ -165,6 +176,9 @@ public class RemoteFileFetcher {
         }
     }
 
+    /**
+     * 把输入流写入指定临时文件并累计字节数，超限立即停止，返回成功复制的总长度。
+     */
     private long copyWithLimit(InputStream inputStream, Path tempFile, long maxBytes) throws IOException {
         long total = 0;
         try (var outputStream = Files.newOutputStream(tempFile)) {
@@ -228,6 +242,9 @@ public class RemoteFileFetcher {
         }
     }
 
+    /**
+     * 按优先顺序取首个非空白文本，用于合并远程响应与调用方提供的文件信息。
+     */
     private String firstHasText(String... values) {
         for (String v : values) {
             if (StringUtils.hasText(v)) return v;

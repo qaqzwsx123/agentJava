@@ -46,6 +46,9 @@ public class ModelHealthStore {
     public record CallPermit(String modelId, long halfOpenToken) {
     }
 
+    /**
+     * 判断模型是否处于未到期熔断或已有探测请求的半开状态，供候选筛选使用。
+     */
     public boolean isUnavailable(String id) {
         ModelHealth health = healthById.get(id);
         if (health == null) {
@@ -70,6 +73,7 @@ public class ModelHealthStore {
             if (v == null) {
                 v = new ModelHealth();
             }
+            // 熔断未到期不放行，到期时原子转换为半开并仅分配一个探测令牌。
             if (v.state == State.OPEN) {
                 if (v.openUntil > now) {
                     return v;
@@ -80,6 +84,7 @@ public class ModelHealthStore {
                 granted.set(new CallPermit(id, v.halfOpenToken));
                 return v;
             }
+            // 已有半开探测在飞时拒绝并发试探，探测取消后可由归还许可的路径再次放行。
             if (v.state == State.HALF_OPEN) {
                 if (v.halfOpenInFlight) {
                     return v;
@@ -95,6 +100,9 @@ public class ModelHealthStore {
         return granted.get();
     }
 
+    /**
+     * 调用成功后关闭熔断、清空连续失败次数及半开占用；未知模型创建初始健康记录。
+     */
     public void markSuccess(String id) {
         if (id == null) {
             return;
@@ -111,6 +119,9 @@ public class ModelHealthStore {
         });
     }
 
+    /**
+     * 普通失败累加计数，达到阈值后打开熔断；半开探测失败立即重新熔断并设置恢复时间。
+     */
     public void markFailure(String id) {
         if (id == null) {
             return;
@@ -120,6 +131,7 @@ public class ModelHealthStore {
             if (v == null) {
                 v = new ModelHealth();
             }
+            // 半开仅用于试探恢复，探测再次失败立即打开熔断，不等待累计到普通阈值。
             if (v.state == State.HALF_OPEN) {
                 v.state = State.OPEN;
                 v.openUntil = now + properties.getSelection().getOpenDurationMs();

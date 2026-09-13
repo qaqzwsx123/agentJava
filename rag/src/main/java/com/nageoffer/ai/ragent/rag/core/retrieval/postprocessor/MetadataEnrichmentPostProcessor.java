@@ -52,6 +52,9 @@ public class MetadataEnrichmentPostProcessor implements SearchResultPostProcesso
         return "MetadataEnrichment";
     }
 
+    /**
+     * 返回元数据补充顺序 20，在证据筛选后为保留切片补充文档信息。
+     */
     @Override
     public int getOrder() {
         return 20;  // Rerank(10) 之后，链末执行

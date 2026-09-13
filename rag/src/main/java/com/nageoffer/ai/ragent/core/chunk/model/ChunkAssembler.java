@@ -114,6 +114,9 @@ public final class ChunkAssembler {
         return keep == 0 ? null : String.join(OUTLINE_SEPARATOR, path.subList(0, keep));
     }
 
+    /**
+     * 追加去除首尾空白后的有效片段，非首段补上下文分隔符，避免空片段占用嵌入正文。
+     */
     private static void appendIfPresent(StringBuilder sb, String part) {
         if (!StringUtils.hasText(part)) {
             return;

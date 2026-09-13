@@ -174,6 +174,9 @@ public enum DisplayType {
         return OTHER;
     }
 
+    /**
+     * 去除路径部分后提取小写扩展名，无有效扩展名时返回空字符串。
+     */
     private static String extractExtension(String filename) {
         if (filename == null) {
             return "";
@@ -190,6 +193,9 @@ public enum DisplayType {
         return name.substring(dot + 1).trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 统一 MIME 大小写并去掉分号参数，供文件预览类型判断使用。
+     */
     private static String normalizeMime(String mimeType) {
         if (mimeType == null || mimeType.isBlank()) {
             return "";

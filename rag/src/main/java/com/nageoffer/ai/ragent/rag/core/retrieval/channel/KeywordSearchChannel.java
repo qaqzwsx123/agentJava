@@ -49,6 +49,9 @@ public class KeywordSearchChannel implements SearchChannel {
     private final SearchChannelProperties properties;
     private final Executor innerRetrievalExecutor;
 
+    /**
+     * 返回关键词召回通道名称，供通道结果和日志使用。
+     */
     @Override
     public String getName() {
         return "KeywordSearch";

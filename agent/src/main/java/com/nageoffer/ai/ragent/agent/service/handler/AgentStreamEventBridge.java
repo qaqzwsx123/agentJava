@@ -148,6 +148,10 @@ public class AgentStreamEventBridge {
         this.facts = facts;
     }
 
+    /**
+     * 按 Agent 事件类型分发文本、思考、工具进度和用户确认事件。
+     * 每次分发后统一广播已封口文本块；达到迭代上限仅提示，继续等待框架总结与终答。
+     */
     public void onEvent(AgentEvent event) {
         switch (event.getType()) {
             case TEXT_BLOCK_DELTA -> onTextDelta(TextChannel.ANSWER, ((TextBlockDeltaEvent) event).getDelta());
@@ -171,6 +175,10 @@ public class AgentStreamEventBridge {
         flushSealedTextBlocks();
     }
 
+    /**
+     * 处理上游正常结束：待确认工具优先结算为确认卡片，否则保存普通回复并发送 finish。
+     * 优先采用流式正文；没有增量时补发终答正文，正常、失败、取消出口通过运行句柄互斥收尾。
+     */
     public void onComplete() {
         // 被取消的轮次框架也会触发 onComplete，由 finishCancelledStream 统一收尾
         if (runHandle.isCancelled()) {
@@ -197,12 +205,17 @@ public class AgentStreamEventBridge {
                 sender.sendEvent(AgentSSEEventType.MESSAGE.value(),
                         new AgentMessageDelta(TextChannel.ANSWER.deltaType, content));
             }
+            // 先保存完整块与正文，再发送带消息 ID 的 finish，使历史回放与本轮展示对应。
             String messageId = settleAndPersistMessage(content, AgentMessageStatus.NORMAL);
             sendTerminal(AgentSSEEventType.FINISH,
                     new AgentCompletionPayload(messageId, title, AgentMessageStatus.NORMAL.name(), facts.settleRun()));
         });
     }
 
+    /**
+     * 在非取消场景保存已生成正文和独立错误块，以中断状态落库并发送 finish。
+     * 通过失败出口标记补存 Agent 状态，保留本轮已经发生的工具操作记录。
+     */
     public void onError(Throwable throwable) {
         // 取消导致的信号中断不算错误，由 finishCancelledStream 收尾
         if (runHandle.isCancelled()) {
@@ -255,6 +268,9 @@ public class AgentStreamEventBridge {
         });
     }
 
+    /**
+     * 把回答或思考增量追加到对应文本块；状态更新在锁内完成，SSE 发送在锁外执行。
+     */
     private void onTextDelta(TextChannel channel, String delta) {
         if (StrUtil.isEmpty(delta)) {
             return;
@@ -265,6 +281,9 @@ public class AgentStreamEventBridge {
         sender.sendEvent(AgentSSEEventType.MESSAGE.value(), new AgentMessageDelta(channel.deltaType, delta));
     }
 
+    /**
+     * 保存 Agent 最终消息中的正文，供未产生流式文本时作为完成回复的兜底。
+     */
     private void onAgentResult(Msg result) {
         String text = result == null ? "" : StrUtil.emptyIfNull(result.getTextContent());
         synchronized (stateLock) {
@@ -302,6 +321,10 @@ public class AgentStreamEventBridge {
         }
     }
 
+    /**
+     * 根据工具目录补全展示名、字段标签和格式化入参，生成前端确认卡片的展示数据。
+     * 这些入参用于展示，确认续跑时仍从服务端 Agent 状态获取实际调用。
+     */
     private AgentConfirmCall toConfirmCall(ToolUseBlock toolCall) {
         Map<String, Object> input = toolCall.getInput();
         return AgentConfirmCall.builder()
@@ -348,6 +371,7 @@ public class AgentStreamEventBridge {
             pending = pendingConfirmCalls;
             streamed = textOf(TextChannel.ANSWER);
         }
+        // 先落库待确认消息才能生成可回传的 messageId；落库失败改走无法续跑的提示路径。
         String messageId = settleAndPersistMessage(streamed, AgentMessageStatus.AWAITING_CONFIRM);
         if (messageId == null) {
             settleUnpersistedConfirm();
@@ -417,7 +441,11 @@ public class AgentStreamEventBridge {
         sender.sendEvent(AgentSSEEventType.TOOL.value(), progress);
     }
 
+    /**
+     * 按调用 ID 缓冲工具结果增量，并限制单次结果长度；内部工具不生成可见结果块。
+     */
     private void onToolResultDelta(ToolResultTextDeltaEvent event) {
+        // 内部工具只参与框架控制，不向用户界面累积工具结果。
         if (isInternalTool(event.getToolCallName()) || StrUtil.isEmpty(event.getDelta())) {
             return;
         }
@@ -433,6 +461,10 @@ public class AgentStreamEventBridge {
         }
     }
 
+    /**
+     * 结束对应工具块，合并缓冲结果、执行状态和计时信息后推送工具进度。
+     * 缺少开始事件时补建工具块，避免确认续跑等场景丢失工具结果。
+     */
     private void onToolEnd(ToolResultEndEvent event) {
         String toolName = event.getToolCallName();
         if (isInternalTool(toolName)) {
@@ -525,6 +557,9 @@ public class AgentStreamEventBridge {
         return StrUtil.blankToDefault(toolCallId, FALLBACK_CALL_KEY);
     }
 
+    /**
+     * 跳过空提示，通过 hint 事件向前端发送系统提示，不混入模型回答正文。
+     */
     private void onHint(String hint) {
         if (StrUtil.isBlank(hint)) {
             return;

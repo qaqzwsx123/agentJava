@@ -56,6 +56,9 @@ public class FetcherNode implements IngestionNode {
         return IngestionNodeType.FETCHER.getValue();
     }
 
+    /**
+     * 已有原始字节时复用并补探测 MIME；否则按来源类型选择抓取器，回填字节、媒体类型和文件名。
+     */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         if (context.getRawBytes() != null && context.getRawBytes().length > 0) {
@@ -71,6 +74,7 @@ public class FetcherNode implements IngestionNode {
             return NodeResult.fail(new ClientException("文档来源不能为空"));
         }
 
+        // 来源枚举决定抓取实现，文件、HTTP 或飞书的具体读取逻辑由各实现负责。
         DocumentFetcher fetcher = fetchers.get(source.getType());
         if (fetcher == null) {
             return NodeResult.fail(new ClientException("不支持的来源类型: " + source.getType()));

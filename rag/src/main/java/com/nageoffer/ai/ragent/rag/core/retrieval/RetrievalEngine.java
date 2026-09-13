@@ -60,6 +60,10 @@ public class RetrievalEngine {
     private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
     private final Executor ragContextExecutor;
 
+    /**
+     * 并行构建各子问题的知识上下文，使用同一份预算配置，随后合并意图切片和可用意图 ID。
+     * 单个子问题失败时保留其可用意图信息并降级为空上下文；多个子问题按模板分段组装。
+     */
     @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
     public RetrievalContext retrieve(List<SubQuestionIntent> subIntents) {
         if (CollUtil.isEmpty(subIntents)) {
@@ -75,6 +79,7 @@ public class RetrievalEngine {
                 searchProperties.getFusion().getRerankCandidateLimit(),
                 contextTopK
         );
+        // 子问题在线程池中并行构建上下文，收集时保持原子问题顺序。
         List<CompletableFuture<SubQuestionContext>> tasks = subIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
                         () -> {
@@ -95,6 +100,7 @@ public class RetrievalEngine {
                 .map(CompletableFuture::join)
                 .toList();
 
+        // 合并各子问题的归因切片及准入集合，供来源展示和最终提示词共同使用。
         Map<String, List<RetrievedChunk>> mergedIntentChunks = new LinkedHashMap<>();
         Set<String> eligibleIntentIds = new LinkedHashSet<>();
         for (SubQuestionContext context : contexts) {
@@ -110,6 +116,7 @@ public class RetrievalEngine {
             }
         }
 
+        // 单子问题复用其正文；多子问题通过模板编号分段，保留证据对应的问题。
         String kbContext;
         if (contexts.size() == 1) {
             kbContext = StrUtil.emptyIfNull(contexts.get(0).kbContext()).trim();
@@ -131,6 +138,9 @@ public class RetrievalEngine {
                 .build();
     }
 
+    /**
+     * 提取知识库意图并执行召回、重排与格式化，保留子问题和证据归因关系。
+     */
     private SubQuestionContext buildSubQuestionContext(SubQuestionIntent intent, RetrievalBudget budget) {
         List<NodeScore> kbIntents = NodeScoreFilters.kb(intent.nodeScores());
         KbResult kbResult = retrieveAndRerank(intent, kbIntents, budget);
@@ -138,6 +148,9 @@ public class RetrievalEngine {
                 kbResult.intentChunks(), kbResult.eligibleIntentIds());
     }
 
+    /**
+     * 用子问题编号、问题和证据正文渲染上下文段落，在多问题结果之间添加换行。
+     */
     private void appendSection(StringBuilder builder, int index, String question, String context) {
         if (!builder.isEmpty()) {
             builder.append("\n");
@@ -149,9 +162,14 @@ public class RetrievalEngine {
         )));
     }
 
+    /**
+     * 调用多通道检索并取得证据准入结果，将切片按意图归组并格式化为模型上下文。
+     * 无切片时仍返回可用意图集合，避免把无召回误判为没有意图配置。
+     */
     private KbResult retrieveAndRerank(SubQuestionIntent intent, List<NodeScore> kbIntents, RetrievalBudget budget) {
         KnowledgeRetrievalResult retrievalResult = multiChannelRetrievalEngine.retrieveKnowledgeChannels(intent, budget);
         List<RetrievedChunk> chunks = retrievalResult.chunks();
+        // 定向意图必须在召回证据中有归因，不能仅因分类分数高就注入其业务规则。
         Set<String> eligibleIntentIds = retrievalResult.eligibleIntentIds(kbIntents);
         if (CollUtil.isEmpty(chunks)) {
             return new KbResult("", Map.of(), eligibleIntentIds);

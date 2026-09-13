@@ -59,6 +59,9 @@ public class VectorSearchChannel implements SearchChannel {
         this.retrievalExecutor = innerRetrievalExecutor;
     }
 
+    /**
+     * 返回向量召回通道名称，供通道结果和日志使用。
+     */
     @Override
     public String getName() {
         return "VectorSearch";

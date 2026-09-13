@@ -43,14 +43,23 @@ public record AgentMemoryDecision(Action action, String targetId, String content
         RETRACT
     }
 
+    /**
+     * 构造新增记忆决策，只携带新正文，不指定被替换的记忆 ID。
+     */
     public static AgentMemoryDecision add(String content) {
         return new AgentMemoryDecision(Action.ADD, null, content);
     }
 
+    /**
+     * 构造替换记忆决策，将原记忆 ID 与替换后的正文关联。
+     */
     public static AgentMemoryDecision supersede(String targetId, String content) {
         return new AgentMemoryDecision(Action.SUPERSEDE, targetId, content);
     }
 
+    /**
+     * 构造撤回记忆决策，只指定需要失效的条目，不生成新正文。
+     */
     public static AgentMemoryDecision retract(String targetId) {
         return new AgentMemoryDecision(Action.RETRACT, targetId, null);
     }

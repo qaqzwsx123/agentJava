@@ -80,6 +80,9 @@ public enum IngestionNodeType {
         throw new IllegalArgumentException("Unknown node type: " + value);
     }
 
+    /**
+     * 去除空白、转小写并统一连字符，兼容配置中的节点类型写法。
+     */
     private static String normalize(String value) {
         String trimmed = value.trim();
         String lower = trimmed.toLowerCase();

@@ -57,6 +57,9 @@ public class GraphSearchChannel implements SearchChannel {
     private final GraphProperties graphProperties;
     private final SearchChannelProperties properties;
 
+    /**
+     * 返回图谱召回通道名称，供执行日志和检索结果标识使用。
+     */
     @Override
     public String getName() {
         return "GraphSearch";

@@ -60,6 +60,10 @@ public class EsKeywordIndexService implements KeywordIndexService {
         ensureSharedIndex();
     }
 
+    /**
+     * 确保共享关键词索引存在后，按切片 ID 批量写入正文、集合和文档标识。
+     * 请求异常向上抛出，批量响应中的部分失败当前只记录告警。
+     */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
         if (CollUtil.isEmpty(chunks)) {
@@ -68,6 +72,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
         ensureSharedIndex();
 
         String index = sharedIndex();
+        // 共享索引以切片 ID 作为 _id，逻辑集合及文档信息放入索引字段。
         BulkRequest.Builder bulk = new BulkRequest.Builder();
         for (EmbeddedChunk chunk : chunks) {
             String chunkId = chunk.chunkId();
@@ -87,11 +92,17 @@ public class EsKeywordIndexService implements KeywordIndexService {
         }
     }
 
+    /**
+     * 复用单元素批量写入，以相同切片 ID 覆盖关键词索引文档。
+     */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
         indexDocumentChunks(collectionName, docId, List.of(chunk));
     }
 
+    /**
+     * 同时限定逻辑集合与文档 ID 删除关键词记录，共享索引不存在时按无需删除处理。
+     */
     @Override
     public void deleteDocumentIndex(String collectionName, String docId) {
         try {
@@ -112,6 +123,9 @@ public class EsKeywordIndexService implements KeywordIndexService {
         }
     }
 
+    /**
+     * 按全局唯一的切片 ID 删除关键词索引，索引或记录不存在时跳过。
+     */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
         // chunkId 为全局唯一雪花主键，直接按 _id 删除，无需再限定 collection_name
@@ -127,6 +141,9 @@ public class EsKeywordIndexService implements KeywordIndexService {
         }
     }
 
+    /**
+     * 将切片 ID 组装为批量删除请求，空列表直接返回，共享索引不存在时跳过。
+     */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
         if (CollUtil.isEmpty(chunkIds)) {
@@ -167,6 +184,9 @@ public class EsKeywordIndexService implements KeywordIndexService {
         }
     }
 
+    /**
+     * 识别 Elasticsearch 返回的 404 异常，供删除流程做缺失兼容。
+     */
     private boolean isNotFound(Exception e) {
         return e instanceof ElasticsearchException esException
                 && esException.response() != null
@@ -216,6 +236,9 @@ public class EsKeywordIndexService implements KeywordIndexService {
         }
     }
 
+    /**
+     * 截断超长正文并附加逻辑集合、文档 ID 和切片序号，生成关键词索引字段。
+     */
     private Map<String, Object> buildDocument(String collectionName, String docId, EmbeddedChunk chunk) {
         String content = chunk.content() == null ? "" : chunk.content();
         if (content.length() > MAX_CONTENT_LENGTH) {
@@ -230,6 +253,9 @@ public class EsKeywordIndexService implements KeywordIndexService {
         return doc;
     }
 
+    /**
+     * 读取关键词检索配置中的共享物理索引名，逻辑集合由文档字段隔离。
+     */
     private String sharedIndex() {
         return keywordProperties.sharedIndex();
     }

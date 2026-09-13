@@ -62,6 +62,7 @@ public class QueryTermMappingService {
             if (source == null || source.isEmpty() || target == null || target.isEmpty()) {
                 continue;
             }
+            // 按加载顺序逐条应用已启用且支持的映射，前一条替换结果继续作为后一条输入。
             result = QueryTermMappingUtil.applyMapping(result, source, target);
         }
 

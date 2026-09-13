@@ -39,6 +39,9 @@ public class CodeChunker implements BlockChunker<CodeBlock> {
         return CodeBlock.class;
     }
 
+    /**
+     * 代码在容忍预算内时整块保留，超出时按行分段，每段补齐代码围栏，并区分展示正文与嵌入正文。
+     */
     @Override
     public List<ChunkDraft> chunk(CodeBlock block, ChunkContext ctx) {
         if (block == null) {
@@ -52,6 +55,7 @@ public class CodeChunker implements BlockChunker<CodeBlock> {
                 .provenance(block.provenance())
                 .build();
 
+        // 优先保留完整代码，必须拆分时按行切；各段都独立补齐展示围栏。
         List<String> segments = code.length() <= ctx.budget().toleranceChars()
                 ? List.of(code)
                 : splitByLines(code, ctx.budget().maxChars());

@@ -25,6 +25,9 @@ public final class RetrievedChunkKey {
     private RetrievedChunkKey() {
     }
 
+    /**
+     * 优先用切片 ID 作为去重和归因键，缺失时对正文计算 SHA-256，空正文按空字符串计算。
+     */
     public static String of(RetrievedChunk chunk) {
         return StrUtil.isNotBlank(chunk.getId())
                 ? chunk.getId()

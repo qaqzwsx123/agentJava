@@ -42,6 +42,9 @@ public class RocketMQProducerAdapter implements MessageQueueProducer {
     private final RocketMQTemplate rocketMQTemplate;
     private final DelegatingTransactionListener transactionListener;
 
+    /**
+     * 为消息补齐业务键，包装载荷并设置 RocketMQ Keys，执行同步发送并返回结果，发送异常原样传播。
+     */
     @Override
     public SendResult send(String topic, String keys, String bizDesc, Object body) {
         keys = StrUtil.isEmpty(keys) ? UUID.randomUUID().toString() : keys;
@@ -63,12 +66,17 @@ public class RocketMQProducerAdapter implements MessageQueueProducer {
         return sendResult;
     }
 
+    /**
+     * 先登记本地事务回调，再发送带事务 ID 和主题的事务消息，供监听器执行关联事务。
+     * 发送抛错或状态非 SEND_OK 时注销回调，避免留下无法完成的事务登记。
+     */
     @Override
     public void sendInTransaction(String topic, String keys, String bizDesc, Object body,
                                   Consumer<Object> localTransaction) {
         keys = StrUtil.isEmpty(keys) ? UUID.randomUUID().toString() : keys;
         String txId = UUID.randomUUID().toString();
 
+        // 回调必须先登记，后续半消息触发的本地事务监听才能通过 txId 找到业务动作。
         transactionListener.registerLocalTransaction(txId, localTransaction);
 
         Message<MessageWrapper<Object>> message = MessageBuilder

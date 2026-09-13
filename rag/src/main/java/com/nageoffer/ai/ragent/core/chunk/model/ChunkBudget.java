@@ -126,6 +126,9 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
         return isWholeDocument() ? WHOLE_DOCUMENT : Math.min(maxChars * toleranceFactor, MAX_CHARS_LIMIT);
     }
 
+    /**
+     * 判断最大字符数是否为整篇模式的特殊值，决定是否跳过常规分块。
+     */
     public boolean isWholeDocument() {
         return maxChars == WHOLE_DOCUMENT;
     }

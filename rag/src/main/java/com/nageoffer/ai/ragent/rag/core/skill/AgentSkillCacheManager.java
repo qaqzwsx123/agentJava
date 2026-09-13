@@ -60,6 +60,9 @@ public class AgentSkillCacheManager {
         }
     }
 
+    /**
+     * 序列化技能列表并写入带过期时间的 Redis 缓存，失败只记录日志，由注册表保留回源路径。
+     */
     public void saveToCache(List<AgentSkill> skills) {
         try {
             String cacheJson = objectMapper.writeValueAsString(skills);

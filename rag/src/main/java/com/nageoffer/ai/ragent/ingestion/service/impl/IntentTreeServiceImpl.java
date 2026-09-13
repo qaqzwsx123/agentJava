@@ -96,6 +96,9 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return tree;
     }
 
+    /**
+     * 利用父编码分组递归构建意图树，并把每个节点的集合绑定转换为兼容的新字段。
+     */
     private IntentNodeTreeVO buildTree(IntentNodeDO current,
                                        Map<String, List<IntentNodeDO>> parentMap) {
         IntentNodeTreeVO result = BeanUtil.toBean(current, IntentNodeTreeVO.class);
@@ -523,6 +526,9 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         );
     }
 
+    /**
+     * 去除空集合名及首尾空白，按首次出现顺序去重，返回不可变列表。
+     */
     private List<String> normalizeCollectionNames(List<String> collectionNames) {
         if (collectionNames == null) {
             return List.of();
@@ -535,12 +541,18 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return List.copyOf(normalized);
     }
 
+    /**
+     * 回填集合列表、兼容的单集合字段以及主知识库 ID，使新旧绑定字段保持一致。
+     */
     private void applyCollectionBinding(IntentNodeDO node, CollectionBinding binding) {
         node.setCollectionNames(binding.collectionNames());
         node.setCollectionName(firstOrNull(binding.collectionNames()));
         node.setKbId(binding.primaryKbId());
     }
 
+    /**
+     * 优先读取多集合配置，旧记录仅有单集合时转为列表，两者均无配置时返回空列表。
+     */
     private List<String> effectiveCollectionNames(IntentNodeDO node) {
         if (CollectionUtils.isNotEmpty(node.getCollectionNames())) {
             return normalizeCollectionNames(node.getCollectionNames());
@@ -551,6 +563,9 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return List.of();
     }
 
+    /**
+     * 取得集合列表的首项作为兼容字段，空列表返回 null。
+     */
     private String firstOrNull(List<String> values) {
         return CollectionUtils.isEmpty(values) ? null : values.get(0);
     }
@@ -585,11 +600,17 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return targetNodes;
     }
 
+    /**
+     * 读取未逻辑删除的意图节点，供构树和绑定校验使用。
+     */
     private List<IntentNodeDO> listActiveNodes() {
         return intentNodeMapper.selectList(new LambdaQueryWrapper<IntentNodeDO>()
                 .eq(IntentNodeDO::getDeleted, 0));
     }
 
+    /**
+     * 按父意图编码将节点分组；没有父编码的节点归到 ROOT，供递归构树使用。
+     */
     private Map<String, List<IntentNodeDO>> buildChildrenMap(List<IntentNodeDO> nodes) {
         return nodes.stream().collect(Collectors.groupingBy(node -> {
             String parentCode = node.getParentCode();
@@ -621,6 +642,9 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return result;
     }
 
+    /**
+     * 取最多三个节点名称拼成提示文本；缺少名称时使用意图编码。
+     */
     private String summarizeNodeNames(List<IntentNodeDO> nodes) {
         return nodes.stream()
                 .limit(3)
@@ -628,6 +652,9 @@ public class IntentTreeServiceImpl implements IntentTreeService {
                 .collect(Collectors.joining("、"));
     }
 
+    /**
+     * 复制节点对象，隔离后续对绑定等字段的修改，保留变更前快照。
+     */
     private List<IntentNodeDO> copyNodes(List<IntentNodeDO> nodes) {
         return nodes.stream()
                 .map(node -> BeanUtil.copyProperties(node, IntentNodeDO.class))

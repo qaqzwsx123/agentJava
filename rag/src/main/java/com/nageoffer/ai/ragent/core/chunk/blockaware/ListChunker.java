@@ -39,6 +39,9 @@ public class ListChunker implements BlockChunker<ListBlock> {
         return ListBlock.class;
     }
 
+    /**
+     * 列表能容纳时整份保留，否则按完整列表项累加分组；单项超预算仍单独保留，避免破坏条目语义。
+     */
     @Override
     public List<ChunkDraft> chunk(ListBlock block, ChunkContext ctx) {
         if (block == null || block.items() == null || block.items().isEmpty()) {

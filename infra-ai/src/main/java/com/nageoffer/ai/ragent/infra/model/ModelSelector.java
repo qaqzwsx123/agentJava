@@ -84,6 +84,9 @@ public class ModelSelector {
         return buildTierTargets(group, tierName, preferredModelId, thinking);
     }
 
+    /**
+     * 从 Embedding 模型组筛选、排序并构造当前可用的调用目标。
+     */
     public List<ModelTarget> selectEmbeddingCandidates() {
         return selectCandidates(properties.getEmbedding());
     }
@@ -92,12 +95,18 @@ public class ModelSelector {
         return selectCandidates(properties.getRerank());
     }
 
+    /**
+     * 从视觉模型组筛选、排序并构造当前可用的调用目标。
+     */
     public List<ModelTarget> selectVlmCandidates() {
         return selectCandidates(properties.getVlm());
     }
 
     // ==================== chat：档位机制 ====================
 
+    /**
+     * 思考模式优先采用深度思考档位，其次采用显式指定档位，最后使用模型组默认档位。
+     */
     private String resolveTierName(AIModelProperties.ModelGroup group, boolean thinking, Tier override) {
         if (thinking && StrUtil.isNotBlank(group.getDeepThinkingTier())) {
             return group.getDeepThinkingTier();
@@ -132,6 +141,7 @@ public class ModelSelector {
             }
         }
 
+        // 优先模型排在前面，随后按档位配置追加去重候选，统一使用该档位超时预算。
         AIModelProperties.TierConfig tier = group.getTiers() == null ? null : group.getTiers().get(tierName);
         Long timeoutMs = tier == null ? null : tier.getTimeoutMs();
         if (tier == null) {
@@ -158,6 +168,7 @@ public class ModelSelector {
             if (requireThinking && !supportsThinking(candidate)) {
                 continue;
             }
+            // 过滤停用、缺注册及不支持思考的候选后，再检查健康状态和提供商配置。
             ModelTarget target = buildModelTarget(candidate, providers, timeoutMs);
             if (target != null) {
                 targets.add(target);
@@ -166,10 +177,16 @@ public class ModelSelector {
         return targets;
     }
 
+    /**
+     * 仅当候选明确声明 supportsThinking 为 true 时允许进入思考模式选择。
+     */
     private boolean supportsThinking(AIModelProperties.ModelCandidate candidate) {
         return Boolean.TRUE.equals(candidate.getSupportsThinking());
     }
 
+    /**
+     * 以解析后的模型 ID 建立配置映射，跳过空候选，相同 ID 后出现的配置覆盖前值。
+     */
     private Map<String, AIModelProperties.ModelCandidate> buildRegistry(List<AIModelProperties.ModelCandidate> candidates) {
         Map<String, AIModelProperties.ModelCandidate> registry = new LinkedHashMap<>();
         if (candidates == null) {
@@ -185,6 +202,9 @@ public class ModelSelector {
 
     // ==================== embedding/rerank/vlm：defaultModel + priority ====================
 
+    /**
+     * 处理缺失模型组，按启用及默认模型规则筛选排序，再过滤不可用的调用目标。
+     */
     private List<ModelTarget> selectCandidates(AIModelProperties.ModelGroup group) {
         if (group == null || group.getCandidates() == null) {
             return List.of();
@@ -211,6 +231,9 @@ public class ModelSelector {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 为非聊天档位场景构建目标，过滤不可用项；超时参数留空，使用 HTTP 客户端默认设置。
+     */
     private List<ModelTarget> buildAvailableTargets(List<AIModelProperties.ModelCandidate> candidates) {
         Map<String, AIModelProperties.ProviderConfig> providers = properties.getProviders();
 
@@ -223,6 +246,9 @@ public class ModelSelector {
 
     // ==================== 通用 ====================
 
+    /**
+     * 排除当前不可用模型并校验提供商配置，NOOP 类型允许缺省提供商，其余缺失时跳过。
+     */
     private ModelTarget buildModelTarget(AIModelProperties.ModelCandidate candidate,
                                          Map<String, AIModelProperties.ProviderConfig> providers,
                                          Long timeoutMs) {
@@ -241,6 +267,9 @@ public class ModelSelector {
         return new ModelTarget(modelId, candidate, provider, timeoutMs);
     }
 
+    /**
+     * 优先使用显式模型 ID，缺失时用 provider 与 model 拼接，供健康记录和配置索引共用。
+     */
     private String resolveId(AIModelProperties.ModelCandidate candidate) {
         if (StrUtil.isNotBlank(candidate.getId())) {
             return candidate.getId();

@@ -120,12 +120,18 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         return title;
     }
 
+    /**
+     * 同时按会话 ID 和用户 ID 查询记录，避免仅凭会话标识访问其他用户的数据。
+     */
     private AgentConversationDO selectConversation(String conversationId, String userId) {
         return conversationMapper.selectOne(Wrappers.lambdaQuery(AgentConversationDO.class)
                 .eq(AgentConversationDO::getConversationId, conversationId)
                 .eq(AgentConversationDO::getUserId, userId));  //执行查询，返回一条记录：查到 → 返回 AgentConversationDO。     查不到 → 返回 null。
     }
 
+    /**
+     * 刷新会话的最近活跃时间并保留原有标题，返回值供本轮 SSE 收尾展示。
+     */
     private String touchLastTime(AgentConversationDO conversation) {
         // 刷新会话的最后活跃时间为当前时刻
         conversation.setLastTime(new Date());
@@ -298,6 +304,9 @@ public class AgentConversationServiceImpl implements AgentConversationService {
                 .eq(AgentMessageDO::getMessageStatus, AgentMessageStatus.AWAITING_CONFIRM.name()));
     }
 
+    /**
+     * 在消息块中寻找状态为 pending 的确认块；无消息块或无匹配时返回 null。
+     */
     private static AgentBlock findPendingConfirmBlock(AgentMessageDO message) {
         if (CollUtil.isEmpty(message.getBlocks())) {
             return null;

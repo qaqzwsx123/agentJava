@@ -212,12 +212,18 @@ public class MinerUClient {
 
     // ============== private helpers ==============
 
+    /**
+     * 调用 MinerU 前检查 API Key 是否已配置，缺失时给出明确的配置错误。
+     */
     private void requireApiKey() {
         if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             throw new ServiceException("MinerU api-key 未配置,请设置环境变量 MINERU_API_KEY");
         }
     }
 
+    /**
+     * 构造携带 Bearer 鉴权和 JSON 正文的 POST 请求，供上传票据等接口共用。
+     */
     private Request newJsonPost(String url, String jsonBody) {
         return new Request.Builder()
                 .url(url)
@@ -227,6 +233,9 @@ public class MinerUClient {
                 .build();
     }
 
+    /**
+     * 构造携带 MinerU 鉴权信息的 GET 请求。
+     */
     private Request newGet(String url) {
         return new Request.Builder()
                 .url(url)
@@ -235,6 +244,9 @@ public class MinerUClient {
                 .build();
     }
 
+    /**
+     * 同步执行 MinerU 请求并解析 JSON，区分 HTTP、非 JSON 和网络错误，退出时关闭响应。
+     */
     private JsonNode executeAndParse(Request request, String opName) {
         try (Response response = httpClient.newCall(request).execute()) {
             String body = readBodySafe(response);
@@ -266,6 +278,9 @@ public class MinerUClient {
         }
     }
 
+    /**
+     * 读取响应正文用于解析或错误信息；没有正文或读取失败时返回空字符串。
+     */
     private String readBodySafe(Response response) {
         try {
             ResponseBody body = response.body();

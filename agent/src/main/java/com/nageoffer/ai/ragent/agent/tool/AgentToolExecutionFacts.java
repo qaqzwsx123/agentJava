@@ -86,6 +86,9 @@ public final class AgentToolExecutionFacts {
         return facts instanceof AgentToolExecutionFacts value ? value : null;
     }
 
+    /**
+     * 从本轮共享时钟读取毫秒时间，统一工具执行与批次统计的计时来源。
+     */
     public long now() {
         return clock.millis();
     }
@@ -106,6 +109,9 @@ public final class AgentToolExecutionFacts {
         return factOf(toolCallId).callIndex;
     }
 
+    /**
+     * 取得或创建指定调用的事实记录，供工具执行体更新状态和耗时。
+     */
     public ToolFact toolFact(String toolCallId) {
         return factOf(toolCallId);
     }
@@ -235,6 +241,9 @@ public final class AgentToolExecutionFacts {
         return Math.min(interrupted, cancelled);
     }
 
+    /**
+     * 返回当前打开的工具执行批次，供同批工具关联批次信息。
+     */
     public ToolBatchFact currentBatch() {
         return openBatch.get();
     }
@@ -247,6 +256,9 @@ public final class AgentToolExecutionFacts {
         return batches.size();
     }
 
+    /**
+     * 将空调用 ID 归入 unknown，并按调用 ID 复用事实对象；首次出现时分配调用顺序号。
+     */
     private ToolFact factOf(String toolCallId) {
         String key = toolCallId == null || toolCallId.isBlank() ? "unknown" : toolCallId;
         return toolFacts.computeIfAbsent(key, id -> new ToolFact(id, callIndexSeq.getAndIncrement()));

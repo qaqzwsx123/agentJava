@@ -59,6 +59,10 @@ public class EnhancerNode implements IngestionNode {
         return IngestionNodeType.ENHANCER.getValue();
     }
 
+    /**
+     * 按配置顺序执行文档级增强任务，每项选择输入、提示词和模型，再将输出写回增强正文或元数据。
+     * 没有任务、无效任务或缺少输入时跳过相应处理。
+     */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         EnhancerSettings settings = parseSettings(config.getSettings());
@@ -69,6 +73,7 @@ public class EnhancerNode implements IngestionNode {
             context.setMetadata(new HashMap<>());
         }
 
+        // 增强任务顺序执行，后续关键词、问题等任务可以读取前面生成的增强正文。
         for (EnhancerSettings.EnhanceTask task : settings.getTasks()) {
             if (task == null || task.getType() == null) {
                 continue;
@@ -89,6 +94,7 @@ public class EnhancerNode implements IngestionNode {
                             ChatMessage.user(userPrompt)
                     ))
                     .build();
+            // 模型调用与结果回填分开：调用负责路由，applyTaskResult 决定结果写入哪个上下文字段。
             String response = chat(request, settings.getModelId());
             applyTaskResult(context, type, response);
         }
@@ -96,6 +102,9 @@ public class EnhancerNode implements IngestionNode {
         return NodeResult.ok("增强完成");
     }
 
+    /**
+     * 解析增强节点配置，缺失配置时返回空任务列表。
+     */
     private EnhancerSettings parseSettings(JsonNode node) {
         if (node == null || node.isNull()) {
             return EnhancerSettings.builder().tasks(List.of()).build();
@@ -103,6 +112,9 @@ public class EnhancerNode implements IngestionNode {
         return objectMapper.convertValue(node, EnhancerSettings.class);
     }
 
+    /**
+     * 正文增强始终以原始正文为输入，其他增强优先使用已有增强正文，缺失时使用原文。
+     */
     private String resolveInputText(IngestionContext context, EnhanceType type) {
         if (type == EnhanceType.CONTEXT_ENHANCE) {
             return context.getRawText();
@@ -113,6 +125,9 @@ public class EnhancerNode implements IngestionNode {
         return context.getRawText();
     }
 
+    /**
+     * 以正文、媒体类型及任务标识填充自定义模板；没有模板时直接把正文作为用户输入。
+     */
     private String buildUserPrompt(String template, String input, IngestionContext context) {
         if (!StringUtils.hasText(template)) {
             return input;
@@ -126,10 +141,16 @@ public class EnhancerNode implements IngestionNode {
         return PromptTemplateRenderer.render(template, vars);
     }
 
+    /**
+     * 通过 FAST 档路由调用模型，并传入可选的优先模型 ID。
+     */
     private String chat(ChatRequest request, String modelId) {
         return llmService.chat(request, Tier.FAST, modelId);
     }
 
+    /**
+     * 按增强类型回填正文、关键词、问题或元数据，结构化产物交给 JSON 响应解析器处理。
+     */
     private void applyTaskResult(IngestionContext context, EnhanceType type, String response) {
         switch (type) {
             case CONTEXT_ENHANCE -> context.setEnhancedText(StringUtils.hasText(response) ? response.trim() : response);

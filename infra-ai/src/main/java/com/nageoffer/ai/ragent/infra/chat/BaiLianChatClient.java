@@ -44,6 +44,9 @@ public class BaiLianChatClient extends AbstractOpenAIStyleChatClient {
         return doChat(request, target);
     }
 
+    /**
+     * 将百炼流式调用交给共享 HTTP 流实现，提供商差异通过客户端配置及请求构造处理。
+     */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
         return doStreamChat(request, callback, target);

@@ -42,6 +42,9 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
         return "Deduplication";
     }
 
+    /**
+     * 返回去重步骤顺序 1，在融合和重排之前处理重复切片。
+     */
     @Override
     public int getOrder() {
         return 1;

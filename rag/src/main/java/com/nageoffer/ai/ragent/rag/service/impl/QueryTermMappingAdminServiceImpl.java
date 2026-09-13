@@ -187,12 +187,18 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
         return result.convert(this::toVO);
     }
 
+    /**
+     * 加载术语映射规则，不存在时返回业务异常。
+     */
     private QueryTermMappingDO loadById(String id) {
         QueryTermMappingDO record = queryTermMappingMapper.selectById(id);
         Assert.notNull(record, () -> new ClientException("映射规则不存在"));
         return record;
     }
 
+    /**
+     * 将术语映射记录转换为响应，统一字符串 ID 和布尔启用状态。
+     */
     private QueryTermMappingVO toVO(QueryTermMappingDO record) {
         return QueryTermMappingVO.builder()
                 .id(String.valueOf(record.getId()))

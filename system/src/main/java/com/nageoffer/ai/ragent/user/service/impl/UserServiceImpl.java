@@ -287,6 +287,10 @@ public class UserServiceImpl implements UserService {
         throw new ClientException("角色类型不合法");
     }
 
+    /**
+     * 按当前实现直接比较输入与保存的字符串；保存值为空时仅接受输入也为空。
+     * 本方法没有执行哈希计算，不能据此将登录实现描述为密码哈希校验。
+     */
     private boolean passwordMatches(String input, String stored) {
         if (stored == null) {
             return input == null;

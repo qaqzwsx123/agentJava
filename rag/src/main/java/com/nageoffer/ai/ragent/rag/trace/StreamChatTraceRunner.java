@@ -141,6 +141,9 @@ public class StreamChatTraceRunner {
         }
     }
 
+    /**
+     * 记录追踪运行的结束状态、错误和总耗时；追踪写入失败只记日志，不阻断业务收尾。
+     */
     private void finishRun(String traceId, boolean success, Throwable error, long startMillis) {
         try {
             traceRecordService.finishRun(
@@ -155,6 +158,9 @@ public class StreamChatTraceRunner {
         }
     }
 
+    /**
+     * 未启用追踪时直接执行流式业务，捕获异常并转交统一错误回调。
+     */
     private void runWithoutTrace(String conversationId,
                                  String taskId,
                                  StreamCallback callback,
@@ -167,6 +173,9 @@ public class StreamChatTraceRunner {
         }
     }
 
+    /**
+     * 将异常类型与消息拼接，并按追踪配置截断，避免错误字段超过存储预算。
+     */
     private String truncateError(Throwable throwable) {
         if (throwable == null) {
             return null;

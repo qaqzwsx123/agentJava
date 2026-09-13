@@ -133,6 +133,9 @@ public class AgentMemoryRepository {
                 .toList();
     }
 
+    /**
+     * 按用户查询尚未失效的记忆，按创建时间、ID 排序，形成稳定的仲裁素材顺序。
+     */
     private List<AgentMemoryDO> listActive(String userId) {
         return memoryMapper.selectList(Wrappers.lambdaQuery(AgentMemoryDO.class)
                 .eq(AgentMemoryDO::getUserId, userId)
@@ -169,6 +172,7 @@ public class AgentMemoryRepository {
     public AgentMemoryExtractionDO claim(String userId, String conversationId,
                                          String fromMessageId, String toMessageId,
                                          AgentMemoryTriggerType trigger) {
+        // 先结算超时未结束的抽取，再按同一区间历史尝试次数建立新台账。
         int recycled = extractionMapper.recycleStale(userId, conversationId, STALE_PROCESSING_MINUTES);
         if (recycled > 0) {
             log.warn("长期记忆回收僵尸抽取, userId: {}, conversationId: {}, 条数: {}", userId, conversationId, recycled);
@@ -185,6 +189,7 @@ public class AgentMemoryRepository {
                 .attemptCount(spent + 1)
                 .build();
         try {
+            // 通过数据库唯一约束争抢在飞抽取，冲突即返回 null，本次不再调用仲裁模型。
             extractionMapper.insert(extraction);
             return extraction;
         } catch (DuplicateKeyException dke) {
@@ -292,6 +297,7 @@ public class AgentMemoryRepository {
                 }
                 case SUPERSEDE -> {
                     String newId = IdWorker.getIdStr();
+                    // 以数据库影响行数确认旧记忆属于该用户且仍有效，成功后才插入后继条目。
                     if (memoryMapper.supersede(userId, decision.targetId(), newId) != 1) {
                         log.info("长期记忆取代落空, 丢弃该条, userId: {}, 目标: {}", userId, decision.targetId());
                         continue;
@@ -300,6 +306,7 @@ public class AgentMemoryRepository {
                     applied++;
                 }
                 case RETRACT -> {
+                    // 撤回也使用属主与有效状态条件，目标不存在、过期或不属于当前用户都不计入成功。
                     if (memoryMapper.retract(userId, decision.targetId()) != 1) {
                         log.info("长期记忆撤回落空, 丢弃该条, userId: {}, 目标: {}", userId, decision.targetId());
                         continue;
@@ -311,10 +318,16 @@ public class AgentMemoryRepository {
         return applied;
     }
 
+    /**
+     * 检查正文非空且未超过单条存储长度上限；不符合条件的模型产物不进入落库。
+     */
     private boolean storable(String content) {
         return content != null && !content.isBlank() && content.length() <= MAX_CONTENT_CHARS;
     }
 
+    /**
+     * 按预分配 ID 写入记忆正文、用户和来源信息；事务由外层提交方法控制。
+     */
     private void insert(String userId, String content, AgentMemorySourceType sourceType, String presetId) {
         memoryMapper.insert(AgentMemoryDO.builder()
                 .id(presetId)
@@ -372,6 +385,10 @@ public class AgentMemoryRepository {
         insert(userId, merge.content(), AgentMemorySourceType.CONSOLIDATION, newId);
     }
 
+    /**
+     * 校验合并组至少含两个不同条目，成员均在快照中且未被其他决策占用。
+     * 合并正文必须可存储，并比原成员正文总长更短，否则放弃该组。
+     */
     private boolean mergeable(String userId, AgentMemoryMerge merge, Map<String, String> pool,
                               Set<String> targeted, Set<String> claimed) {
         List<String> ids = merge.ids();
@@ -384,6 +401,7 @@ public class AgentMemoryRepository {
                     userId, merge.content() == null ? 0 : merge.content().length());
             return false;
         }
+        // 逐个核对快照成员及本批占用情况，同时累计合并前长度，防止同条记忆被重复消费。
         int before = 0;
         for (String id : ids) {
             String content = pool.get(id);
@@ -456,10 +474,17 @@ public class AgentMemoryRepository {
                 .toList();
     }
 
+    /**
+     * 从当前有效记忆中移除本次已淘汰的 ID，得到后续合并仍可使用的条目。
+     */
     private static List<AgentMemoryItem> survivorsOf(List<AgentMemoryItem> active, Set<String> evicted) {
         return active.stream().filter(item -> !evicted.contains(item.id())).toList();
     }
 
+    /**
+     * 将基于过期快照的抽取结算为冲突，并退回本次尝试计数。
+     * 返回未写入、未变更的结果，让调用方重新读取状态后再判断是否抽取。
+     */
     private AgentMemoryCommitResult rejectAsConflict(AgentMemoryCommit commit,
                                                      AgentMemoryControlDO control, String watermark) {
         // 尝试次数退回上一档：快照过期不是这批内容的错，不该消耗它的重试额度

@@ -30,6 +30,9 @@ public record ChunkContext(List<String> outlinePath, ChunkBudget budget) {
         outlinePath = outlinePath == null ? List.of() : List.copyOf(outlinePath);
     }
 
+    /**
+     * 组合当前章节路径与分块预算，传给具体块类型的分块策略。
+     */
     public static ChunkContext of(List<String> outlinePath, ChunkBudget budget) {
         return new ChunkContext(outlinePath, budget);
     }

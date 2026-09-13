@@ -103,6 +103,9 @@ public class SourcesAssembler {
         return sources;
     }
 
+    /**
+     * 批量查询来源文档并按 ID 建表，避免逐个切片查询文档。
+     */
     private Map<String, KnowledgeDocumentDO> loadDocs(List<String> docIds) {
         List<KnowledgeDocumentDO> docs = documentMapper.selectBatchIds(docIds);
         Map<String, KnowledgeDocumentDO> map = new LinkedHashMap<>();
@@ -125,6 +128,9 @@ public class SourcesAssembler {
         return null;
     }
 
+    /**
+     * 优先复用召回切片自带的名称，否则从回查的文档记录补齐。
+     */
     private String resolveDocName(RetrievedChunk chunk, KnowledgeDocumentDO doc) {
         if (StrUtil.isNotBlank(chunk.getDocName())) {
             return chunk.getDocName();
@@ -132,6 +138,9 @@ public class SourcesAssembler {
         return doc != null ? doc.getDocName() : null;
     }
 
+    /**
+     * 将缺失的召回得分视为零，统一来源排序时的数值口径。
+     */
     private static double score(RetrievedChunk chunk) {
         return chunk.getScore() != null ? chunk.getScore() : 0D;
     }

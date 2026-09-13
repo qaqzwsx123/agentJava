@@ -363,6 +363,9 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         }
     }
 
+    /**
+     * 去除智能体名称首尾空白并校验非空，供新增、修改共用。
+     */
     private String trimmedName(AgentProfileSaveRequest requestParam) {
         String name = requestParam == null ? null : StrUtil.trim(requestParam.getName());
         if (StrUtil.isBlank(name)) {
@@ -382,6 +385,9 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         return avatar;
     }
 
+    /**
+     * 检查智能体名称是否重复；修改时排除当前记录，重复则返回业务异常。
+     */
     private void assertNameAvailable(String name, String excludeId) {
         boolean duplicated = agentProfileMapper.exists(Wrappers.lambdaQuery(AgentProfileDO.class)
                 .eq(AgentProfileDO::getName, name)
@@ -391,6 +397,9 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         }
     }
 
+    /**
+     * 按 ID 取得智能体配置，空 ID 或记录不存在时统一返回不存在异常。
+     */
     private AgentProfileDO mustLoad(String id) {
         AgentProfileDO profile = StrUtil.isBlank(id) ? null : agentProfileMapper.selectById(id);
         if (profile == null) {
@@ -412,6 +421,9 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         return profile;
     }
 
+    /**
+     * 将数据库整型标志转换为布尔值，仅数值 1 代表开启。
+     */
     private static boolean isTrue(Integer flag) {
         return flag != null && flag == 1;
     }

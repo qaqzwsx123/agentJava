@@ -43,10 +43,16 @@ public final class RagTraceContext {
     private RagTraceContext() {
     }
 
+    /**
+     * 读取当前线程绑定的追踪 ID；跨线程传播由调用方或上下文包装器负责。
+     */
     public static String getTraceId() {
         return TRACE_ID.get();
     }
 
+    /**
+     * 绑定当前线程的追踪 ID，供本线程内嵌套节点记录关联运行。
+     */
     public static void setTraceId(String traceId) {
         TRACE_ID.set(traceId);
     }
@@ -55,20 +61,32 @@ public final class RagTraceContext {
         return TASK_ID.get();
     }
 
+    /**
+     * 绑定当前线程的任务 ID，供追踪节点和日志关联本轮执行。
+     */
     public static void setTaskId(String taskId) {
         TASK_ID.set(taskId);
     }
 
+    /**
+     * 读取当前线程节点栈深度，供新追踪节点记录层级。
+     */
     public static int depth() {
         Deque<String> stack = NODE_STACK.get();
         return stack == null ? 0 : stack.size();
     }
 
+    /**
+     * 读取节点栈顶作为新节点的父节点 ID，没有栈时返回 null。
+     */
     public static String currentNodeId() {
         Deque<String> stack = NODE_STACK.get();
         return stack == null ? null : stack.peek();
     }
 
+    /**
+     * 必要时创建当前线程的节点栈，再压入新节点，供后续嵌套调用确定父子关系。
+     */
     public static void pushNode(String nodeId) {
         Deque<String> stack = NODE_STACK.get();
         if (stack == null) {
@@ -89,6 +107,9 @@ public final class RagTraceContext {
         }
     }
 
+    /**
+     * 清除追踪 ID、任务 ID 和节点栈，避免线程池复用时串入下一次请求。
+     */
     public static void clear() {
         TRACE_ID.remove();
         TASK_ID.remove();

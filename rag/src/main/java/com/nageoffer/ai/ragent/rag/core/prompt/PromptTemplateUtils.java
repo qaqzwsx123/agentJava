@@ -29,6 +29,9 @@ public final class PromptTemplateUtils {
     private static final Pattern MULTI_BLANK_LINES = Pattern.compile("(\\n){3,}");
     private static final Pattern SECTION_HEADER = Pattern.compile("^---\\s*section:\\s*(\\S+)\\s*---$", Pattern.MULTILINE);
 
+    /**
+     * 压缩连续空白行并去掉首尾空白，空提示词统一为空字符串。
+     */
     public static String cleanupPrompt(String prompt) {
         if (prompt == null) {
             return "";
@@ -36,6 +39,9 @@ public final class PromptTemplateUtils {
         return MULTI_BLANK_LINES.matcher(prompt).replaceAll("\n\n").trim();
     }
 
+    /**
+     * 替换单花括号槽位，null 槽位值按空字符串处理，没有槽位参数时保留模板。
+     */
     public static String fillSlots(String template, Map<String, String> slots) {
         if (template == null) {
             return "";

@@ -30,10 +30,16 @@ import java.util.Map;
  */
 public record ParsedDocument(List<Block> blocks, Map<String, Object> metadata) {
 
+    /**
+     * 组装结构化解析结果，将缺失的块列表和元数据规范为空集合，避免下游反复判空。
+     */
     public static ParsedDocument of(List<Block> blocks) {
         return new ParsedDocument(blocks != null ? blocks : List.of(), Map.of());
     }
 
+    /**
+     * 组装结构化解析结果，将缺失的块列表和元数据规范为空集合，避免下游反复判空。
+     */
     public static ParsedDocument of(List<Block> blocks, Map<String, Object> metadata) {
         return new ParsedDocument(blocks != null ? blocks : List.of(), metadata != null ? metadata : Map.of());
     }

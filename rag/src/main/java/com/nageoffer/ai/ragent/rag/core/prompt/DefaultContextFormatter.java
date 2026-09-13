@@ -44,6 +44,9 @@ public class DefaultContextFormatter implements ContextFormatter {
 
     private final PromptTemplateLoader templateLoader;
 
+    /**
+     * 按证据准入后的意图数量选择无意图、单意图或多意图模板，限制进入上下文的切片数量。
+     */
     @Override
     public String formatKbContext(List<NodeScore> kbIntents,
                                   Set<String> eligibleIntentIds,
@@ -53,6 +56,7 @@ public class DefaultContextFormatter implements ContextFormatter {
             return "";
         }
 
+        // 先按证据准入集合筛选，随后根据有效意图数量选择模板分支。
         List<NodeScore> eligibleIntents = eligibleIntents(kbIntents, eligibleIntentIds);
         String branch = switch (eligibleIntents.size()) {
             case 0 -> "无可用意图";
@@ -71,6 +75,9 @@ public class DefaultContextFormatter implements ContextFormatter {
         return formatSingleIntentContext(eligibleIntents.get(0), rerankedChunks, contextTopK);
     }
 
+    /**
+     * 只保留节点有效且 ID 位于证据准入集合中的意图，避免无依据的意图规则进入提示词。
+     */
     private List<NodeScore> eligibleIntents(List<NodeScore> kbIntents,
                                             Set<String> eligibleIntentIds) {
         if (CollUtil.isEmpty(kbIntents) || CollUtil.isEmpty(eligibleIntentIds)) {
@@ -124,6 +131,9 @@ public class DefaultContextFormatter implements ContextFormatter {
         return renderKbSection(snippetSection, docBlocks);
     }
 
+    /**
+     * 没有可用意图时仍可将去重后的召回切片按文档渲染，不附加意图规则。
+     */
     private String formatChunksWithoutIntent(List<RetrievedChunk> rerankedChunks, int topK) {
         List<RetrievedChunk> chunks = distinctChunks(rerankedChunks);
         if (chunks.isEmpty()) {
@@ -134,12 +144,18 @@ public class DefaultContextFormatter implements ContextFormatter {
         return renderKbSection("", docBlocks);
     }
 
+    /**
+     * 按稳定切片键去重，保留首次出现顺序，避免同一证据重复进入模型上下文。
+     */
     private List<RetrievedChunk> distinctChunks(List<RetrievedChunk> chunks) {
         Map<String, RetrievedChunk> distinct = new LinkedHashMap<>();
         chunks.forEach(chunk -> distinct.putIfAbsent(RetrievedChunkKey.of(chunk), chunk));
         return new ArrayList<>(distinct.values());
     }
 
+    /**
+     * 将规则片段和文档证据渲染为统一知识区段。
+     */
     private String renderKbSection(String snippetSection, String docBlocks) {
         return templateLoader.renderSection(CONTEXT_FORMAT_PATH, "kb-section", Map.of(
                 "snippet_section", snippetSection,
@@ -147,6 +163,9 @@ public class DefaultContextFormatter implements ContextFormatter {
         ));
     }
 
+    /**
+     * 把非空意图规则渲染为规则片段，空规则不生成额外模板文本。
+     */
     private String renderSnippetRules(String snippet) {
         if (StrUtil.isBlank(snippet)) {
             return "";
@@ -226,6 +245,9 @@ public class DefaultContextFormatter implements ContextFormatter {
         return value.replaceAll("[\"<>]", "").trim();
     }
 
+    /**
+     * 从同组切片中取首个非空文档 ID，供证据分组和引用定位使用。
+     */
     private String resolveDocId(List<RetrievedChunk> group) {
         return group.stream()
                 .map(RetrievedChunk::getDocId)

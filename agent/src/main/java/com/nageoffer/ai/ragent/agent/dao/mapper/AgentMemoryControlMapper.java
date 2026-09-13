@@ -41,6 +41,9 @@ public interface AgentMemoryControlMapper {
             """)
     void ensureExists(@Param("userId") String userId, @Param("now") Date now);
 
+    /**
+     * 读取用户的长期记忆控制记录和版本号，不申请提交行锁，供抽取阶段建立快照。
+     */
     @Select("""
             SELECT user_id, revision, create_time, update_time
             FROM t_agent_memory_control

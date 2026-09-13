@@ -39,6 +39,10 @@ public class ModelRoutingExecutor {
 
     private final ModelHealthStore healthStore;
 
+    /**
+     * 按候选顺序取得客户端和健康许可，调用成功即返回，普通失败记录健康状态并继续尝试。
+     * 任务取消直接向上传播，不计入模型故障、不尝试其他模型，并归还半开探测许可。
+     */
     public <C, T> T executeWithFallback(
             ModelCapability capability,
             List<ModelTarget> targets,
@@ -62,6 +66,7 @@ public class ModelRoutingExecutor {
             }
 
             try {
+                // 具体同步调用由能力客户端完成，执行器统一维护成功、失败和候选切换。
                 T response = caller.call(client, target);
                 healthStore.markSuccess(target.id());
                 return response;

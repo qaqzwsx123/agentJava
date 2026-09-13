@@ -38,6 +38,9 @@ public class PgVectorStoreService implements VectorStoreService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 按参数化批量 SQL 写入切片主键、逻辑集合、正文、JSON 元数据和 pgvector 向量。
+     */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
@@ -58,6 +61,9 @@ public class PgVectorStoreService implements VectorStoreService {
         log.info("批量写入向量到 PostgreSQL，collectionName={}, docId={}, count={}", collectionName, docId, chunks.size());
     }
 
+    /**
+     * 同时限定逻辑集合和 JSON 元数据中的文档 ID，删除整篇文档的向量。
+     */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
         // noinspection SqlDialectInspection,SqlNoDataSourceInspection
@@ -67,12 +73,18 @@ public class PgVectorStoreService implements VectorStoreService {
         log.info("删除文档向量，collectionName={}, docId={}, deleted={}", collectionName, docId, deleted);
     }
 
+    /**
+     * 通过参数化 SQL 按全局唯一切片 ID 删除向量。
+     */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
         // noinspection SqlDialectInspection,SqlNoDataSourceInspection
         jdbcTemplate.update("DELETE FROM t_knowledge_vector WHERE id = ?", chunkId);
     }
 
+    /**
+     * 为 ID 列表构造占位符并参数化批量删除，空列表不执行 SQL。
+     */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
         if (chunkIds == null || chunkIds.isEmpty()) {
@@ -84,6 +96,9 @@ public class PgVectorStoreService implements VectorStoreService {
         log.info("批量删除 chunk 向量，collectionName={}, count={}, deleted={}", collectionName, chunkIds.size(), deleted);
     }
 
+    /**
+     * 按切片 ID 执行插入或冲突更新，同步正文、元数据、逻辑集合及向量。
+     */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
         // noinspection SqlDialectInspection,SqlNoDataSourceInspection
@@ -98,6 +113,9 @@ public class PgVectorStoreService implements VectorStoreService {
         );
     }
 
+    /**
+     * 从统一切片元数据复制字段并补文档 ID、序号，再序列化为 JSON；失败向上抛出。
+     */
     private String buildMetadataJson(String docId, EmbeddedChunk chunk) {
         // 结构化元数据统一走唯一序列化点：新增字段自动出现在所有索引后端，不必逐个后端补写
         Map<String, Object> meta = new LinkedHashMap<>(chunk.metadata().toMap());
@@ -110,6 +128,9 @@ public class PgVectorStoreService implements VectorStoreService {
         }
     }
 
+    /**
+     * 把浮点数组转换为 pgvector 的方括号向量文本，供参数化 SQL 转为 vector 类型。
+     */
     private String toVectorLiteral(float[] embedding) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < embedding.length; i++) {

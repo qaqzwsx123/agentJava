@@ -100,6 +100,9 @@ public class AmbiguityLLMChecker {
         }
     }
 
+    /**
+     * 将候选意图 ID、名称、路径、说明和得分逐条渲染，作为模型判断业务路径歧义的素材。
+     */
     private String buildCandidatesText(List<NodeScore> ranked) {
         return ranked.stream()
                 .map(ns -> {

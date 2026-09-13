@@ -44,6 +44,9 @@ public class OllamaChatClient extends AbstractOpenAIStyleChatClient {
         return doChat(request, target);
     }
 
+    /**
+     * 委托共享 HTTP 流方法执行 Ollama 请求并返回取消句柄。
+     */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
         return doStreamChat(request, callback, target);

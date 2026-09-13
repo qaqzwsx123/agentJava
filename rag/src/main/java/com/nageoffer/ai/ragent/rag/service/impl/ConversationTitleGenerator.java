@@ -49,6 +49,10 @@ public class ConversationTitleGenerator {
     private final PromptTemplateLoader promptTemplateLoader;
     private final LLMService llmService;
 
+    /**
+     * 根据问题渲染标题提示词并调用 FAST 档模型；失败返回“新对话”。
+     * 长度通过提示词要求，本方法没有对模型返回标题再次截断。
+     */
     @RagTraceNode(name = "conversation-title-gen", type = "TITLE_GEN")
     public String generate(String question) {
         int maxLen = memoryProperties.getTitleMaxLength();

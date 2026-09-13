@@ -44,6 +44,10 @@ public class MilvusVectorStoreAdmin implements VectorStoreAdmin {
     private final MilvusClientV2 milvusClient;
     private final RAGDefaultProperties ragDefaultProperties;
 
+    /**
+     * 确保共享物理集合存在，定义主键、逻辑集合、正文、元数据和固定维度向量字段。
+     * 创建向量 HNSW 索引及集合名标量倒排索引；各知识库通过 collection_name 字段隔离。
+     */
     @Override
     public void ensureVectorSpace(VectorSpaceSpec spec) {
         // 全 Milvus 共用一个物理 collection，幂等确保其存在；各知识库以 collection_name 标量字段区分
@@ -55,6 +59,7 @@ public class MilvusVectorStoreAdmin implements VectorStoreAdmin {
             return;
         }
 
+        // 共享集合的 schema 只创建一次，逻辑知识库名保存在标量字段，不对应独立物理集合。
         List<CreateCollectionReq.FieldSchema> fieldSchemaList = new ArrayList<>();
 
         fieldSchemaList.add(
@@ -104,6 +109,7 @@ public class MilvusVectorStoreAdmin implements VectorStoreAdmin {
                 .fieldSchemaList(fieldSchemaList)
                 .build();
 
+        // 向量索引采用余弦距离，维度来自系统配置，必须与嵌入产物保持一致。
         IndexParam hnswIndex = IndexParam.builder()
                 .fieldName("embedding")
                 .indexType(IndexParam.IndexType.HNSW)
@@ -138,6 +144,9 @@ public class MilvusVectorStoreAdmin implements VectorStoreAdmin {
         log.info("已创建 Milvus 共享 collection: {}", sharedCollection);
     }
 
+    /**
+     * 检查共享物理集合是否存在，当前实现不为每个逻辑集合单独创建物理集合。
+     */
     @Override
     public boolean vectorSpaceExists(VectorSpaceId spaceId) {
         // 共享 collection 模型下，存在性即共享 collection 是否已创建（忽略传入的逻辑名）

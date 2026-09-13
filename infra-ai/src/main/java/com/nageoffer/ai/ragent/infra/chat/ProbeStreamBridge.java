@@ -41,24 +41,36 @@ public final class ProbeStreamBridge implements StreamCallback {
         this.downstream = downstream;
     }
 
+    /**
+     * 首个正文到达时完成成功探测，再缓存或转发正文事件。
+     */
     @Override
     public void onContent(String content) {
         probe.complete(ProbeResult.success());
         bufferOrDispatch(() -> downstream.onContent(content));
     }
 
+    /**
+     * 思考增量也视为首包探测成功，再按候选提交状态缓存或转发给下游。
+     */
     @Override
     public void onThinking(String content) {
         probe.complete(ProbeResult.success());
         bufferOrDispatch(() -> downstream.onThinking(content));
     }
 
+    /**
+     * 正文到达前结束时完成无内容探测，同时缓存或转发完成事件。
+     */
     @Override
     public void onComplete() {
         probe.complete(ProbeResult.noContent());
         bufferOrDispatch(downstream::onComplete);
     }
 
+    /**
+     * 将异常交给首包探测结果，再缓存或转发错误事件。
+     */
     @Override
     public void onError(Throwable t) {
         probe.complete(ProbeResult.error(t));
@@ -94,6 +106,9 @@ public final class ProbeStreamBridge implements StreamCallback {
         }
     }
 
+    /**
+     * 候选尚未提交时将事件保存在缓冲区；提交后直接转发，实际下游回调在锁外执行。
+     */
     private void bufferOrDispatch(Runnable action) {
         boolean dispatchNow;
         synchronized (lock) {

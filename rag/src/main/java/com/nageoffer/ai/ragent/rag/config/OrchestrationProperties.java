@@ -35,6 +35,9 @@ public class OrchestrationProperties {
      */
     private String type = "workflow";
 
+    /**
+     * 把编排类型配置转换为模式枚举，供执行入口选择对应编排实现。
+     */
     public OrchestrationMode getMode() {
         return OrchestrationMode.of(type);
     }

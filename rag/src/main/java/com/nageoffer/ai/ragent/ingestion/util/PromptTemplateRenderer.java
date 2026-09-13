@@ -27,6 +27,9 @@ public final class PromptTemplateRenderer {
     private PromptTemplateRenderer() {
     }
 
+    /**
+     * 逐项替换双花括号变量，null 变量替换为空字符串，未提供的变量保持原样。
+     */
     public static String render(String template, Map<String, Object> variables) {
         if (template == null || template.isBlank()) {
             return template;

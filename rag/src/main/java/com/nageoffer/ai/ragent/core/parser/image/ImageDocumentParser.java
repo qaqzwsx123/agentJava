@@ -69,6 +69,9 @@ public class ImageDocumentParser implements DocumentParser {
         this.properties = properties;
     }
 
+    /**
+     * 返回图片解析器的注册标识。
+     */
     @Override
     public String getParserType() {
         return ParserType.IMAGE.getType();
@@ -84,6 +87,10 @@ public class ImageDocumentParser implements DocumentParser {
         ));
     }
 
+    /**
+     * 必要时将 SVG 栅格化，调用视觉模型生成非空描述，再上传图片资产并构建可检索的图片块。
+     * 描述为空时直接失败，避免产生仅含 URL、缺少检索文本的切片。
+     */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
         if (content == null || content.length == 0) {
@@ -126,6 +133,9 @@ public class ImageDocumentParser implements DocumentParser {
         ));
     }
 
+    /**
+     * 从解析选项取非空字符串，缺失或空白时使用指定默认值。
+     */
     private static String extract(Map<String, Object> options, String key, String defaultValue) {
         if (options == null) {
             return defaultValue;
@@ -153,6 +163,9 @@ public class ImageDocumentParser implements DocumentParser {
         }
     }
 
+    /**
+     * 为 JPEG 使用 jpg 扩展名，其余类型按当前实现使用 png 命名。
+     */
     private static String extFromMime(String mimeType) {
         if (mimeType == null) {
             return "png";
@@ -163,6 +176,9 @@ public class ImageDocumentParser implements DocumentParser {
         };
     }
 
+    /**
+     * 去掉源文件名末尾扩展名作为图片说明，空文件名返回空字符串。
+     */
     private static String stripExt(String fileName) {
         if (fileName == null || fileName.isBlank()) {
             return "";

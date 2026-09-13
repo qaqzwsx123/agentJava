@@ -35,6 +35,9 @@ public final class AgentMcpMeta {
      */
     public static final String USER_ID_KEY = "com.nageoffer.ragent/userId";
 
+    /**
+     * 构造传给 MCP 工具的用户元数据；用户为空时返回空映射。
+     */
     public static Map<String, Object> ofUser(String userId) {
         return StrUtil.isBlank(userId)
                 ? Map.of()

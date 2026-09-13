@@ -112,11 +112,17 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
                 RequestBody.fromInputStream(content, size));
     }
 
+    /**
+     * 返回指定 S3 对象的响应流，调用方使用完后负责关闭。
+     */
     @Override
     public InputStream getObject(String bucket, String key) {
         return s3Client.getObject(b -> b.bucket(bucket).key(key));
     }
 
+    /**
+     * 按桶名和对象键调用 S3 删除操作。
+     */
     @Override
     public void deleteObject(String bucket, String key) {
         s3Client.deleteObject(b -> b.bucket(bucket).key(key));
@@ -155,6 +161,9 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
         log.info("已清空前缀 bucket={}, prefix={}, 对象数={}", bucket, prefix, cleared);
     }
 
+    /**
+     * 通过 HEAD 检查对象，仅将明确的不存在或 404 转为 false，其他服务异常继续抛出。
+     */
     @Override
     public boolean objectExists(String bucket, String key) {
         try {
@@ -205,6 +214,9 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
         s3Client.putBucketPolicy(b -> b.bucket(bucket).policy(policy));
     }
 
+    /**
+     * 去掉公共基地址末尾斜线，按基地址、桶名、对象键拼出访问 URL。
+     */
     @Override
     public String buildPublicUrl(String bucket, String key) {
         String base = publicBaseUrl.endsWith("/")
@@ -228,6 +240,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
             conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
             conn.setReadTimeout(READ_TIMEOUT_MS);
 
+            // 预签名要求的请求头必须原样携带，避免签名校验失败。
             presignedReq.signedHeaders()
                     .forEach((k, vs) -> vs.forEach(v -> conn.addRequestProperty(k, v)));
 
@@ -235,6 +248,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
                 conn.setRequestProperty("Content-Type", contentType);
             }
 
+            // 固定长度模式流式复制正文，避免为上传把整个文件再次缓存在内存。
             try (OutputStream out = conn.getOutputStream()) {
                 inputStream.transferTo(out);
             }
@@ -251,6 +265,9 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
         }
     }
 
+    /**
+     * 读取并关闭 HTTP 错误流，缺失或读取失败时返回可用于日志的占位说明。
+     */
     private String readErrorStream(HttpURLConnection conn) {
         try (InputStream err = conn.getErrorStream()) {
             return err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "(empty)";

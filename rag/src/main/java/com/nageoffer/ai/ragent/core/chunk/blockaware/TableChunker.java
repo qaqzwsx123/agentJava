@@ -41,6 +41,10 @@ public class TableChunker implements BlockChunker<TableBlock> {
         return TableBlock.class;
     }
 
+    /**
+     * 以键值形式的嵌入文本计算预算，按完整行及行数上限贪心分组，尽量保留整表关联。
+     * 每组同时生成可展示 Markdown 和可嵌入正文；单行超长时不从中间硬切。
+     */
     @Override
     public List<ChunkDraft> chunk(TableBlock block, ChunkContext ctx) {
         if (block == null) {
@@ -87,6 +91,9 @@ public class TableChunker implements BlockChunker<TableBlock> {
         return ChunkDraft.pieces(result);
     }
 
+    /**
+     * 为表格组装展示用 Markdown 与嵌入用键值正文，并保留章节路径和原始位置。
+     */
     private ChunkDraft buildDraft(TableBlock block, ChunkContext ctx, List<String> headers, List<List<String>> rows) {
         ChunkMetadata metadata = ChunkMetadata.builder()
                 .outlinePath(ctx.outlinePath())
@@ -96,6 +103,9 @@ public class TableChunker implements BlockChunker<TableBlock> {
         return ChunkDraft.of(renderMarkdownTable(headers, rows), renderKeyValueRows(headers, rows), metadata);
     }
 
+    /**
+     * 逐行渲染表头与单元格的键值正文，跳过空行并用换行连接，供向量嵌入使用。
+     */
     private String renderKeyValueRows(List<String> headers, List<List<String>> rows) {
         StringBuilder sb = new StringBuilder();
         for (List<String> row : rows) {
@@ -140,6 +150,9 @@ public class TableChunker implements BlockChunker<TableBlock> {
         return text.replaceAll("\\r\\n|\\r|\\n", " ");
     }
 
+    /**
+     * 依次生成表头、分隔线和数据行，去掉末尾换行，供切片展示使用。
+     */
     private String renderMarkdownTable(List<String> headers, List<List<String>> rows) {
         StringBuilder sb = new StringBuilder();
         appendRow(sb, headers);
@@ -153,6 +166,9 @@ public class TableChunker implements BlockChunker<TableBlock> {
         return sb.toString();
     }
 
+    /**
+     * 清理单元格后追加 Markdown 表格行，避免单元格特殊字符破坏行结构。
+     */
     private void appendRow(StringBuilder sb, List<String> cells) {
         sb.append('|');
         for (String cell : cells) {
@@ -174,6 +190,9 @@ public class TableChunker implements BlockChunker<TableBlock> {
         return cell.replace("|", "\\|").replaceAll("\\r\\n|\\r|\\n", "<br>");
     }
 
+    /**
+     * 按列数生成 Markdown 表头分隔线。
+     */
     private void appendSeparator(StringBuilder sb, int colCount) {
         sb.append('|');
         sb.append("---|".repeat(Math.max(0, colCount)));

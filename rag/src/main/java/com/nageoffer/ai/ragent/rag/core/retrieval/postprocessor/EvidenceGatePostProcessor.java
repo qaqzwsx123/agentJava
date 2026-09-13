@@ -62,6 +62,9 @@ public class EvidenceGatePostProcessor implements SearchResultPostProcessor, Ini
         return "EvidenceGate";
     }
 
+    /**
+     * 返回证据门控顺序 15，在重排出分后、元数据回表之前筛选证据。
+     */
     @Override
     public int getOrder() {
         return 15;  // Rerank(10) 出分之后、MetadataEnrichment(20) 回表之前

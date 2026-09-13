@@ -57,6 +57,9 @@ public class FeishuFetcher implements DocumentFetcher {
         return SourceType.FEISHU;
     }
 
+    /**
+     * 识别飞书文档链接后调用原始正文接口；其他地址按普通文件下载，并补全鉴权、文件名和 MIME。
+     */
     @Override
     public FetchResult fetch(DocumentSource source) {
         String location = source.getLocation();
@@ -91,10 +94,16 @@ public class FeishuFetcher implements DocumentFetcher {
         return new FetchResult(resp.body(), contentType, fileName);
     }
 
+    /**
+     * 根据链接中是否包含 docx 或 docs 路径片段判断是否走飞书文档正文接口。
+     */
     private boolean isDocxUrl(String location) {
         return location.contains("/docx/") || location.contains("/docs/");
     }
 
+    /**
+     * 从 docs 或 docx 路径后的段提取文档 token 并去掉查询参数，无法定位时抛错。
+     */
     private String extractDocToken(String location) {
         String[] parts = location.split("/");
         for (int i = 0; i < parts.length; i++) {
@@ -109,6 +118,9 @@ public class FeishuFetcher implements DocumentFetcher {
         throw new ServiceException("无法从飞书链接解析文档令牌: " + location);
     }
 
+    /**
+     * 优先复用传入的租户或访问 token，缺失时用应用凭证申请；凭证不足返回 null。
+     */
     private String resolveAccessToken(Map<String, String> credentials) {
         if (credentials == null) {
             return null;
@@ -128,6 +140,9 @@ public class FeishuFetcher implements DocumentFetcher {
         return requestTenantAccessToken(appId, appSecret);
     }
 
+    /**
+     * 向飞书申请租户访问令牌，检查 HTTP 响应并读取 token，失败转换为服务异常。
+     */
     private String requestTenantAccessToken(String appId, String appSecret) {
         try {
             JsonObject payload = new JsonObject();
@@ -154,6 +169,9 @@ public class FeishuFetcher implements DocumentFetcher {
         }
     }
 
+    /**
+     * 从飞书 JSON 响应读取 data.content，缺失或无法解析时返回 null，由外层决定正文兜底。
+     */
     private String extractDocxContent(byte[] bytes) {
         try {
             JsonObject root = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();

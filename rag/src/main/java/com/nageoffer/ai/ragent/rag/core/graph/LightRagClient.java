@@ -247,6 +247,7 @@ public class LightRagClient {
             if (docs == null) {
                 return;
             }
+            // 先读取远端文档状态分组，通过来源路径匹配出远端 ID，再提交删除请求。
             List<String> docIds = new ArrayList<>();
             JsonNode statuses = docs.path("statuses");
             if (statuses.isObject()) {
@@ -289,20 +290,32 @@ public class LightRagClient {
                 .post(RequestBody.create(objectMapper.writeValueAsString(body), JSON))), "/query", client);
     }
 
+    /**
+     * 序列化请求正文、附加鉴权并发送 JSON POST，复用统一响应处理。
+     */
     private JsonNode post(String path, JsonNode body) throws Exception {
         return execute(auth(new Request.Builder().url(url(path))
                 .post(RequestBody.create(objectMapper.writeValueAsString(body), JSON))), path);
     }
 
+    /**
+     * 为 GET 请求附加鉴权并交给统一执行方法。
+     */
     private JsonNode get(String path) throws Exception {
         return execute(auth(new Request.Builder().url(url(path)).get()), path);
     }
 
+    /**
+     * 携带 JSON 正文发起带鉴权的 DELETE，供图谱文档删除等操作使用。
+     */
     private JsonNode delete(String path, JsonNode body) throws Exception {
         return execute(auth(new Request.Builder().url(url(path))
                 .delete(RequestBody.create(objectMapper.writeValueAsString(body), JSON))), path);
     }
 
+    /**
+     * 去除服务基地址末尾斜线后拼接接口路径，避免重复分隔符。
+     */
     private String url(String path) {
         return StrUtil.removeSuffix(properties.getLightrag().getBaseUrl(), "/") + path;
     }
@@ -325,6 +338,9 @@ public class LightRagClient {
         return execute(builder, path, httpClient);
     }
 
+    /**
+     * 执行 LightRAG HTTP 请求并关闭响应，成功时解析非空 JSON；非成功状态记录告警并返回 null。
+     */
     private JsonNode execute(Request.Builder builder, String path, OkHttpClient client) throws Exception {
         try (Response response = client.newCall(builder.build()).execute()) {
             if (!response.isSuccessful()) {

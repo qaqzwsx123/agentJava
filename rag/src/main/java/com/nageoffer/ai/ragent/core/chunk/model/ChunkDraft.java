@@ -40,10 +40,16 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
         metadata = metadata == null ? ChunkMetadata.empty() : metadata;
     }
 
+    /**
+     * 创建普通分块草稿，可单独指定嵌入正文；不标记为标题或分段边界。
+     */
     public static ChunkDraft of(String content, ChunkMetadata metadata) {
         return new ChunkDraft(content, null, metadata, false, false);
     }
 
+    /**
+     * 创建普通分块草稿，可单独指定嵌入正文；不标记为标题或分段边界。
+     */
     public static ChunkDraft of(String content, String embeddingBody, ChunkMetadata metadata) {
         return new ChunkDraft(content, embeddingBody, metadata, false, false);
     }

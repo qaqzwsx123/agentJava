@@ -112,6 +112,10 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
 
     // ==================== 模板方法：同步调用 ====================
 
+    /**
+     * 构建同步聊天请求，按模型预算选择 HTTP 客户端并校验 HTTP 状态及响应正文。
+     * 网络错误和协议错误转换为模型异常，供外层路由判断是否切换候选。
+     */
     protected String doChat(ChatRequest request, ModelTarget target) {
         AIModelProperties.ProviderConfig provider = HttpResponseHelper.requireProvider(target, provider());
         if (requiresApiKey()) {
@@ -163,6 +167,10 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
 
     // ==================== 模板方法：流式调用 ====================
 
+    /**
+     * 构建带鉴权的流式请求，创建供应商追踪节点并把读取任务投递到模型流线程池。
+     * 返回的取消动作同时取消 HTTP 上游并结算追踪节点；调用线程的节点栈在 finally 中恢复。
+     */
     protected StreamCancellationHandle doStreamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
         AIModelProperties.ProviderConfig provider = HttpResponseHelper.requireProvider(target, provider());
         if (requiresApiKey()) {
@@ -203,6 +211,10 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
         }
     }
 
+    /**
+     * 读取上游 SSE 行，解析正文、思考和完成信号，并转发至统一流回调。
+     * 取消时退出且不再通知错误；未收到正常结束信号就断流时按无效响应报错，HTTP 响应退出时关闭。
+     */
     private void doStream(Call call, StreamCallback callback, AtomicBoolean cancelled, boolean reasoningEnabled) {
         try (Response response = call.execute()) {
             if (!response.isSuccessful()) {
@@ -216,6 +228,7 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
             ResponseBody body = response.body();
             BufferedSource source = body.source();
             boolean completed = false;
+            // 逐行读取上游事件，cancelled 标记配合 HTTP Call.cancel 终止阻塞读取与后续分发。
             while (!cancelled.get()) {
                 String line = source.readUtf8Line();
                 if (line == null) {
@@ -225,6 +238,7 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
                     continue;
                 }
                 try {
+                    // 协议解析器只提取字段；这里负责把思考、正文、完成信号转成业务回调。
                     OpenAIStyleSseParser.ParsedEvent event = OpenAIStyleSseParser.parseLine(line, gson, reasoningEnabled);
                     if (event.hasReasoning()) {
                         callback.onThinking(event.reasoning());
@@ -245,6 +259,7 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
                 log.info("{} 流式响应已被取消", provider());
                 return;
             }
+            // EOF 不等于协议正常完成，没有结束标志的提前断流需要交给错误回调。
             if (!completed) {
                 throw new ModelClientException(provider() + " 流式响应异常结束", ModelClientErrorType.INVALID_RESPONSE, null);
             }
@@ -259,6 +274,9 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
 
     // ==================== 公共构建方法 ====================
 
+    /**
+     * 组装模型名、消息及可选采样参数，按需启用 stream，最后调用子类扩展补充提供商字段。
+     */
     protected JsonObject buildRequestBody(ChatRequest request, ModelTarget target, boolean stream) {
         JsonObject body = new JsonObject();
         body.addProperty("model", HttpResponseHelper.requireModel(target, provider()));
@@ -281,10 +299,14 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
             body.addProperty("max_tokens", request.getMaxTokens());
         }
 
+        // 子类扩展只补提供商支持的私有参数，通用协议字段由本方法统一生成。
         customizeRequestBody(body, request);
         return body;
     }
 
+    /**
+     * 按输入顺序把模型消息转换为 OpenAI 兼容协议的 role 与 content 数组。
+     */
     private JsonArray buildMessages(ChatRequest request) {
         JsonArray arr = new JsonArray();
         List<ChatMessage> messages = request.getMessages();
@@ -299,6 +321,9 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
         return arr;
     }
 
+    /**
+     * 将内部系统、用户、助手角色映射为 OpenAI 兼容协议角色字符串。
+     */
     private String toOpenAiRole(ChatMessage.Role role) {
         return switch (role) {
             case SYSTEM -> "system";
@@ -307,6 +332,9 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
         };
     }
 
+    /**
+     * 根据提供商和模型解析聊天 URL，按客户端要求附加 Bearer 鉴权头。
+     */
     private Request.Builder newAuthorizedRequest(AIModelProperties.ProviderConfig provider, ModelTarget target) {
         Request.Builder builder = new Request.Builder()
                 .url(ModelUrlResolver.resolveUrl(provider, target.candidate(), ModelCapability.CHAT));
@@ -316,6 +344,9 @@ public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
         return builder;
     }
 
+    /**
+     * 逐层校验 choices、首条 message 和 content，正文为空白也视为无效响应，避免把空答案当作成功。
+     */
     private String extractChatContent(JsonObject respJson) {
         if (respJson == null || !respJson.has("choices")) {
             throw new ModelClientException(provider() + " 响应缺少 choices", ModelClientErrorType.INVALID_RESPONSE, null);

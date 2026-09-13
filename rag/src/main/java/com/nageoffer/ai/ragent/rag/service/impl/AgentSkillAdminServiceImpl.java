@@ -322,6 +322,9 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
         return trimmed;
     }
 
+    /**
+     * 规范技能名称并校验非空及长度上限，避免无效名称进入持久化。
+     */
     private String requireName(String name) {
         String trimmed = StrUtil.trimToNull(name);
         Assert.notBlank(trimmed, () -> new ClientException("技能名称不能为空"));
@@ -343,18 +346,27 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
         return trimmed;
     }
 
+    /**
+     * 去除技能正文首尾空白并校验必填，返回用于保存的正文。
+     */
     private String requireContent(String content) {
         String trimmed = StrUtil.trimToNull(content);
         Assert.notBlank(trimmed, () -> new ClientException("技能正文不能为空"));
         return trimmed;
     }
 
+    /**
+     * 加载技能记录；不存在时抛出业务异常，避免修改或删除路径操作空对象。
+     */
     private AgentSkillDO loadById(String id) {
         AgentSkillDO record = agentSkillMapper.selectById(id);
         Assert.notNull(record, () -> new ClientException("技能不存在"));
         return record;
     }
 
+    /**
+     * 转换技能响应，统一启用标志和空工具列表；仅详情等明确需要正文的场景返回 content。
+     */
     private AgentSkillVO toVO(AgentSkillDO record, boolean withContent) {
         return AgentSkillVO.builder()
                 .id(record.getId())

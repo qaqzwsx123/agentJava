@@ -58,6 +58,9 @@ public final class EnhancerPromptManager {
     private EnhancerPromptManager() {
     }
 
+    /**
+     * 按文档增强任务类型取得默认系统提示词，节点自定义提示词由调用方优先选择。
+     */
     public static String systemPrompt(EnhanceType type) {
         return DEFAULT_SYSTEM_PROMPTS.get(type);
     }

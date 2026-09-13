@@ -37,6 +37,10 @@ public final class StreamAsyncExecutor {
 
     private static final String STREAM_BUSY_MESSAGE = "流式线程池繁忙";
 
+    /**
+     * 在线程池执行读取流任务，共享 cancelled 标记用于停止读取，并返回取消 HTTP 请求的句柄。
+     * 线程池拒绝任务时立即取消 HTTP 调用、通知回调错误，并返回空操作句柄。
+     */
     static StreamCancellationHandle submit(Executor executor,
                                            Call call,
                                            StreamCallback callback,

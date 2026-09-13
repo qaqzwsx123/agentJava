@@ -195,6 +195,9 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
                 .toList();
     }
 
+    /**
+     * 按 ID 查询未删除的示例问题，不存在时返回业务异常。
+     */
     private SampleQuestionDO loadById(String id) {
         SampleQuestionDO record = sampleQuestionMapper.selectOne(
                 Wrappers.lambdaQuery(SampleQuestionDO.class)
@@ -205,6 +208,9 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
         return record;
     }
 
+    /**
+     * 将示例问题记录转换为响应，保留标题、说明、提问内容和维护时间。
+     */
     private SampleQuestionVO toVO(SampleQuestionDO record) {
         return SampleQuestionVO.builder()
                 .id(String.valueOf(record.getId()))

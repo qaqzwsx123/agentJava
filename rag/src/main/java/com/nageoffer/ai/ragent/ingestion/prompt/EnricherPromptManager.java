@@ -47,6 +47,9 @@ public final class EnricherPromptManager {
     private EnricherPromptManager() {
     }
 
+    /**
+     * 按分块增强类型取得默认系统提示词，供没有自定义配置的任务使用。
+     */
     public static String systemPrompt(ChunkEnrichType type) {
         return DEFAULT_SYSTEM_PROMPTS.get(type);
     }

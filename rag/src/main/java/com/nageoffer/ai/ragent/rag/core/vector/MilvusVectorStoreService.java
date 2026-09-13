@@ -51,11 +51,15 @@ public class MilvusVectorStoreService implements VectorStoreService {
     private final MilvusClientV2 milvusClient;
     private final RAGDefaultProperties ragDefaultProperties;
 
+    /**
+     * 先校验所有向量维度，再构造带逻辑集合字段的记录，批量插入共享 Milvus 集合，正文按字段上限截断。
+     */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
         Assert.isFalse(chunks == null || chunks.isEmpty(), () -> new ClientException("文档分块不允许为空"));
 
         final int dim = ragDefaultProperties.getDimension();
+        // 批量请求发送前统一校验每条向量，避免到存储端才发现某条缺向量或维度错误。
         List<float[]> vectors = extractVectors(chunks, dim);
 
         List<JsonObject> rows = new ArrayList<>(chunks.size());
@@ -79,6 +83,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
             rows.add(row);
         }
 
+        // 业务 collectionName 已写在记录字段，实际请求统一写入 sharedCollection 物理集合。
         InsertReq req = InsertReq.builder()
                 .collectionName(sharedCollection())
                 .data(rows)
@@ -88,6 +93,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
         log.info("Milvus chunk 建立/写入向量索引成功, collection={}, rows={}", collectionName, resp.getInsertCnt());
     }
 
+    /**
+     * 校验单个向量后按切片主键 upsert，同时更新正文、元数据和逻辑集合字段。
+     */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
         Assert.isFalse(chunk == null, () -> new ClientException("Chunk 对象不能为空"));
@@ -121,6 +129,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
                 collectionName, docId, chunkPk, resp.getUpsertCnt());
     }
 
+    /**
+     * 在共享集合中同时按逻辑集合与元数据文档 ID 过滤，删除该文档的所有向量。
+     */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
         // 共享 collection 下多库共存，doc_id 不再天然隔离，必须叠加 collection_name 限定
@@ -136,6 +147,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
                 collectionName, docId, resp.getDeleteCnt());
     }
 
+    /**
+     * 按全局唯一切片主键删除向量，不再追加逻辑集合过滤。
+     */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
         // id 为雪花主键，全局唯一，直接按主键删除
@@ -151,6 +165,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
                 collectionName, chunkId, resp.getDeleteCnt());
     }
 
+    /**
+     * 把非空切片 ID 列表组合为主键集合过滤条件，批量删除向量。
+     */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
         if (chunkIds == null || chunkIds.isEmpty()) {
@@ -171,6 +188,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
                 collectionName, chunkIds.size(), resp.getDeleteCnt());
     }
 
+    /**
+     * 逐个取得并校验切片向量，保证提交插入请求前所有向量均符合目标维度。
+     */
     private List<float[]> extractVectors(List<EmbeddedChunk> chunks, int expectedDim) {
         List<float[]> vectors = new ArrayList<>(chunks.size());
         for (EmbeddedChunk chunk : chunks) {
@@ -179,6 +199,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
         return vectors;
     }
 
+    /**
+     * 拒绝空向量或与配置维度不一致的向量，返回已校验的浮点数组。
+     */
     private float[] extractVector(EmbeddedChunk chunk, int expectedDim) {
         float[] vector = chunk.embedding();
         if (vector == null || vector.length == 0) {
@@ -190,6 +213,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
         return vector;
     }
 
+    /**
+     * 把浮点向量转成 Milvus JSON 记录需要的数组结构。
+     */
     private JsonArray toJsonArray(float[] v) {
         JsonArray arr = new JsonArray(v.length);
         for (float x : v) {
@@ -198,6 +224,9 @@ public class MilvusVectorStoreService implements VectorStoreService {
         return arr;
     }
 
+    /**
+     * 通过统一元数据序列化入口生成字段，再补文档 ID 和切片序号，逻辑集合单独写在顶层。
+     */
     private JsonObject buildMetadata(String docId, EmbeddedChunk chunk) {
         JsonObject metadata = new JsonObject();
         // 结构化元数据统一走唯一序列化点
