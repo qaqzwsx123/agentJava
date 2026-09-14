@@ -71,6 +71,12 @@ public class AgentConversationController {
      */
     @PutMapping("/agent/v1/conversations/{conversationId}/title")
     public Result<Void> rename(@PathVariable String conversationId, @RequestBody TitleRequest request) {
+        // @RequestBody是拿到前端http里面的请求体：然后传给实体 TitleRequest
+        // PUT /agent/v1/conversations/conv-123/title
+        //Content-Type: application/json
+        //{
+          //  "title": "新的会话标题"
+        //}
         // 空请求体转换为 null 标题，交由业务层统一校验。
         agentConversationService.rename(conversationId, UserContext.getUserId(),
                 request == null ? null : request.title());
@@ -94,7 +100,8 @@ public class AgentConversationController {
      */
     @PostMapping("/agent/v1/conversations/batch-delete")
     public Result<Void> batchDelete(@RequestBody BatchDeleteRequest request) {
-        // 将全部删除操作交给同一个业务事务处理。
+        //接收前端的json请求体的时候，将json自动转换为BatchDeleteRequest对象
+        // 将全部删除操作交给同一个业务事务处理。 request不为空，则将List<String>类型的request.ids()拿过来
         agentConversationService.deleteBatch(request == null ? List.of() : request.ids(), UserContext.getUserId());
         return Results.success();
     }

@@ -29,8 +29,13 @@ import java.lang.annotation.Target;
  * Agent 执行架构条件开关：ragent.engine.type=agent 时装配，终身制部署下 workflow 侧零开销
  */
 @Documented
-@Target({ElementType.TYPE, ElementType.METHOD})
-@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE, ElementType.METHOD}) //这个注解可以标在类或方法上
+@Retention(RetentionPolicy.RUNTIME) //运行时保留，Spring 才能通过反射读到它
 @ConditionalOnProperty(prefix = "ragent.engine", name = "type", havingValue = "agent")
+//检查配置文件里有没有 ragent.engine.type 这个属性，并且它的值是不是 agent。
+//      是 → 条件成立，装配这个 Bean。
+//    不是或没配置 → 条件不成立，不装配。
+//这个 @ConditionalOnAgentEngine 是一个自定义的 Spring 条件注解。它的核心作用是：
+//    当配置项 ragent.engine.type=agent 时，被它标记的类或方法才会被 Spring 容器装配（创建 Bean）；否则直接跳过，不加载。
 public @interface ConditionalOnAgentEngine {
 }

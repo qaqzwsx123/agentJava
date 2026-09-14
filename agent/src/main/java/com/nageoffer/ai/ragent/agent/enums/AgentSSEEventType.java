@@ -28,12 +28,12 @@ public enum AgentSSEEventType {
     /**
      * 会话与任务元信息
      */
-    META("meta"),
+    META("meta"), //通过AgentSSEEventType.META.value() 来拿到 meta这个字符串
 
     /**
      * 增量消息（response / think）
      */
-    MESSAGE("message"),
+    MESSAGE("message"), //通过AgentSSEEventType.MESSAGE.value() 来拿到 message这个字符串
 
     /**
      * 文本块封口，携带服务端起止。封口由下一个事件触发，挂不到 message 增量上
@@ -68,7 +68,7 @@ public enum AgentSSEEventType {
     /**
      * 用户取消
      */
-    CANCEL("cancel");
+    CANCEL("cancel"); //通过 AgentSSEEventType.CANCEL.value() 来拿到这个cancel字符串
 
     private final String value;
 
