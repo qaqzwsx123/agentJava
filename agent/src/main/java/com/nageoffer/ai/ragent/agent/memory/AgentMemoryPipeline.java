@@ -49,6 +49,8 @@ public class AgentMemoryPipeline {
     /**
      * 首条消息落库前预建控制行：建行时刻是抽取下界，建晚了本轮消息永久漏抽
      * 失败只留痕不拦对话，代价是本轮消息可能落在下界之外
+     * <p>
+     * 在用户消息写入前建立长期记忆控制行，固定后续抽取的时间下界；开关关闭时跳过。
      */
     public void ensureExtractionBaseline(String userId) {
         if (!memoryProperties.isLongTermEnabled()) {
@@ -63,6 +65,9 @@ public class AgentMemoryPipeline {
 
     /**
      * 跑完一批；抢不到处理权或没到门槛都算正常结局，不抛异常
+     * <p>
+     * 执行抽取入口检查：读取控制行和水位、加载待处理消息、检查后台门槛并认领处理权。
+     * 返回值区分未启动、忙碌、失败、容量拒收和提交结果；FLUSH 可绕过后台消息数门槛。
      */
     public AgentMemoryOutcome extract(String userId, String conversationId, AgentMemoryTriggerType trigger) {
         if (!memoryProperties.isLongTermEnabled()) {
@@ -76,6 +81,7 @@ public class AgentMemoryPipeline {
         if (pending.isEmpty()) {
             return AgentMemoryOutcome.of(Status.NOTHING_PENDING, 0);
         }
+        // 后台攒够消息再调用模型；主动 FLUSH 有明确沉淀意图，可以立即处理。
         if (trigger == AgentMemoryTriggerType.BACKGROUND
                 && pending.size() < memoryProperties.resolveExtractMinTurns()) {
             return AgentMemoryOutcome.of(Status.BELOW_THRESHOLD, pending.size());
@@ -92,6 +98,9 @@ public class AgentMemoryPipeline {
 
     /**
      * 抢到处理权之后的主体；仲裁在事务外跑，慢调用不占着控制面行锁
+     * <p>
+     * 读取有效记忆后调用仲裁模型，再携带快照版本、水位和可选合并计划提交。
+     * 仲裁或提交失败时结算抽取台账，容量异常单独转换为拒收结果。
      */
     private AgentMemoryOutcome runExtraction(String userId, String conversationId, AgentMemoryTriggerType trigger,
                                              AgentMemoryControlDO control, String watermark,
@@ -106,6 +115,7 @@ public class AgentMemoryPipeline {
             return AgentMemoryOutcome.of(Status.FAILED, pending.size());
         }
 
+        // 将仲裁前的版本和水位一并交给提交层，检查慢模型调用期间是否发生并发变更。
         AgentMemoryCommit commit = new AgentMemoryCommit(userId, conversationId, extraction.getId(),
                 extraction.getAttemptCount(), control.getRevision(), watermark, sourceTypeOf(trigger),
                 decisions, planConsolidation(existing, decisions));
@@ -128,6 +138,8 @@ public class AgentMemoryPipeline {
     /**
      * 只有预演顶到上限才多叫这一次模型；这里读的是无锁快照，权威判定仍在提交事务里
      * 预检看走眼最多是少了这次合并、提交侧改用淘汰腾位置，下一批重新预演时照样会触发合并
+     * <p>
+     * 先预演决策后的完整注入块长度，未超过上限时返回空计划，超过后才调用合并模型。
      */
     private List<AgentMemoryMerge> planConsolidation(List<AgentMemoryItem> existing,
                                                      List<AgentMemoryDecision> decisions) {
@@ -143,6 +155,8 @@ public class AgentMemoryPipeline {
 
     /**
      * 把提交状态转换为抽取结果：写入、已处理但无新增、或快照冲突，并保留待处理数和变更信息。
+     * <p>
+     * WRITTEN 映射为写入成功，NOOP 映射为空结算，其他提交状态映射为冲突。
      */
     private AgentMemoryOutcome toOutcome(AgentMemoryCommitResult result, int pending) {
         Status status = switch (result.status()) {
@@ -155,6 +169,8 @@ public class AgentMemoryPipeline {
 
     /**
      * 把抽取触发方式映射为记忆来源，区分主动 FLUSH 和后台抽取。
+     * <p>
+     * FLUSH 触发映射为主动沉淀来源，其余触发方式映射为后台抽取来源。
      */
     private AgentMemorySourceType sourceTypeOf(AgentMemoryTriggerType trigger) {
         return trigger == AgentMemoryTriggerType.FLUSH
@@ -164,6 +180,8 @@ public class AgentMemoryPipeline {
 
     /**
      * 提交后重读生效条目，flush 成功时就地刷新快照；与 loadSnapshot 不同：读不到应抛异常而非退空
+     * <p>
+     * 直接读取当前有效条目构建新快照；读取异常向上传播，避免用空快照掩盖刷新失败。
      */
     public AgentMemorySnapshot reloadSnapshot(String userId) {
         return new AgentMemorySnapshot(memoryRepository.listActiveItems(userId));

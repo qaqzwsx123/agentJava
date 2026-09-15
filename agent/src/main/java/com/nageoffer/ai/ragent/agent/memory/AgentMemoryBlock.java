@@ -50,6 +50,8 @@ final class AgentMemoryBlock {
 
     /**
      * 空集合返回空串，调用方据此决定插不插块
+     * <p>
+     * 把有效记忆渲染为带边界标签、背景说明和逐条正文的注入块；空集合不生成块。
      */
     static String render(List<AgentMemoryItem> items) {
         if (items == null || items.isEmpty()) {
@@ -64,6 +66,8 @@ final class AgentMemoryBlock {
 
     /**
      * 应用这批决策之后注入块会有多长；提交前的预检与事务内的权威校验共用它
+     * <p>
+     * 先在内存中预演决策，再计算完整注入块长度，包含标题说明、分隔符和换行的开销。
      */
     static int projectedChars(List<AgentMemoryItem> active, List<AgentMemoryDecision> decisions) {
         return render(project(active, decisions)).length();
@@ -71,6 +75,8 @@ final class AgentMemoryBlock {
 
     /**
      * 预演本批应用后的记忆集：新条目此刻还没有 id，只参与量的计算
+     * <p>
+     * 先移除被替换或撤回的旧条目，再追加 ADD 和 SUPERSEDE 的新正文；仅构建预演列表，不修改数据库。
      */
     private static List<AgentMemoryItem> project(List<AgentMemoryItem> active,
                                                  List<AgentMemoryDecision> decisions) {
@@ -78,6 +84,7 @@ final class AgentMemoryBlock {
         for (AgentMemoryItem item : active) {
             survivors.put(item.id(), item);
         }
+        // 新旧条目分开收集：旧 ID 用于移除，未落库的新正文只参与容量计算。
         List<AgentMemoryItem> incoming = new ArrayList<>();
         for (AgentMemoryDecision decision : decisions) {
             if (decision.targetId() != null) {
@@ -87,6 +94,7 @@ final class AgentMemoryBlock {
                 incoming.add(new AgentMemoryItem(null, decision.content()));
             }
         }
+        // 保留未受影响的旧条目顺序，再追加本批引入的正文。
         List<AgentMemoryItem> projected = new ArrayList<>(survivors.values());
         projected.addAll(incoming);
         return projected;

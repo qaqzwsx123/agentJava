@@ -97,6 +97,8 @@ public class AgentMemoryRepository {
 
     /**
      * 读一次记忆视图；长期记忆开关关闭与读库异常一律回空快照，注入侧据此透传
+     * <p>
+     * 先确保控制行存在，再查询有效条目形成注入快照；读库失败只影响本次注入。
      */
     public AgentMemorySnapshot loadSnapshot(String userId) {
         if (!memoryProperties.isLongTermEnabled()) {
@@ -114,6 +116,8 @@ public class AgentMemoryRepository {
 
     /**
      * 懒创建控制面行，并发靠 ON CONFLICT 收敛；建行时刻兼抽取下界，必须先于本轮消息落库
+     * <p>
+     * 有控制行则直接返回；没有时按用户幂等插入后重读，创建时间作为抽取素材下界。
      */
     public AgentMemoryControlDO ensureControl(String userId) {
         AgentMemoryControlDO control = controlMapper.selectByUserId(userId);
@@ -126,6 +130,8 @@ public class AgentMemoryRepository {
 
     /**
      * 生效条目的唯一出口，持久化行不出这个类：仲裁、合并、注入拿到的都是同一份口径
+     * <p>
+     * 将有效数据库行转换为只包含 ID 和正文的条目，供注入、仲裁和合并共同使用。
      */
     public List<AgentMemoryItem> listActiveItems(String userId) {
         return listActive(userId).stream()
@@ -135,6 +141,8 @@ public class AgentMemoryRepository {
 
     /**
      * 按用户查询尚未失效的记忆，按创建时间、ID 排序，形成稳定的仲裁素材顺序。
+     * <p>
+     * 有效性以 invalid_at 为空判断，返回当前用户的条目，不包含已撤回或被替代的历史行。
      */
     private List<AgentMemoryDO> listActive(String userId) {
         return memoryMapper.selectList(Wrappers.lambdaQuery(AgentMemoryDO.class)
@@ -146,6 +154,8 @@ public class AgentMemoryRepository {
 
     /**
      * 当前水位，会话从未结过批返回 null
+     * <p>
+     * 返回本用户、本会话已处理到的消息 ID，作为下次查询待处理消息的排他下界。
      */
     public String currentWatermark(String userId, String conversationId) {
         return extractionMapper.selectWatermark(userId, conversationId);
@@ -153,6 +163,8 @@ public class AgentMemoryRepository {
 
     /**
      * 水位之后、下界之后的用户消息，按 id 升序；下界防老账号接入前的历史倒灌
+     * <p>
+     * 仅查询指定用户和会话的 user 消息，同时限制消息 ID 大于水位、时间不早于下界；每批最多 40 条。
      */
     public List<AgentMessageDO> loadPending(String userId, String conversationId,
                                             String watermark, Date since) {
@@ -168,6 +180,9 @@ public class AgentMemoryRepository {
 
     /**
      * 抢占本会话的处理权，抢不到返回 null；先回收僵尸行，靠部分唯一索引仲裁
+     * <p>
+     * 先回收超时处理中的台账，再累计历史尝试次数并插入 PROCESSING 记录。
+     * 唯一约束冲突表示已有抽取占用本会话，返回 null，让调用方跳过模型调用。
      */
     public AgentMemoryExtractionDO claim(String userId, String conversationId,
                                          String fromMessageId, String toMessageId,
@@ -202,6 +217,8 @@ public class AgentMemoryRepository {
 
     /**
      * Judge 或解析失败的结算：没到上限记 CONFLICT 等下次机会，到上限记 DROPPED 推水位
+     * <p>
+     * 未满三次时结算为 CONFLICT，达到三次时结算为 DROPPED，避免坏批次长期阻塞后续抽取。
      */
     public AgentMemoryExtractionStatus settleFailure(AgentMemoryExtractionDO extraction) {
         AgentMemoryExtractionStatus status = extraction.getAttemptCount() >= MAX_ATTEMPTS
@@ -218,9 +235,14 @@ public class AgentMemoryRepository {
     /**
      * 短事务提交：先拿控制面行锁，revision 与水位双校验通过才应用决策
      * 缺一不可——NOOP 不推版本号，重复写入只有水位拦得住
+     * <p>
+     * 锁住用户控制行后校验版本和会话水位，再依次执行合并、决策过滤、容量预演及必要的淘汰。
+     * 容量允许后应用决策、推进版本并结算台账；任何异常由事务统一回滚。
+     * 返回结果分别记录台账状态、落库决策数以及记忆集是否变化，合并和淘汰也计入变化。
      */
     @Transactional(rollbackFor = Exception.class)
     public AgentMemoryCommitResult commit(AgentMemoryCommit commit) {
+        // 模型在事务外运行；进事务后先锁定用户控制行，再校验读取时的版本和会话水位。
         String userId = commit.userId();
         AgentMemoryControlDO control = controlMapper.selectForUpdate(userId);
         String watermark = extractionMapper.selectWatermark(userId, commit.conversationId());
@@ -240,6 +262,7 @@ public class AgentMemoryRepository {
             survivors.put(item.id(), item.content());
         }
 
+        // 先过滤不存在的目标和无法存储的正文，再用有效决策进行容量预演。
         List<AgentMemoryDecision> effective = new ArrayList<>();
         int discarded = 0;
         for (AgentMemoryDecision decision : commit.decisions()) {
@@ -262,6 +285,7 @@ public class AgentMemoryRepository {
             return settleEmpty(commit, consolidated);
         }
 
+        // 合并仍不足时才淘汰旧记忆；最终仍超限则抛异常，回滚本次事务的全部变更。
         boolean evicted = false;
         int projectedChars = AgentMemoryBlock.projectedChars(active, effective);
         if (projectedChars > memoryProperties.resolveMemoryMaxChars()) {
@@ -275,6 +299,7 @@ public class AgentMemoryRepository {
             }
         }
 
+        // 容量通过后应用决策，并在同一事务内推进版本、结算抽取台账。
         int applied = apply(userId, commit.sourceType(), effective);
         if (applied == 0) {
             return settleEmpty(commit, consolidated || evicted);
@@ -288,6 +313,8 @@ public class AgentMemoryRepository {
 
     /**
      * 决策落库；SUPERSEDE 先验旧行再插新行，倒过来会在失败时留下重复条目
+     * <p>
+     * 逐条执行 ADD、SUPERSEDE、RETRACT，返回实际成功应用的决策数；条件更新未命中时跳过该条。
      */
     private int apply(String userId, AgentMemorySourceType sourceType, List<AgentMemoryDecision> decisions) {
         int applied = 0;
@@ -322,6 +349,8 @@ public class AgentMemoryRepository {
 
     /**
      * 检查正文非空且未超过单条存储长度上限；不符合条件的模型产物不进入落库。
+     * <p>
+     * 单条正文必须非空白且不超过 500 字符，满足数据库列宽限制。
      */
     private boolean storable(String content) {
         return content != null && !content.isBlank() && content.length() <= MAX_CONTENT_CHARS;
@@ -329,6 +358,8 @@ public class AgentMemoryRepository {
 
     /**
      * 按预分配 ID 写入记忆正文、用户和来源信息；事务由外层提交方法控制。
+     * <p>
+     * presetId 为 null 时交由持久化配置生成 ID；替换或合并时传入预分配的新 ID，以关联旧行。
      */
     private void insert(String userId, String content, AgentMemorySourceType sourceType, String presetId) {
         memoryMapper.insert(AgentMemoryDO.builder()
@@ -341,6 +372,8 @@ public class AgentMemoryRepository {
 
     /**
      * 受限合并落库，返回成功的组数；校验不信计划方，逐组复核成员有效性与合并后长度
+     * <p>
+     * 排除本批决策引用和已被其他组合并的成员，逐组复核后执行合并；成功合并后推进记忆版本。
      */
     private int consolidate(String userId, List<AgentMemoryItem> active, AgentMemoryCommit commit) {
         List<AgentMemoryMerge> merges = commit.merges();
@@ -355,6 +388,7 @@ public class AgentMemoryRepository {
                 .filter(Objects::nonNull)
                 .forEach(targeted::add);
 
+        // 合并计划可能包含重叠成员，claimed 记录已经成功占用的旧条目。
         Set<String> claimed = new HashSet<>();
         int groups = 0;
         for (AgentMemoryMerge merge : merges) {
@@ -376,6 +410,8 @@ public class AgentMemoryRepository {
 
     /**
      * 整组条件 UPDATE 指向同一条新行，成员在锁内已核过一遍，落空即库被旁路改动，整个事务回滚
+     * <p>
+     * 预分配新条目 ID，逐个将旧条目指向该后继，再插入合并正文；任一条件更新失败都抛出异常。
      */
     private void applyMerge(String userId, AgentMemoryMerge merge) {
         String newId = IdWorker.getIdStr();
@@ -390,6 +426,8 @@ public class AgentMemoryRepository {
     /**
      * 校验合并组至少含两个不同条目，成员均在快照中且未被其他决策占用。
      * 合并正文必须可存储，并比原成员正文总长更短，否则放弃该组。
+     * <p>
+     * 还会排除本批决策目标和之前合并组已占用的 ID，防止同一条目被重复修改。
      */
     private boolean mergeable(String userId, AgentMemoryMerge merge, Map<String, String> pool,
                               Set<String> targeted, Set<String> claimed) {
@@ -425,6 +463,9 @@ public class AgentMemoryRepository {
     /**
      * 合并之后仍装不下才走这里：FLUSH 批来的殿后、其余最旧先淘，够装下就停
      * 停手水位是硬下限，越过它的那一条退回不淘，单批能顶掉的存量因此有界
+     * <p>
+     * 保护本批决策引用的条目，按来源和年龄淘汰其他记忆；既要给新决策腾空间，也不能让剩余存量低于下限。
+     * 淘汰后推进版本，返回剩余有效条目；仍无法容纳新决策时由外层提交方法拒收并回滚。
      */
     private List<AgentMemoryItem> evict(String userId, List<AgentMemoryItem> active,
                                         List<AgentMemoryDecision> effective, AgentMemoryCommit commit) {
@@ -468,6 +509,8 @@ public class AgentMemoryRepository {
 
     /**
      * 淘汰序；listActive 已按 create_time、id 升序，这里只再稳定分一档来源
+     * <p>
+     * 先安排非 FLUSH 来源，再安排 FLUSH 来源；同一来源档内保持创建时间与 ID 的原有顺序。
      */
     private List<AgentMemoryDO> evictionOrder(String userId) {
         return listActive(userId).stream()
@@ -478,6 +521,8 @@ public class AgentMemoryRepository {
 
     /**
      * 从当前有效记忆中移除本次已淘汰的 ID，得到后续合并仍可使用的条目。
+     * <p>
+     * 过滤已淘汰 ID 并返回新列表，供容量预演使用，不改变传入的有效条目列表。
      */
     private static List<AgentMemoryItem> survivorsOf(List<AgentMemoryItem> active, Set<String> evicted) {
         return active.stream().filter(item -> !evicted.contains(item.id())).toList();
@@ -486,6 +531,8 @@ public class AgentMemoryRepository {
     /**
      * 将基于过期快照的抽取结算为冲突，并退回本次尝试计数。
      * 返回未写入、未变更的结果，让调用方重新读取状态后再判断是否抽取。
+     * <p>
+     * 版本或水位不一致时结束本次抽取，不应用模型决策；返还因快照过期消耗的尝试次数。
      */
     private AgentMemoryCommitResult rejectAsConflict(AgentMemoryCommit commit,
                                                      AgentMemoryControlDO control, String watermark) {
@@ -500,6 +547,8 @@ public class AgentMemoryRepository {
 
     /**
      * 判完没落东西照样推水位，判据是「Judge 跑完了」不是「产出了东西」
+     * <p>
+     * 将无有效落库决策的批次记为 NOOP；mutated 仍保留此前合并或淘汰造成的变化。
      */
     private AgentMemoryCommitResult settleEmpty(AgentMemoryCommit commit, boolean mutated) {
         settleOrThrow(commit, AgentMemoryExtractionStatus.NOOP, 0);
@@ -508,6 +557,8 @@ public class AgentMemoryRepository {
 
     /**
      * 结算落空说明这次抽取已被旁人结掉，整个事务必须回滚，决不能只写一半
+     * <p>
+     * 要求台账结算恰好更新一行，否则抛出异常，使记忆变更与台账状态保持事务一致。
      */
     private void settleOrThrow(AgentMemoryCommit commit, AgentMemoryExtractionStatus status, int decisionCount) {
         if (extractionMapper.settle(commit.extractionId(), status.name(), decisionCount, commit.attemptCount()) != 1) {

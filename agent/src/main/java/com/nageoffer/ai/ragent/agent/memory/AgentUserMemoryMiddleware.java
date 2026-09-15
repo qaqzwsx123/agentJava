@@ -56,15 +56,22 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
 
     private final AgentMemoryRepository memoryRepository;
 
+    /**
+     * 在模型推理前加载并注入用户记忆，实际读取与注入延迟到事件流被订阅时执行。
+     */
     @Override
     public Flux<AgentEvent> onReasoning(Agent agent, RuntimeContext runtimeContext, ReasoningInput input,
                                         Function<ReasoningInput, Flux<AgentEvent>> next) {
         return Flux.defer(() -> dispatch(runtimeContext, input, next));
     }
 
+    /**
+     * 优先复用本次运行上下文中的记忆快照；首次读取时将阻塞 JDBC 调度到 boundedElastic 线程池。
+     */
     private Flux<AgentEvent> dispatch(RuntimeContext runtimeContext, ReasoningInput input,
                                       Function<ReasoningInput, Flux<AgentEvent>> next) {
         AgentMemorySnapshot cached = runtimeContext == null ? null : runtimeContext.get(SNAPSHOT_KEY);
+        // 同一次 Agent 运行可能多次推理，快照可复用，也可由 FLUSH 工具更新。
         if (cached != null) {
             return next.apply(inject(input, cached));
         }
@@ -74,6 +81,9 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
                 .flatMapMany(snapshot -> next.apply(inject(input, snapshot)));
     }
 
+    /**
+     * 按当前用户加载记忆快照并写入 RuntimeContext，供同一轮 Agent 的后续推理复用；无用户 ID 时返回空快照。
+     */
     private AgentMemorySnapshot load(RuntimeContext runtimeContext) {
         String userId = runtimeContext == null ? null : runtimeContext.getUserId();
         if (StrUtil.isBlank(userId)) {
@@ -86,6 +96,8 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
 
     /**
      * 先按 name 滤净旧块再插一块，重复挂载中间件也只会有一块
+     * <p>
+     * 先移除已有记忆块，再在系统人设之后插入当前快照；只重建上行消息副本，沿用工具和模型选项。
      */
     private ReasoningInput inject(ReasoningInput input, AgentMemorySnapshot snapshot) {
         List<Msg> messages = input.messages();
@@ -93,6 +105,7 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
         if (!stale && !snapshot.hasItems()) {
             return input;
         }
+        // 只修改发给模型的副本，记忆块不写入持久化会话上下文。
         List<Msg> rebuilt = new ArrayList<>(messages.size() + 1);
         for (Msg msg : messages) {
             if (!isMemoryBlock(msg)) {
@@ -107,6 +120,8 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
 
     /**
      * 插在人设之后、会话首条之前：尾插会让压缩中间件的引用比对首格失配，从此永久跳过压缩
+     * <p>
+     * 跳过列表开头连续的 SYSTEM 消息，返回记忆块插入位置，使原会话消息继续保持为列表尾部。
      */
     private int personaBoundary(List<Msg> messages) {
         int index = 0;
@@ -118,6 +133,8 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
 
     /**
      * 用 USER 不用 SYSTEM：形制与压缩摘要同源，供应商对中途 SYSTEM 的容忍度不一
+     * <p>
+     * 将渲染后的记忆块包装成带专用名称和唯一 ID 的 USER 消息，便于去重和识别。
      */
     private Msg buildMemoryMsg(String block) {
         return Msg.builder()
@@ -128,6 +145,9 @@ public class AgentUserMemoryMiddleware implements MiddlewareBase {
                 .build();
     }
 
+    /**
+     * 按专用消息名称识别长期记忆注入块，不依赖正文内容。
+     */
     private static boolean isMemoryBlock(Msg msg) {
         return AgentMemoryBlock.NAME.equals(msg.getName());
     }

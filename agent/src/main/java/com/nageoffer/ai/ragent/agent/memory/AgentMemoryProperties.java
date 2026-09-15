@@ -111,45 +111,67 @@ public class AgentMemoryProperties {
 
     /**
      * 叫 resolve 不叫 get：绑定器会把 getXxx 当成可配置项
+     * <p>
+     * 返回上下文预算的 50%，作为轻量裁剪的字符触发水位。
      */
     public int resolveTrimTriggerChars() {
         return (int) (contextWindowChars * TRIM_TRIGGER_RATIO);
     }
 
+    /**
+     * 返回上下文预算的 80%，作为历史摘要压缩的字符触发水位。
+     */
     public int resolveCompactTriggerChars() {
         return (int) (contextWindowChars * COMPACT_TRIGGER_RATIO);
     }
 
+    /**
+     * 返回上下文预算的 20%，作为摘要压缩时应保留的最近原文字符预算。
+     */
     public int resolveKeepRecentChars() {
         return (int) (contextWindowChars * KEEP_RECENT_RATIO);
     }
 
+    /**
+     * 返回额外保留的历史完整工具循环数量，当前固定为 2；本轮及未完成循环另行保护。
+     */
     public int resolveKeepRecentCycles() {
         return KEEP_RECENT_CYCLES;
     }
 
+    /**
+     * 返回最低净回收比例 20%；不足以回收当前上下文这么多字符时不执行裁剪。
+     */
     public double resolveClearAtLeastRatio() {
         return CLEAR_AT_LEAST_RATIO;
     }
 
     /**
      * 夹在上下限之间返回
+     * <p>
+     * 以预算的 10% 推导摘要上限，再限制在 1500 到 6000 字符之间。
      */
     public int resolveSummaryMaxChars() {
+        // 小窗口保证摘要仍有基本表达空间，大窗口限制同步生成的输出体量。
         int derived = (int) (contextWindowChars * SUMMARY_MAX_RATIO);
         return Math.min(Math.max(derived, SUMMARY_MAX_FLOOR_CHARS), SUMMARY_MAX_CEIL_CHARS);
     }
 
     /**
      * 长期记忆注入块上限，同样夹在上下限之间返回
+     * <p>
+     * 以预算的 0.5% 推导长期记忆块容量，再限制在 1500 到 6000 字符之间。
      */
     public int resolveMemoryMaxChars() {
+        // 约束的是完整注入块，正文之外的说明、标签和换行也占用这份容量。
         int derived = (int) (contextWindowChars * MEMORY_MAX_RATIO);
         return Math.min(Math.max(derived, MEMORY_MAX_FLOOR_CHARS), MEMORY_MAX_CEIL_CHARS);
     }
 
     /**
      * 返回触发记忆抽取所需的最小轮次数，供流水线判断是否积累了足够素材。
+     * <p>
+     * 当前返回 3，统计的是待处理用户消息条数；主动 FLUSH 不受该门槛限制。
      */
     public int resolveExtractMinTurns() {
         return MEMORY_EXTRACT_MIN_TURNS;
@@ -157,6 +179,8 @@ public class AgentMemoryProperties {
 
     /**
      * 受限合并的停手水位，兼任容量淘汰的硬下限
+     * <p>
+     * 返回长期记忆容量上限的 75%，供合并提示词作为目标、容量淘汰作为存量下限。
      */
     public int resolveConsolidationStopChars() {
         return (int) (resolveMemoryMaxChars() * CONSOLIDATION_STOP_RATIO);

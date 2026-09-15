@@ -19,6 +19,11 @@ package com.nageoffer.ai.ragent.agent.memory;
 
 /**
  * 一次抽取的结局；mutated 表示记忆集整体有没有变（含合并/淘汰），与 applied 独立
+ *
+ * @param status 管道执行结果，包含提前跳过、处理失败、容量拒收及提交完成等情况
+ * @param applied 实际落库的仲裁决策数
+ * @param pending 本次加载到的待处理用户消息数，受单批查询上限限制
+ * @param mutated 记忆集是否发生变化，调用方可据此决定是否刷新快照
  */
 public record AgentMemoryOutcome(Status status, int applied, int pending, boolean mutated) {
 
@@ -70,12 +75,17 @@ public record AgentMemoryOutcome(Status status, int applied, int pending, boolea
         WRITTEN
     }
 
+    /**
+     * 构造没有落库决策、没有记忆变更的抽取结果，并保留当前待处理消息数量。
+     */
     static AgentMemoryOutcome of(Status status, int pending) {
         return new AgentMemoryOutcome(status, 0, pending, false);
     }
 
     /**
      * 压根没起跑，一次模型都没叫；后台每轮都会撞上这三种，不值得留 INFO
+     * <p>
+     * 判断是否因关闭开关、没有待处理消息或未达后台门槛而提前结束，供调用方减少无效日志。
      */
     public boolean idle() {
         return status == Status.DISABLED

@@ -29,6 +29,10 @@ class AgentMemoryCapacityException extends RuntimeException {
 
     private final int maxChars;
 
+    /**
+     * 构造容量拒收异常，携带抽取 ID、预计注入块字符数和容量上限。
+     * 由事务外的抽取管道捕获并结算失败，本次事务中的合并、淘汰和写入随异常回滚。
+     */
     AgentMemoryCapacityException(String extractionId, int projectedChars, int maxChars) {
         super("长期记忆容量装不下, extractionId: " + extractionId
                 + ", 预演字符: " + projectedChars + ", 上限: " + maxChars);

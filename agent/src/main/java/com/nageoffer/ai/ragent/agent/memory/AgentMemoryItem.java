@@ -19,6 +19,9 @@ package com.nageoffer.ai.ragent.agent.memory;
 
 /**
  * 一条生效中的长期记忆，id 要带给 Judge 才有得指认
+ *
+ * @param id 持久化条目 ID；容量预演中的新增条目尚未落库，可以为 null
+ * @param content 记忆正文，供模型仲裁、合并和推理时注入
  */
 public record AgentMemoryItem(String id, String content) {
 }
