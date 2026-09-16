@@ -39,5 +39,6 @@ public final class AgentTraceContextKeys {
     public static final String CONFIRM_MESSAGE_ID = "ragent_confirm_message_id";
 
     private AgentTraceContextKeys() {
+        // 只提供 RuntimeContext 键名，业务代码通过静态常量访问。
     }
 }

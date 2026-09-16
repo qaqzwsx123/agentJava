@@ -39,6 +39,7 @@ public final class AgentMcpMeta {
      * 构造传给 MCP 工具的用户元数据；用户为空时返回空映射。
      */
     public static Map<String, Object> ofUser(String userId) {
+        // 用户身份来自服务端登录上下文；为空时不带身份，有值时放入 MCP 的扩展元数据。
         return StrUtil.isBlank(userId)
                 ? Map.of()
                 : Map.of(USER_ID_KEY, userId);

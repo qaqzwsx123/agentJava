@@ -60,12 +60,14 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
     private final Tracer tracer;
 
     public RagentOtelTracingMiddleware(Tracer tracer) {
+        // 保存本项目 scope 的 tracer，仅 acting 钩子使用它创建工具批节点。
         this.tracer = tracer;
     }
 
     @Override
     public Flux<AgentEvent> onActing(Agent agent, RuntimeContext ctx, ActingInput input,
                                      Function<ActingInput, Flux<AgentEvent>> next) {
+        // 1. 订阅时取得父 OTel 上下文及本次执行事实源，后续整批节点关联到这次实际运行。
         return Flux.deferContextual(ctxView -> {
             Context parent = AgentRunTracer.otelContext(ctxView);
             AgentToolExecutionFacts facts = AgentToolExecutionFacts.from(ctx);
@@ -73,6 +75,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
             int batchIndex = facts == null ? -1 : facts.batchCount();
             List<ToolUseBlock> calls = input.toolCalls() == null ? List.of() : input.toolCalls();
 
+            // 2. 创建的是整批 span，不携带单工具语义；单工具的真实区间由各自工具体节点表达。
             Span span = tracer.spanBuilder(SPAN_NAME)
                     .setParent(parent)
                     .setSpanKind(SpanKind.INTERNAL)
@@ -80,6 +83,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
             span.setAttribute(AgentTraceAttributes.OBSERVATION_TYPE, AgentTraceAttributes.TYPE_SPAN);
             span.setAttribute(RagentAttributes.TOOL_BATCH_SIZE, calls.size());
 
+            // 3. 本订阅独享批级结局和收口标记，完成、异常、取消三条路径只能结束节点一次。
             BatchOutcome outcome = new BatchOutcome();
             AtomicBoolean ended = new AtomicBoolean();
             return ContextPropagationOperator.runWithContext(next.apply(input)
@@ -91,6 +95,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
                             span.end();
                         }
                     })
+                    // 4. 异常路径先补批次结果，再记录异常类型与堆栈，最后结束节点。
                     .doOnError(error -> {
                         if (ended.compareAndSet(false, true)) {
                             settle(span, facts, batchIndex, outcome);
@@ -100,6 +105,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
                             span.end();
                         }
                     })
+                    // 5. 取消路径按共享事实中的业务中止时刻收口，缺失时才按当前时间结束。
                     .doOnCancel(() -> {
                         if (ended.compareAndSet(false, true)) {
                             outcome.interrupted = true;
@@ -117,6 +123,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
      * 事件只用来判断整批究竟跑没跑，逐条真相由内层中间件写进批 span 的产出名册
      */
     private static void observe(AgentToolExecutionFacts facts, BatchOutcome outcome, AgentEvent event) {
+        // 确认与整批拒绝事件先记录批级标记；单工具结束时还要排除未进入工具体的短路调用。
         if (event instanceof RequireUserConfirmEvent) {
             outcome.awaiting = true;
         } else if (event instanceof AllToolsDeniedEvent) {
@@ -135,6 +142,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
      * 批次号回读事实源，不在这里另算一个：算第二遍就有第二份真相
      */
     private static void settle(Span span, AgentToolExecutionFacts facts, int batchIndex, BatchOutcome outcome) {
+        // 按预先记录的索引回读真正的批次，再写批次 ID 和汇总结局，不在追踪侧生成另一套编号。
         ToolBatchFact batch = facts == null ? null : facts.batchAt(batchIndex);
         if (batch != null) {
             span.setAttribute(RagentAttributes.TOOL_BATCH_ID, batch.batchId());
@@ -146,6 +154,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
      * 提前收口的 span 一律对齐中断时刻，用断流那一刻的墙上时间会把中断后的等待窗口算进耗时
      */
     private static void endAt(Span span, Long terminationAt) {
+        // 有业务中止时刻就按它结束，避免把中止后的等待算进执行时长；没有时刻才按当前时间结束。
         if (terminationAt == null) {
             span.end();
             return;
@@ -165,6 +174,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
         private volatile boolean interrupted;
 
         private void member(AgentToolStatus status) {
+            // 按单工具终态累计批级标记；这些标记可同时为真，最终由 resolve 按优先级选择。
             switch (status) {
                 case DENIED -> denied = true;
                 case INTERRUPTED -> interrupted = true;
@@ -174,6 +184,7 @@ public class RagentOtelTracingMiddleware extends OtelTracingMiddleware {
         }
 
         private String resolve() {
+            // 1. 优先报告中断，其次等待确认；只有被拒且没有任何实际执行时才报告整批被拒。
             if (interrupted) {
                 return RagentAttributes.OUTCOME_INTERRUPTED;
             }

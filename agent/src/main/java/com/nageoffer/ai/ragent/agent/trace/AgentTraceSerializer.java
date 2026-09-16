@@ -73,6 +73,7 @@ class AgentTraceSerializer {
     private final boolean captureContent;
 
     AgentTraceSerializer(int maxFieldChars, int maxAttributeChars, boolean captureContent) {
+        // 固定字段预算、整条属性预算和内容开关；同一实例供中间件与工具体追踪共用。
         this.maxFieldChars = maxFieldChars;
         this.maxAttributeChars = maxAttributeChars;
         this.captureContent = captureContent;
@@ -82,12 +83,14 @@ class AgentTraceSerializer {
      * 模型这次实际看到的完整消息列表，人设、记忆块、摘要、工具结果都在里面
      */
     String messages(List<Msg> messages) {
+        // 1. 内容采集关闭时立即返回 null，避免继续遍历可能很长的会话列表。
         if (!captureContent) {
             return null;
         }
         if (messages == null || messages.isEmpty()) {
             return "[]";
         }
+        // 2. 先逐消息保留结构并裁叶子，再守住合并成整条属性后的总预算。
         return budgeted(toJson(messages.stream().map(this::describeMessage).toList()));
     }
 
@@ -99,12 +102,14 @@ class AgentTraceSerializer {
      * 跟到根上既会被 LangFuse 的 observation 求和重复计入，也把业务结果冲淡。
      */
     String rootOutput(CharSequence answer, Msg finalMsg) {
+        // 1. 先检查内容开关；根输出只组织最终业务回答，模型思考由 generation 单独保存。
         if (!captureContent) {
             return null;
         }
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("answer", truncate(answer));
         GenerateReason reason = finalMsg == null ? null : finalMsg.getGenerateReason();
+        // 2. 正常纯文本答案不再复制一份 final；挂起、异常结局或结构化结果仍需保留。
         if (shouldKeepFinal(answer, finalMsg, reason)) {
             output.put("final", describeRoleAndBlocks(finalMsg));
         }
@@ -118,12 +123,14 @@ class AgentTraceSerializer {
      * 其余结局保守保留完整 final；即使未来框架新增了结构块，正常结束也不会把它静默吞掉。
      */
     private boolean shouldKeepFinal(CharSequence answer, Msg finalMsg, GenerateReason reason) {
+        // 1. 没有最终消息就无需补 final；非正常模型停止则保留结构，交代挂起或中断的位置。
         if (finalMsg == null) {
             return false;
         }
         if (reason != GenerateReason.MODEL_STOP) {
             return true;
         }
+        // 2. 正常结束时检查是否存在正文和思考之外的块，这些结构不能仅靠 answer 表达。
         List<ContentBlock> content = finalMsg.getContent();
         if (content == null || content.isEmpty()) {
             return false;
@@ -146,11 +153,13 @@ class AgentTraceSerializer {
      * 故意不设 captureContent 闸门：schema 是装配出来的配置，没有一个字段来自会话，别跟着内容开关一起关掉
      */
     String toolDefinitions(List<ToolSchema> tools) {
+        // 1. 工具清单属于配置而非会话正文，即使关闭内容采集也保留；空清单返回合法 JSON 数组。
         if (tools == null || tools.isEmpty()) {
             return "[]";
         }
         List<Object> described = new ArrayList<>(tools.size());
         for (ToolSchema tool : tools) {
+            // 2. 工具描述按字段裁剪，参数 Schema 保留结构，整个工具清单最后再检查总预算。
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("name", tool.getName());
             item.put("description", truncate(tool.getDescription()));
@@ -165,6 +174,7 @@ class AgentTraceSerializer {
      * 白名单里全是调参，同样不设 captureContent 闸门：关了内容还能对着参数复现这次调用
      */
     String modelParameters(GenerateOptions options) {
+        // 1. 没有调用选项时返回空对象；有选项则只取下面列出的可观测参数，不序列化整个对象。
         if (options == null) {
             return "{}";
         }
@@ -189,6 +199,7 @@ class AgentTraceSerializer {
      * 条目由调用处按 callIndex 排好并逐字段截断，这里只负责摊成数组并守住属性总预算
      */
     String toolCalls(List<Map<String, Object>> calls) {
+        // 先检查内容开关，再处理空名册；条目已经由调用方逐字段整理，这里负责 JSON 化和总预算。
         if (!captureContent) {
             return null;
         }
@@ -202,6 +213,7 @@ class AgentTraceSerializer {
      * 工具入参含员工姓名、申请单号这类真实业务字段，限额内保留嵌套结构，超限才降级成截断串
      */
     Object arguments(Map<String, Object> input) {
+        // 内容开关关闭时不展开入参；开启时在字段预算内保留 Map 结构，超限才降级。
         return captureContent ? compact(input) : null;
     }
 
@@ -210,6 +222,7 @@ class AgentTraceSerializer {
      * 解析不出来说明流被截断在半路，用明确的占位避免后端把半截 JSON 当成正常参数
      */
     Object argumentsFromRaw(String raw) {
+        // 1. 不采内容时跳过解析；没有收到入参片段时返回空对象，避免将空串误报为损坏 JSON。
         if (!captureContent) {
             return null;
         }
@@ -217,6 +230,7 @@ class AgentTraceSerializer {
             return Map.of();
         }
         try {
+            // 2. 先恢复 JSON 对象，再使用与完整工具入参相同的字段预算和结构保留规则。
             return compact(JSONUtil.parseObj(raw, JSON_CONFIG));
         } catch (Exception ex) {
             log.debug("工具入参 JSON 解析失败, 长度: {}", raw.length(), ex);
@@ -229,6 +243,7 @@ class AgentTraceSerializer {
      * 同名并行的两条各写各的，靠 span 自带的 toolCallId 与 callIndex 分辨，不必再往内容里塞一遍
      */
     String toolArguments(Map<String, Object> input) {
+        // 1. 工具体独立属性同样遵守内容开关；空入参用空 JSON 对象表达。
         if (!captureContent) {
             return null;
         }
@@ -242,6 +257,7 @@ class AgentTraceSerializer {
      * 规范里的工具返回值只要正文，状态另有专键，故这份不带 state
      */
     String toolResult(ToolResultBlock result) {
+        // 关闭内容采集或没有结果时不写属性；有结果则描述内容块并检查整条属性预算。
         if (!captureContent || result == null) {
             return null;
         }
@@ -253,6 +269,7 @@ class AgentTraceSerializer {
      * 不为「只有异常」另开一个出口，那样读的人得先猜这次落在哪个字段上
      */
     String toolOutcome(String state, ToolResultBlock result, Throwable error) {
+        // 先检查内容开关，再将业务状态、返回结果和异常说明合成统一 JSON，三者可独立为空。
         if (!captureContent) {
             return null;
         }
@@ -267,6 +284,7 @@ class AgentTraceSerializer {
      * 模型本轮的输出：正文、思考、工具调用三段各自成键
      */
     String modelOutput(CharSequence text, CharSequence thinking, List<Map<String, Object>> toolCalls) {
+        // 正文与思考分别按字段限额截取，工具调用保持结构，最后再检查组合后的属性总长度。
         if (!captureContent) {
             return null;
         }
@@ -284,6 +302,7 @@ class AgentTraceSerializer {
      * 第三处不设 captureContent 闸门的：token 数是计量口径，补上闸门等于关内容的同时把成本面板一起关了
      */
     String usageDetails(int input, int output, int cached, int total) {
+        // 1. 缓存 token 不能小于 0 或大于输入量，先夹到有效范围，再从普通输入量中扣除以免重复计费。
         int safeCached = Math.max(0, Math.min(cached, input));
         Map<String, Object> usage = new LinkedHashMap<>();
         usage.put("input", input - safeCached);
@@ -297,6 +316,7 @@ class AgentTraceSerializer {
      * 叶子字段上限，只裁一个字段，外层结构不受影响
      */
     String truncate(CharSequence raw) {
+        // 这里只做叶子长度限制，不自行判断内容开关；是否允许采集由外层内容入口控制。
         return cut(raw, maxFieldChars);
     }
 
@@ -304,6 +324,7 @@ class AgentTraceSerializer {
      * 整条纯文本属性：纯文本没有结构，直接砍砍不坏，两道上限取小者即可
      */
     String plainText(CharSequence raw) {
+        // 纯文本不需保留 JSON 结构，取字段与属性预算较小者限制正文；关闭采集返回 null。
         return captureContent ? cut(raw, Math.min(maxFieldChars, maxAttributeChars)) : null;
     }
 
@@ -312,6 +333,7 @@ class AgentTraceSerializer {
      * 复制一遍，一段长回答刷下来就是平方开销；这里只截上限内的前缀，单次成本与已攒长度无关
      */
     private static String cut(CharSequence raw, int limit) {
+        // 1. 空值保持 null；长度未超限时直接返回字符串，不附加任何截断标记。
         if (raw == null) {
             return null;
         }
@@ -327,10 +349,12 @@ class AgentTraceSerializer {
      * 故整段退成一个合法对象，正文塞进字符串值里由序列化器负责转义，长度不达标就再对半收
      */
     private String budgeted(String json) {
+        // 1. 空值或已符合总预算的 JSON 原样返回，只有超限内容才构造降级对象。
         if (json == null || json.length() <= maxAttributeChars) {
             return json;
         }
         int preview = Math.max(0, maxAttributeChars - OVERFLOW_OVERHEAD_CHARS);
+        // 2. JSON 转义会使预览变长；每次把预览减半并重新序列化，直到最终字符串符合总预算。
         while (preview > 0) {
             String reduced = toJson(overflow(json, preview));
             if (FALLBACK.equals(reduced) || reduced.length() <= maxAttributeChars) {
@@ -338,10 +362,12 @@ class AgentTraceSerializer {
             }
             preview /= 2;
         }
+        // 3. 预览完全放不下时仍返回带原始长度的合法降级对象，不直接截断 JSON 语法。
         return toJson(overflow(json, 0));
     }
 
     private static Map<String, Object> overflow(String json, int preview) {
+        // 构造合法降级对象，明确标记截断、原始长度和预览；外层再次序列化负责转义预览中的引号。
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("_truncated", true);
         item.put("original_chars", json.length());
@@ -353,6 +379,7 @@ class AgentTraceSerializer {
      * 角色与内容块，两个渲染出口的公共部分；根节点的 final 只要这些，ASKING 工具块在 content 里
      */
     private Map<String, Object> describeRoleAndBlocks(Msg msg) {
+        // 按固定顺序输出角色、名称和内容块，角色用与区域设置无关的小写形式。
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("role", msg.getRole() == null ? null : msg.getRole().name().toLowerCase(Locale.ROOT));
         item.put("name", msg.getName());
@@ -361,6 +388,7 @@ class AgentTraceSerializer {
     }
 
     private Map<String, Object> describeMessage(Msg msg) {
+        // 先生成公共的角色与块结构，再按需加入元数据；确认续跑的批准或拒绝可能只存在于这里。
         Map<String, Object> item = describeRoleAndBlocks(msg);
         // 确认续跑那条消息一个内容块都没有，批准还是拒绝只存在于 metadata 里
         if (msg.getMetadata() != null && !msg.getMetadata().isEmpty()) {
@@ -370,6 +398,7 @@ class AgentTraceSerializer {
     }
 
     private List<Object> describeBlocks(List<ContentBlock> content) {
+        // 无内容时返回空列表；有内容时逐块描述，保持消息中的原有顺序和嵌套关系。
         if (content == null || content.isEmpty()) {
             return List.of();
         }
@@ -377,6 +406,7 @@ class AgentTraceSerializer {
     }
 
     private Object describeBlock(ContentBlock block) {
+        // 按具体内容块类型生成可展开结构；文本受字段限额约束，工具调用与结果保留各自 ID 和状态。
         Map<String, Object> item = new LinkedHashMap<>();
         if (block instanceof TextBlock text) {
             item.put("type", "text");
@@ -396,6 +426,7 @@ class AgentTraceSerializer {
             item.put("input", compact(toolUse.getInput()));
             return item;
         }
+        // 工具结果可以继续嵌套内容块，递归描述输出，确保各层文本仍受字段预算约束。
         if (block instanceof ToolResultBlock result) {
             item.put("type", "tool_result");
             item.put("id", result.getId());
@@ -415,6 +446,7 @@ class AgentTraceSerializer {
      * 序列化失败时必须把降级串交出去：还回原对象只会让外层再失败一次，整条属性一起陪葬
      */
     private Object compact(Map<String, Object> input) {
+        // 1. 空映射直接保留；非空时先序列化估算长度，再决定保留结构还是退为截断文本。
         if (input == null || input.isEmpty()) {
             return input;
         }
@@ -422,10 +454,12 @@ class AgentTraceSerializer {
         if (FALLBACK.equals(json)) {
             return json;
         }
+        // 2. 原映射符合字段预算就保留结构；超长时才返回截短的 JSON 文本作为值。
         return json.length() <= maxFieldChars ? input : truncate(json);
     }
 
     private String toJson(Object value) {
+        // 所有结构都使用有序 JSON 配置；序列化失败只返回占位并记日志，不让辅助追踪中断对话。
         try {
             return JSONUtil.toJsonStr(value, JSON_CONFIG);
         } catch (Exception e) {

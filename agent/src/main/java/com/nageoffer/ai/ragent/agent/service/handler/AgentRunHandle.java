@@ -1,19 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 package com.nageoffer.ai.ragent.agent.service.handler;
 
@@ -38,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 public class AgentRunHandle {
 
     /**
-     * 打断后留给框架存盘的时间
+     * 打断后留给框架存盘的时间, 超过这个时间就转为强制断流
      */
     private static final long GRACEFUL_INTERRUPT_WAIT_MS = 2000L;
 
@@ -46,61 +30,24 @@ public class AgentRunHandle {
     private final String taskId;
 
     /**
-     * SSE 发送器，增量事件由调用方直接写
+     * SSE 发送器，增量事件由调用方直接写,收尾成功后由本句柄调用 {@code sender.complete()} 关闭 SSE。
      */
     @Getter
     private final SseEmitterSender sender;
-
-    private final StreamTaskManager taskManager;
-
-    /**
-     * 启动、收尾、释放三段共用的锁，必须可重入：同步结束的流会在订阅那一刻就回调收尾
-     */
-    private final Object lifecycleLock = new Object();
-
-    /**
-     * -- GETTER --
-     * 是否已收尾，锁内写、锁外有人读
-     */
+    private final StreamTaskManager taskManager; //任务管理器，负责登记 / 注销任务以及取消状态查询。
+    private final Object lifecycleLock = new Object();// 启动、收尾、释放三段共用的锁，必须可重入：同步结束的流会在订阅那一刻就回调收尾
     @Getter
-    private volatile boolean settled;
-
-    /**
-     * 取消广播和兜底路径都会调打断，只放行第一次
-     */
-    private boolean interruptTriggered;
-
-    /**
-     * 释放钩子，每个只跑一次
-     */
-    private final List<Runnable> releaseHooks = new ArrayList<>();
-    private boolean released;
-
-    /**
-     * 上游流的终止信号，打断后等它来判断框架有没有存完盘
-     */
-    private final CountDownLatch upstreamTerminated = new CountDownLatch(1);
-
-    private Disposable disposable;
-    private Runnable interruptAction;
-
-    /**
-     * -- GETTER --
-     * 是否走的失败出口，失败时释放钩子需要补一次存盘
-     */
+    private volatile boolean settled; //是否已收尾，锁内写、锁外有人读,所以用 volatile。
+    private boolean interruptTriggered; //取消广播和兜底路径都会调打断，只放行第一次
+    private final List<Runnable> releaseHooks = new ArrayList<>();//释放钩子，每个只跑一次,收尾之后再登记的钩子会走“当场补跑”分支。
+    private boolean released; //释放钩子是否已经跑过。
+    private final CountDownLatch upstreamTerminated = new CountDownLatch(1); //上游流的终止信号，打断后等它来判断框架有没有存完盘
+    private Disposable disposable; //上游流订阅对象，用于强制断流。
+    private Runnable interruptAction; //打断动作，由调用方在 bindStream 时提供
     @Getter
-    private volatile boolean stateSaveRequired;
-
-    /**
-     * 中断时刻记在这里，没结束的 span 拿它当终点
-     */
-    private final AgentToolExecutionFacts facts;
-
-    /**
-     * 打断跑在 HTTP 线程上够不着响应式链，根 span 从这里取
-     */
-    private final RuntimeContext runtimeContext;
-
+    private volatile boolean stateSaveRequired;// 是否需要在释放钩子里补一次存盘。失败出口或强制断流时会置位；只置位不清零，避免被优雅中断冲掉
+    private final AgentToolExecutionFacts facts; //工具执行事实，用来记录打断 / 取消 / 中止等状态。
+    private final RuntimeContext runtimeContext; //打断跑在 HTTP 线程上够不着响应式链，根 span 从这里取
     public AgentRunHandle(String taskId, SseEmitterSender sender, StreamTaskManager taskManager,
                           AgentToolExecutionFacts facts, RuntimeContext runtimeContext) {
         this.taskId = taskId;
@@ -115,16 +62,17 @@ public class AgentRunHandle {
      */
     public void bindStream(Disposable disposable, Runnable interruptAction) {
         synchronized (lifecycleLock) {
-            this.disposable = disposable;
-            this.interruptAction = interruptAction;
+            this.disposable = disposable; //disposable 上游流的订阅对象，用于强制断流
+            this.interruptAction = interruptAction; //interruptAction 打断动作，由调用方提供
         }
     }
 
     /**
-     * 整段启动放进锁里，否则取消可能先跑完收尾、这边随后才订阅，工具照样被执行一遍
+     * 启动本次运行。整段启动放进锁里，否则取消可能先跑完收尾、这边随后才订阅，工具照样被执行一遍
      */
     public void start(Runnable startup) {
         synchronized (lifecycleLock) {
+            // 已收尾或已取消 → 不再启动，避免无用执行
             if (isSettled() || isCancelled()) {
                 return;
             }
@@ -148,11 +96,13 @@ public class AgentRunHandle {
             return;
         }
         synchronized (lifecycleLock) {
+            // 还没释放 → 记入列表，等收尾时统一跑
             if (!released) {
                 releaseHooks.add(hook);
                 return;
             }
         }
+        // 已释放 → 当场补跑，保证调用方不会漏掉释放动作
         runReleaseHook(hook);
     }
 
@@ -170,6 +120,7 @@ public class AgentRunHandle {
         Runnable interrupt;
         Disposable current;
         synchronized (lifecycleLock) {
+            // 打断只放行第一次
             if (interruptTriggered) {
                 return;
             }
@@ -183,8 +134,8 @@ public class AgentRunHandle {
                 // 得赶在 interrupt 之前写，框架收尾会 end 掉根 span，之后再写属性没用
                 facts.markInterrupted();
                 AgentRunTracer.markInterrupted(runtimeContext);
-                interrupt.run();
-                graceful = awaitUpstreamTermination();
+                interrupt.run();  // 执行打断动作
+                graceful = awaitUpstreamTermination(); // 等上游流终止信号，判断是否是优雅中断
             } catch (Exception e) {
                 // 打断动作出错不能挡住断流，否则 ReAct 循环会空跑到迭代上限
                 log.error("打断动作执行异常，转为强制断流, taskId: {}", taskId, e);
@@ -267,6 +218,7 @@ public class AgentRunHandle {
      */
     private boolean settle(Runnable body) {
         synchronized (lifecycleLock) {
+            // 已收尾 → 直接返回 false，避免重复收尾
             if (settled) {
                 return false;
             }
@@ -275,6 +227,7 @@ public class AgentRunHandle {
             try {
                 body.run();
             } catch (Exception e) {
+                // 收尾体失败不能挡住后续注销和释放
                 log.error("Agent 运行收尾处理失败, taskId: {}", taskId, e);
             } finally {
                 try {
@@ -282,7 +235,7 @@ public class AgentRunHandle {
                 } catch (Exception e) {
                     // 注销失败不能挡住释放钩子，否则这个用户的并发锁要守到 TTL 过期
                     log.error("Agent 任务注销失败, taskId: {}", taskId, e);
-                } finally {
+                } finally { //无论前面是否异常，释放钩子必须执行
                     runReleaseHooks();
                 }
             }

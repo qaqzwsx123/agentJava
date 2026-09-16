@@ -56,16 +56,19 @@ public class KnowledgeSearchTool implements AgentTool {
 
     @Override
     public String getName() {
+        // 返回模型调用时使用的固定工具名，与 Toolkit 注册名和结果中的 name 保持一致。
         return TOOL_NAME;
     }
 
     @Override
     public String getDescription() {
+        // 返回目录快照提供的描述，模型据此判断什么时候需要调用知识库检索。
         return description;
     }
 
     @Override
     public Map<String, Object> getParameters() {
+        // 声明只接收必填的字符串 query，并禁止额外字段，供框架进行参数校验。
         return Map.of(
                 "type", "object",
                 "properties", Map.of(
@@ -78,19 +81,24 @@ public class KnowledgeSearchTool implements AgentTool {
 
     @Override
     public boolean isReadOnly() {
+        // 知识库检索不修改业务数据，明确标记只读，供框架权限与执行策略判断。
         return true;
     }
 
     @Override
     public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        // 1. 先交给工具体追踪包装；真正订阅时才执行同步检索，并在三条终止路径记录事实。
         return AgentToolBodyTracer.trace(this, param, () -> Mono.fromCallable(() -> execute(param))
+                // 2. 底层 RAG 检索是同步调用，调度到弹性工作线程，避免阻塞响应式推理线程。
                 .subscribeOn(Schedulers.boundedElastic()));
     }
 
     private ToolResultBlock execute(ToolCallParam param) {
+        // 1. 校验调用参数对象；缺失时直接返回统一错误结果，不发起检索。
         if (param == null) {
             return buildResult(null, "工具调用参数不能为空", true);
         }
+        // 2. 保存调用 ID 供结果关联，再从输入中只接受非空白字符串 query。
         String toolCallId = Optional.ofNullable(param.getToolUseBlock())
                 .map(ToolUseBlock::getId)
                 .orElse(null);
@@ -103,6 +111,7 @@ public class KnowledgeSearchTool implements AgentTool {
         if (query.isEmpty()) {
             return buildResult(toolCallId, "工具参数 query 不能为空", true);
         }
+        // 3. 参数通过后调用 RAG 门面；返回后还要检查取消和空结果，不能把空内容当成成功。
         String normalizedQuery = query.get();
         try {
             String result = knowledgeSearchFacade.search(normalizedQuery);
@@ -116,6 +125,7 @@ public class KnowledgeSearchTool implements AgentTool {
             }
             return buildResult(toolCallId, result, false);
         } catch (Exception e) {
+            // 4. 异常也可能代表用户停止，先识别取消，再处理真实检索故障。
             if (TaskCancellation.isCancellation(e)) {
                 return buildInterrupted(toolCallId);
             }
@@ -126,6 +136,7 @@ public class KnowledgeSearchTool implements AgentTool {
     }
 
     private ToolResultBlock buildResult(String toolCallId, String text, boolean isError) {
+        // 携带原调用 ID 和固定工具名构造文本结果，按 isError 区分 ERROR 与 SUCCESS。
         return ToolResultBlock.builder()
                 .id(toolCallId)
                 .name(TOOL_NAME)
@@ -138,6 +149,7 @@ public class KnowledgeSearchTool implements AgentTool {
      * 取消不能报成 ERROR：模型见到失败会在下一轮重试检索，而用户已经喊停
      */
     private ToolResultBlock buildInterrupted(String toolCallId) {
+        // 明确返回 INTERRUPTED 并关联原调用 ID，让框架识别为用户停止，避免当成检索错误继续重试。
         log.debug("知识库检索被取消, toolCallId: {}", toolCallId);
         return ToolResultBlock.builder()
                 .id(toolCallId)

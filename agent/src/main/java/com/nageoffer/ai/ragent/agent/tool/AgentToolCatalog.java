@@ -129,6 +129,7 @@ public class AgentToolCatalog {
      * 当前可用的 MCP 工具数量，用于 meta 探活接口
      */
     public int mcpToolCount() {
+        // 重新按当前意图树与已发现工具取交集，返回可挂载数量，而不是远程服务的原始工具数。
         return resolveMcpTools().bindings.size();
     }
 
@@ -136,7 +137,9 @@ public class AgentToolCatalog {
      * 读取知识检索工具的描述提示词；缺失时拒绝构建目录，避免注册描述不完整的工具。
      */
     private String resolveKnowledgeToolDescription(Map<String, String> prompts) {
+        // 1. 从同一份提示词快照中读取知识检索描述，避免构建目录时混入另一时刻的配置。
         String description = prompts.get(AgentPromptSlot.KNOWLEDGE_TOOL_DESCRIPTION.name());
+        // 2. 检索工具始终挂载，缺少说明时立即失败，避免把无语义描述的工具交给模型。
         if (StrUtil.isBlank(description)) {
             throw new IllegalStateException("KNOWLEDGE_TOOL_DESCRIPTION 提示词不允许为空");
         }
@@ -147,9 +150,11 @@ public class AgentToolCatalog {
      * 长期记忆关闭或提示词为空时返回 null
      */
     private String resolveMemoryToolDescription(Map<String, String> prompts) {
+        // 1. 长期记忆开关关闭时不提供描述，Toolkit 据此省略 flush_memory 工具。
         if (!memoryProperties.isLongTermEnabled()) {
             return null;
         }
+        // 2. 即使开关已开，空描述仍表示本次不挂载；外层装配会记录对应告警。
         String description = prompts.get(AgentPromptSlot.AGENT_MEMORY_TOOL_DESCRIPTION.name());
         return StrUtil.isBlank(description) ? null : description;
     }
@@ -257,12 +262,15 @@ public class AgentToolCatalog {
 
         public static McpToolBinding of(String toolId, String displayName, String description,
                                         boolean confirmConfigured, RemoteTool remote) {
+            // 1. 读取远程定义与只读声明；只有明确的 true 才按只读处理，缺省值仍要求确认。
             Tool definition = remote.definition();
             ToolAnnotations annotations = definition.annotations();
             Boolean readOnlyHint = annotations == null ? null : annotations.readOnlyHint();
+            // 2. 意图树描述优先，未填写时回退远程服务声明；入参 Schema 也来自同一远程定义。
             String effectiveDescription = StrUtil.isNotBlank(description)
                     ? description
                     : StrUtil.emptyIfNull(definition.description());
+            // 3. 显式要求确认或未明确声明只读，任一成立都需要人工确认。
             return new McpToolBinding(toolId, displayName, effectiveDescription,
                     McpTool.convertMcpSchemaToParameters(definition.inputSchema(), Set.of()),
                     Boolean.TRUE.equals(readOnlyHint),
@@ -271,6 +279,7 @@ public class AgentToolCatalog {
         }
 
         public McpToolFingerprint fingerprint() {
+            // 仅取实际生效的展示、描述、Schema 和权限值参与比较，客户端连接对象不进入指纹。
             return new McpToolFingerprint(toolId, displayName, description, inputSchema, readOnly, needsConfirm);
         }
 
@@ -306,12 +315,14 @@ public class AgentToolCatalog {
                 List<McpToolBinding> bindings,
                 List<String> unavailableToolIds,
                 List<AgentSkill> skills) {
+            // 1. 冻结本次工具清单，并根据当前技能列表决定是否启用 load_skill，后续构建使用同一份快照。
             this.knowledgeToolDescription = knowledgeToolDescription;
             this.memoryToolDescription = memoryToolDescription;
             this.bindings = List.copyOf(bindings);
             this.unavailableToolIds = List.copyOf(unavailableToolIds);
             this.hasSkills = !skills.isEmpty();
 
+            // 2. 先登记内置工具展示名，再合并远程工具名称和参数标签，供 SSE 与确认卡使用。
             Map<String, String> names = new LinkedHashMap<>();
             names.put(KnowledgeSearchTool.TOOL_NAME, KnowledgeSearchTool.DISPLAY_NAME);
             if (memoryToolDescription != null) {
@@ -327,12 +338,14 @@ public class AgentToolCatalog {
             });
             this.displayNames = Map.copyOf(names);
             this.fieldLabels = Collections.unmodifiableMap(labels);
+            // 3. 指纹只包含影响本次装配的生效值，排除连接实例等无法稳定比较的对象。
             this.fingerprint = new ToolCatalogFingerprint(knowledgeToolDescription, memoryToolDescription,
                     this.bindings.stream().map(McpToolBinding::fingerprint).toList(),
                     this.unavailableToolIds, hasSkills);
         }
 
         public ToolCatalogFingerprint fingerprint() {
+            // 返回构造目录时一次性算好的指纹，调用方用它判断是否需要重建 Agent。
             return fingerprint;
         }
 
@@ -340,6 +353,7 @@ public class AgentToolCatalog {
          * 工具展示名，未收录的返回原始名
          */
         public String displayNameOf(String toolName) {
+            // 优先使用目录中的业务展示名；未收录的工具保留原名，避免事件展示丢失标识。
             return displayNames.getOrDefault(toolName, toolName);
         }
 
@@ -347,6 +361,7 @@ public class AgentToolCatalog {
          * 确认卡的入参标签（schema 声明序），未收录的返回空 Map
          */
         public Map<String, String> fieldLabelsOf(String toolName) {
+            // 读取确认卡片需要的参数标签；未知工具返回空表，让调用方按原字段名兜底。
             return fieldLabels.getOrDefault(toolName, Map.of());
         }
 
@@ -354,9 +369,11 @@ public class AgentToolCatalog {
          * 从服务端 schema 提取字段标签，用 LinkedHashMap 保持声明序
          */
         private static Map<String, String> fieldLabels(JsonSchema inputSchema) {
+            // 1. Schema 或属性定义缺失时没有标签可提取，直接返回空表。
             if (inputSchema == null || inputSchema.properties() == null) {
                 return Map.of();
             }
+            // 2. 按 Schema 的属性迭代顺序保存字段标题，返回只读视图，防止确认卡顺序被改动。
             Map<String, String> labels = new LinkedHashMap<>();
             inputSchema.properties().forEach((field, spec) ->
                     labels.put(field, titleOf(spec, field)));
@@ -364,6 +381,7 @@ public class AgentToolCatalog {
         }
 
         private static String titleOf(Object spec, String field) {
+            // 字段 Schema 是对象且含非空 title 时使用该标题；否则回退字段原名。
             return spec instanceof Map<?, ?> node && node.get("title") instanceof String title
                     && StrUtil.isNotBlank(title) ? title : field;
         }
@@ -381,6 +399,7 @@ public class AgentToolCatalog {
             boolean hasSkills) {
 
         public ToolCatalogFingerprint {
+            // 冻结指纹内的列表，构造后不会因调用方修改原列表而改变相等比较结果。
             mcpTools = List.copyOf(mcpTools);
             unavailableToolIds = List.copyOf(unavailableToolIds);
         }

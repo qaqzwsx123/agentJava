@@ -151,5 +151,6 @@ public final class RagentAttributes {
     public static final String ERROR_SOURCE_EXCEPTION = "exception";
 
     private RagentAttributes() {
+        // 本类集中声明项目追踪属性，业务代码直接引用静态常量。
     }
 }

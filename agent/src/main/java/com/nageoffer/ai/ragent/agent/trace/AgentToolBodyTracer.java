@@ -63,12 +63,14 @@ public final class AgentToolBodyTracer {
     private static volatile AgentTraceSerializer serializer = CONTENT_OFF;
 
     private AgentToolBodyTracer() {
+        // 工具体追踪统一通过静态入口使用，禁止外部实例化。
     }
 
     /**
      * 传 null 即恢复成不采内容，追踪装配缺席与测试收尾都用它
      */
     static void configure(AgentTraceSerializer configured) {
+        // 装配期推入共享序列化器；传 null 则恢复不采集内容的兜底配置。
         serializer = configured == null ? CONTENT_OFF : configured;
     }
 
@@ -77,27 +79,33 @@ public final class AgentToolBodyTracer {
      */
     public static Mono<ToolResultBlock> trace(AgentTool tool, ToolCallParam param,
                                               Supplier<Mono<ToolResultBlock>> body) {
+        // 1. 等到订阅时再读 Reactor 上下文，保证父 span 来自这次实际执行，而不是组装 Mono 的线程。
         return Mono.deferContextual(ctxView -> {
             RuntimeContext runtimeContext = param == null ? null : param.getRuntimeContext();
             AgentToolExecutionFacts facts = AgentToolExecutionFacts.from(runtimeContext);
             if (facts == null) {
                 return body.get();
             }
+            // 2. 在调用工具体前记录真实起点，再尝试建立 span；没有有效父节点也照常记录事实。
             String toolCallId = toolCallId(param);
             long startedAt = facts.markStarted(toolCallId);
             Span span = openSpan(ctxView, tool, facts, toolCallId, startedAt, runtimeContext, param);
+            // 3. 成功、异常和取消共用一次性收口标记，只有一个回调能固定终点并结束 span。
             AtomicBoolean ended = new AtomicBoolean();
             return body.get()
+                    // 4. 成功信号仍可能携带业务 ERROR 或 INTERRUPTED 结果，统一交结算函数判断。
                     .doOnSuccess(result -> {
                         if (ended.compareAndSet(false, true)) {
                             settleFinished(span, facts, toolCallId, result, null);
                         }
                     })
+                    // 5. 响应式异常与业务错误结果分开记录，保留真实异常类型与堆栈。
                     .doOnError(error -> {
                         if (ended.compareAndSet(false, true)) {
                             settleFinished(span, facts, toolCallId, null, error);
                         }
                     })
+                    // 6. 取消没有结果值，使用用户中止事实收口，不伪造正常返回。
                     .doOnCancel(() -> {
                         if (ended.compareAndSet(false, true)) {
                             settleCancelled(span, facts, toolCallId);
@@ -112,10 +120,12 @@ public final class AgentToolBodyTracer {
     private static Span openSpan(ContextView ctxView, AgentTool tool, AgentToolExecutionFacts facts,
                                  String toolCallId, long startedAt, RuntimeContext runtimeContext,
                                  ToolCallParam param) {
+        // 1. 解析当前父节点；没有有效父 span 时不建孤立节点，但外层仍会记录工具执行事实。
         Context parent = AgentRunTracer.otelContext(ctxView);
         if (!Span.fromContext(parent).getSpanContext().isValid()) {
             return null;
         }
+        // 2. 用事实源的开始时刻建节点，追踪耗时与数据库、SSE 的工具耗时使用同一时间口径。
         String toolName = tool == null ? null : tool.getName();
         Span span = GlobalOpenTelemetry.getTracer(AgentTracingConfiguration.INSTRUMENTATION_SCOPE)
                 .spanBuilder(SPAN_NAME_PREFIX + toolName)
@@ -145,6 +155,7 @@ public final class AgentToolBodyTracer {
         if (fact.batchId() != null) {
             span.setAttribute(RagentAttributes.TOOL_BATCH_ID, fact.batchId());
         }
+        // 3. 身份、轮次、调用与批次已关联后，再按内容开关和字段预算记录工具入参。
         writeArguments(span, param);
         return span;
     }
@@ -153,6 +164,7 @@ public final class AgentToolBodyTracer {
      * 规范键给按 GenAI 语义读的一方，LangFuse 键给 UI，同一份内容写两处，别让其中一边看到的是另一种口径
      */
     private static void writeArguments(Span span, ToolCallParam param) {
+        // 按当前内容开关和预算序列化入参；返回 null 表示不采集，本方法直接跳过属性写入。
         String arguments = serializer.toolArguments(param == null ? null : param.getInput());
         if (arguments == null) {
             return;
@@ -166,6 +178,7 @@ public final class AgentToolBodyTracer {
      */
     private static void settleFinished(Span span, AgentToolExecutionFacts facts, String toolCallId,
                                        ToolResultBlock result, Throwable error) {
+        // 1. 先把结果映射为业务状态；普通结束取实际终点，协作式中断对齐用户停止时刻。
         // 协作式取消会返回 INTERRUPTED 而不是发出 Reactor cancel 信号，终点仍要对齐用户中断时刻
         AgentToolStatus status = AgentToolStatus.of(result == null ? null : result.getState());
         long endedAt = status == AgentToolStatus.INTERRUPTED
@@ -176,6 +189,7 @@ public final class AgentToolBodyTracer {
         }
         // 空完成是工具违约，交给同一处状态映射判成失败，不在这里另立一种状态
         span.setAttribute(RagentAttributes.TOOL_STATUS, status.value());
+        // 2. 依次区分抛异常、工具主动返回失败与中断，错误来源取结构位置而不是解析文案。
         if (error != null) {
             span.setStatus(StatusCode.ERROR);
             span.setAttribute(AgentErrorTypes.KEY, AgentErrorTypes.ofThrowable(error));
@@ -192,6 +206,7 @@ public final class AgentToolBodyTracer {
             span.setStatus(StatusCode.ERROR);
             span.setAttribute(AgentErrorTypes.KEY, AgentErrorTypes.ofCancelledSpan(facts.terminationAt()));
         }
+        // 3. 先写结局正文再按事实终点结束，span 结束后补属性不会生效。
         writeOutcome(span, status, result, error);
         span.end(Instant.ofEpochMilli(endedAt));
     }
@@ -201,11 +216,13 @@ public final class AgentToolBodyTracer {
      * 规范键只在成功时写，它表示的是工具返回值，拿失败正文顶上去会让按它统计的一方读到假成功
      */
     private static void writeOutcome(Span span, AgentToolStatus status, ToolResultBlock result, Throwable error) {
+        // 1. 先生成包含状态、结果或异常的 UI 结局，内容采集关闭时不写正文属性。
         String outcome = serializer.toolOutcome(status.value(), result, error);
         if (outcome == null) {
             return;
         }
         span.setAttribute(AgentTraceAttributes.OBSERVATION_OUTPUT, outcome);
+        // 2. 失败正文只放 UI 结局，不写到规范的工具返回值字段，避免统计时被误认为正常返回。
         if (error != null || status == AgentToolStatus.FAILED) {
             return;
         }
@@ -219,10 +236,12 @@ public final class AgentToolBodyTracer {
      * 断在半路的那条对齐中断时刻，用断流当时的墙上时间会把中断后的等待窗口算进耗时
      */
     private static void settleCancelled(Span span, AgentToolExecutionFacts facts, String toolCallId) {
+        // 1. 先固定工具事实终点；即使未建立 span，SSE 和数据库仍可读取同一份结束时间。
         long endedAt = facts.markTerminated(toolCallId);
         if (span == null) {
             return;
         }
+        // 2. 取消路径没有工具结果，以中断状态和中止原因补齐后，再按同一事实终点结束 span。
         span.setAttribute(RagentAttributes.TOOL_STATUS, AgentToolStatus.INTERRUPTED.value());
         span.setStatus(StatusCode.ERROR);
         span.setAttribute(AgentErrorTypes.KEY, AgentErrorTypes.ofCancelledSpan(facts.terminationAt()));
@@ -232,6 +251,7 @@ public final class AgentToolBodyTracer {
     }
 
     private static String toolCallId(ToolCallParam param) {
+        // 参数或调用块缺失时返回 null，其余情况沿用框架调用 ID，不在追踪侧生成第二个 ID。
         return param == null || param.getToolUseBlock() == null ? null : param.getToolUseBlock().getId();
     }
 }
