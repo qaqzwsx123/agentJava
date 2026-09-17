@@ -38,6 +38,7 @@ public class DataBaseConfiguration {
      */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
+        // 1. 创建 MyBatis-Plus 插件容器，再加入 PostgreSQL 方言的分页拦截器，供 Mapper 分页查询使用。
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.POSTGRE_SQL));
         return interceptor;
@@ -48,6 +49,7 @@ public class DataBaseConfiguration {
      */
     @Bean
     public MetaObjectHandler myMetaObjectHandler() {
+        // 把统一字段填充器交给 Spring，MyBatis-Plus 插入和更新实体时通过它补齐时间等元数据。
         return new MyMetaObjectHandler();
     }
 }

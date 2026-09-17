@@ -27,19 +27,23 @@ import com.nageoffer.ai.ragent.framework.errorcode.IErrorCode;
 public class RemoteException extends AbstractException {
 
     public RemoteException(String message) {
+        // 自定义文案默认归入第三方服务错误码，通过完整入口保持统一异常结构。
         this(message, null, BaseErrorCode.REMOTE_ERROR);
     }
 
     public RemoteException(String message, IErrorCode errorCode) {
+        // 使用调用方指定的远程错误码和文案，未提供原因异常时传 null。
         this(message, null, errorCode);
     }
 
     public RemoteException(String message, Throwable throwable, IErrorCode errorCode) {
+        // 把消息、原因异常和错误码交给基类，保留排查远程失败需要的异常链。
         super(message, throwable, errorCode);
     }
 
     @Override
     public String toString() {
+        // 按统一格式展示远程错误码与业务文案，便于日志定位外部服务调用失败。
         return "RemoteException{" +
                 "code='" + errorCode + "'," +
                 "message='" + errorMessage + "'" +

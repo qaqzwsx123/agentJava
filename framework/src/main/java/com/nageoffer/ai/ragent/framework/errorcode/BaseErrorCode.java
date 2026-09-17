@@ -136,17 +136,20 @@ public enum BaseErrorCode implements IErrorCode {
      * @param message 错误消息
      */
     BaseErrorCode(String code, String message) {
+        // 枚举创建时固定错误码与默认文案，供异常和响应构造器共用。
         this.code = code;
         this.message = message;
     }
 
     @Override
     public String code() {
+        // 返回约定的业务错误码，而不是枚举名称或顺序号。
         return code;
     }
 
     @Override
     public String message() {
+        // 返回这个错误码对应的默认提示，可被业务异常提供的具体消息覆盖。
         return message;
     }
 }

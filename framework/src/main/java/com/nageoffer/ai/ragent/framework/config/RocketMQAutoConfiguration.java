@@ -32,12 +32,14 @@ public class RocketMQAutoConfiguration {
 
     @Bean
     public DelegatingTransactionListener delegatingTransactionListener() {
+        // 创建按事务 ID 分派本地回调、按 topic 分派回查逻辑的共享监听器。
         return new DelegatingTransactionListener();
     }
 
     @Bean
     public MessageQueueProducer messageQueueProducer(RocketMQTemplate rocketMQTemplate,
                                                      DelegatingTransactionListener transactionListener) {
+        // 将 RocketMQTemplate 和同一个事务监听器装配到生产者适配器，业务层只需依赖生产者接口。
         return new RocketMQProducerAdapter(rocketMQTemplate, transactionListener);
     }
 }

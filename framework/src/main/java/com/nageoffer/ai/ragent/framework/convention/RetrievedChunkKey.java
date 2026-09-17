@@ -23,12 +23,14 @@ import cn.hutool.crypto.digest.DigestUtil;
 public final class RetrievedChunkKey {
 
     private RetrievedChunkKey() {
+        // 去重键只通过静态工厂生成，工具类不需要实例。
     }
 
     /**
      * 优先用切片 ID 作为去重和归因键，缺失时对正文计算 SHA-256，空正文按空字符串计算。
      */
     public static String of(RetrievedChunk chunk) {
+        // 有有效切片 ID 就直接复用；没有 ID 才对原始正文计算 SHA-256，null 正文按空串处理。
         return StrUtil.isNotBlank(chunk.getId())
                 ? chunk.getId()
                 : DigestUtil.sha256Hex(chunk.getText() == null ? "" : chunk.getText());

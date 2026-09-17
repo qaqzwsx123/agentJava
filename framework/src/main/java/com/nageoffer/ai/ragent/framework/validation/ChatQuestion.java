@@ -42,9 +42,18 @@ public @interface ChatQuestion {
 
     int MAX_LENGTH = 500;
 
+    /**
+     * 校验失败时使用的默认提示；组合约束自身也可提供更具体的提示。
+     */
     String message() default "问题参数不合法";
 
+    /**
+     * 指定约束所属的校验分组，默认使用 Bean Validation 的缺省分组。
+     */
     Class<?>[] groups() default {};
 
+    /**
+     * 供校验调用方附带分类元信息，不承载实际问题正文。
+     */
     Class<? extends Payload>[] payload() default {};
 }

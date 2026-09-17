@@ -66,16 +66,19 @@ public class SseEmitterSender {
      * @param data      要发送的数据内容
      */
     public void sendEvent(String eventName, Object data) {
+        // 1. 已关闭的连接不再尝试发送，避免结束后继续写响应产生重复异常。
         if (closed.get()) {
             return;
         }
         try {
+            // 2. 未指定事件名时按默认事件发送；指定名称时显式构造带 name/data 的 SSE 事件。
             if (eventName == null) {
                 emitter.send(data);
                 return;
             }
             emitter.send(SseEmitter.event().name(eventName).data(data));
         } catch (Exception e) {
+            // 3. 网络发送失败统一转入异常关闭，不继续写入一个已经不可用的响应。
             fail(e);
         }
     }
@@ -105,6 +108,7 @@ public class SseEmitterSender {
      * @param throwable 导致失败的异常对象
      */
     public void fail(Throwable throwable) {
+        // 先通过统一入口尝试异常关闭，再记录发送失败；不额外向调用方重新抛出同一个异常。
         closeWithError(throwable);
         log.warn("SSE send failed", throwable);
     }

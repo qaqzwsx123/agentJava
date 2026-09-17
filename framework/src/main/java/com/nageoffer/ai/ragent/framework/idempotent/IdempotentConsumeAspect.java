@@ -55,11 +55,13 @@ public final class IdempotentConsumeAspect {
      */
     @Around("@annotation(com.nageoffer.ai.ragent.framework.idempotent.IdempotentConsume)")
     public Object idempotentConsume(ProceedingJoinPoint joinPoint) throws Throwable {
+        // 1. 读取实现方法上的注解，将固定前缀与按入参解析出的业务键拼成消费防重键。
         IdempotentConsume idempotentConsume = getIdempotentConsumeAnnotation(joinPoint);
         String uniqueKey = idempotentConsume.keyPrefix()
                 + SpELUtil.parseKey(idempotentConsume.key(), ((MethodSignature) joinPoint.getSignature()).getMethod(), joinPoint.getArgs());
         long keyTimeoutSeconds = idempotentConsume.keyTimeout();
 
+        // 2. Lua 原子执行带 NX/GET/PX 的 SET：首次取得处理权写 CONSUMING，重复请求读回已有状态。
         String absentAndGet = stringRedisTemplate.execute(
                 RedisScript.of(LUA_SCRIPT, String.class),
                 List.of(uniqueKey),
@@ -68,6 +70,7 @@ public final class IdempotentConsumeAspect {
         );
 
         // 如果已有消费中状态，提示延迟消费；已完成则直接跳过
+        // 3. 已在消费的消息抛异常交给 MQ 延迟重试；已经消费完成的消息不再调用业务方法。
         boolean errorFlag = IdempotentConsumeStatusEnum.isError(absentAndGet);
         if (errorFlag) {
             log.warn("[{}] MQ repeated consumption, wait for delayed retry.", uniqueKey);
@@ -79,6 +82,7 @@ public final class IdempotentConsumeAspect {
         }
 
         try {
+            // 4. 取得处理权后才执行原消费者；正常返回再写入带过期时间的 CONSUMED 状态。
             Object result = joinPoint.proceed();
             stringRedisTemplate.opsForValue().set(
                     uniqueKey,
@@ -88,6 +92,7 @@ public final class IdempotentConsumeAspect {
             );
             return result;
         } catch (Throwable ex) {
+            // 5. 业务或完成标记写入失败时释放防重键，并把原异常抛回 MQ，让后续投递有机会重试。
             stringRedisTemplate.delete(uniqueKey);
             throw ex;
         }
@@ -97,6 +102,7 @@ public final class IdempotentConsumeAspect {
      * @return 返回自定义防重复消费注解
      */
     public static IdempotentConsume getIdempotentConsumeAnnotation(ProceedingJoinPoint joinPoint) throws NoSuchMethodException {
+        // 先从切点取得方法签名，再到真实目标类查同名同参数方法，读取实现方法上的消费注解。
         MethodSignature methodSignature = (MethodSignature) joinPoint.getSignature();
         Method targetMethod = joinPoint.getTarget().getClass().getDeclaredMethod(methodSignature.getName(), methodSignature.getMethod().getParameterTypes());
         return targetMethod.getAnnotation(IdempotentConsume.class);

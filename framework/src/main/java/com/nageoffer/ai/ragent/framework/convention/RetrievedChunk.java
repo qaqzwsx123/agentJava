@@ -45,6 +45,7 @@ public class RetrievedChunk {
     public static final Comparator<RetrievedChunk> BY_SCORE_DESC = (a, b) -> Float.compare(sortScore(b), sortScore(a));
 
     private static float sortScore(RetrievedChunk chunk) {
+        // 缺分、NaN 和正负无穷都统一映射为负无穷，使相关性降序排序时这些异常值沉底。
         Float score = chunk.getScore();
         return score == null || !Float.isFinite(score) ? Float.NEGATIVE_INFINITY : score;
     }

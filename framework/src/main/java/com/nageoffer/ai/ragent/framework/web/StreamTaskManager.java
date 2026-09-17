@@ -68,6 +68,7 @@ public class StreamTaskManager {
     private int listenerId = -1;
 
     public StreamTaskManager(RedissonClient redissonClient) {
+        // 注入共享 Redis 客户端，后续属主查询、取消标记和广播都通过同一客户端访问。
         this.redissonClient = redissonClient;
     }
 
@@ -77,6 +78,7 @@ public class StreamTaskManager {
      */
     @PostConstruct
     public void subscribe() {
+        // 1. 订阅取消主题并保存监听器 ID；收到广播后仅尝试取消本节点实际持有的任务。
         RTopic topic = redissonClient.getTopic(CANCEL_TOPIC);
         listenerId = topic.addListener(String.class, (channel, payload) -> {
             if (StrUtil.isBlank(payload)) {
@@ -95,6 +97,7 @@ public class StreamTaskManager {
      */
     @PreDestroy
     public void unsubscribe() {
+        // 尚未成功订阅时无需注销；已订阅则按本组件记录的 ID 移除监听，不影响其他订阅者。
         if (listenerId == -1) {
             return;
         }
@@ -124,10 +127,12 @@ public class StreamTaskManager {
      * 任务已结算注销时不再创建记录，否则会留下一条无人触发的幽灵任务
      */
     public void bindHandle(String taskId, Runnable cancelAction) {
+        // 1. 只给仍在本地登记的任务绑定上游中断动作；不存在的任务不重新创建，避免生成幽灵记录。
         StreamTaskInfo taskInfo = tasks.getIfPresent(taskId);
         if (taskInfo == null) {
             return;
         }
+        // 2. 停止可能早于上游句柄绑定；若取消标记已经落定，绑定后立即补执行中断动作。
         taskInfo.cancelAction = cancelAction;
         if (taskInfo.cancelled.get() && cancelAction != null) {
             cancelAction.run();
@@ -138,6 +143,7 @@ public class StreamTaskManager {
      * 读取当前节点登记任务的取消标记；不存在的任务返回 false，不在每次检查时访问 Redis。
      */
     public boolean isCancelled(String taskId) {
+        // 只读取本地原子标记，避免推理或检索频繁检查时每次都访问 Redis。
         StreamTaskInfo info = tasks.getIfPresent(taskId);
         return info != null && info.cancelled.get();
     }
@@ -146,6 +152,7 @@ public class StreamTaskManager {
      * 系统侧回收（SSE 超时、客户端断连），容器回调线程上没有登录用户可比对
      */
     public void cancel(String taskId) {
+        // 超时或断连等系统路径没有登录上下文，使用专用系统身份发布取消请求。
         publishCancel(taskId, SYSTEM_REQUESTER);
     }
 
@@ -153,7 +160,9 @@ public class StreamTaskManager {
      * 用户主动停止：taskId 是雪花 ID，时间有序可预测，不是访问凭证，必须比对属主
      */
     public void cancelByUser(String taskId) {
+        // 1. 主动停止必须先取得当前登录用户，再到 Redis 查任务属主，不能只凭任务 ID 操作。
         String requester = UserContext.requireUser().getUserId();
+        // 2. 属主信息可由其他节点写入，必须先查 Redis；发起方不匹配时不能发布取消。
         RBucket<String> owner = redissonClient.getBucket(ownerKey(taskId));
         String ownerUserId = owner.get();
         if (StrUtil.isNotBlank(ownerUserId) && !ownerUserId.equals(requester)) {
@@ -185,10 +194,12 @@ public class StreamTaskManager {
      * 标记可能先于注册到达，那一刻还没有属主可比对，只能推到这里复核
      */
     private boolean isTaskCancelledInRedis(String taskId, StreamTaskInfo taskInfo) {
+        // 1. 本地已确认取消就立即返回；否则检查 Redis 中可能先于注册到达的预埋标记。
         if (taskInfo.cancelled.get()) {
             return true;
         }
 
+        // 2. 取消标记里存的是发起方身份，不只是布尔值，任务注册后仍要再次核对属主。
         RBucket<String> bucket = redissonClient.getBucket(cancelKey(taskId));
         String requester = bucket.get();
         if (requester == null) {
@@ -199,6 +210,7 @@ public class StreamTaskManager {
             log.warn("忽略非属主埋下的取消标记，taskId：{}，属主：{}，发起方：{}", taskId, taskInfo.ownerUserId, requester);
             return false;
         }
+        // 3. 只有属主复核通过才把取消结果写回本地，后续绑定句柄时也能立刻感知。
         taskInfo.cancelled.set(true);
         return true;
     }
@@ -208,6 +220,7 @@ public class StreamTaskManager {
      * 这正是预埋标记要在 register 那一刻复核的窗口，本地放过去反而绕开了复核
      */
     private boolean isRequesterAllowed(StreamTaskInfo taskInfo, String requester) {
+        // 系统回收直接允许；用户请求必须与已经登记的属主精确匹配，未登记属主时不放行。
         if (SYSTEM_REQUESTER.equals(requester)) {
             return true;
         }
@@ -264,6 +277,7 @@ public class StreamTaskManager {
      * 构造指定任务的 Redis 取消标记键，与任务属主键分开保存。
      */
     private String cancelKey(String taskId) {
+        // 将任务 ID 拼到取消键前缀，用于保存发起方身份和覆盖先取消后注册的时间窗口。
         return CANCEL_KEY_PREFIX + taskId;
     }
 
@@ -271,6 +285,7 @@ public class StreamTaskManager {
      * 构造指定任务的 Redis 属主键，供跨节点的主动停止请求校验用户身份。
      */
     private String ownerKey(String taskId) {
+        // 属主使用独立键保存，任意实例收到用户停止请求时都能先核对身份。
         return OWNER_KEY_PREFIX + taskId;
     }
 
