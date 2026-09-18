@@ -27,16 +27,19 @@ import org.springframework.stereotype.Service;
 public class OllamaEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
 
     public OllamaEmbeddingClient(OkHttpClient syncHttpClient) {
+        // 复用共享同步客户端调用本地兼容端点，协议解析仍交给父类。
         super(syncHttpClient);
     }
 
     @Override
     public String provider() {
+        // 返回 Ollama 配置 ID，以匹配本地向量模型候选。
         return ModelProvider.OLLAMA.getId();
     }
 
     @Override
     protected boolean requiresApiKey() {
+        // 本地向量接口无需密钥，关闭父类的必填校验和 Authorization 头。
         return false;
     }
 

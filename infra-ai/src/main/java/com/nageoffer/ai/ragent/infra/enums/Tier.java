@@ -51,6 +51,7 @@ public enum Tier {
     private final String key;
 
     Tier(String key) {
+        // 固定枚举与配置中的档位键映射，后续选择模型时使用 key 而不是枚举大写名称。
         this.key = key;
     }
 }

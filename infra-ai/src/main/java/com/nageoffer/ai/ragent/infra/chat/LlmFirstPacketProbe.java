@@ -38,6 +38,7 @@ public class LlmFirstPacketProbe {
     public ProbeStreamBridge.ProbeResult awaitFirstPacket(ProbeStreamBridge bridge,
                                                           long timeout,
                                                           TimeUnit unit) throws InterruptedException {
+        // 通过独立 Spring Bean 进入等待逻辑，使首包探测可被 AOP 记录；线程中断继续向调用方传播。
         return bridge.awaitFirstPacket(timeout, unit);
     }
 }

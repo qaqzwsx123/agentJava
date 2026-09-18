@@ -61,6 +61,7 @@ public enum ModelProvider {
     private final String id;
 
     public boolean matches(String provider) {
+        // 允许供应商 ID 大小写不同，null 则明确不匹配；这里不额外去掉首尾空白。
         return provider != null && provider.equalsIgnoreCase(id);
     }
 }

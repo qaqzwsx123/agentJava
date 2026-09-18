@@ -91,6 +91,7 @@ public interface EmbeddingService {
      * @return 向量维度（如 4096、768 等）
      */
     default int dimension() {
+        // 默认返回 0 作为未提供维度的占位值，不代表某个真实模型的向量长度。
         return 0;
     }
 }

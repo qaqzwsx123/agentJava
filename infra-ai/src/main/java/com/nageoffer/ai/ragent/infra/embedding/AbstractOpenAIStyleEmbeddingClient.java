@@ -50,6 +50,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
     protected final OkHttpClient httpClient;
 
     protected AbstractOpenAIStyleEmbeddingClient(OkHttpClient httpClient) {
+        // 复用注入的同步 HTTP 客户端，供应商子类只覆写批量上限和请求差异，不另建连接池。
         this.httpClient = httpClient;
     }
 
@@ -59,6 +60,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
      * 是否要求提供商配置 API Key，默认 true
      */
     protected boolean requiresApiKey() {
+        // 默认要求密钥并添加 Bearer 头，本地无鉴权实现通过覆写关闭。
         return true;
     }
 
@@ -67,6 +69,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
      * 默认实现：添加 encoding_format=float
      */
     protected void customizeRequestBody(JsonObject body, ModelTarget target) {
+        // 默认要求返回数值浮点向量，子类可改写或省略不支持的 encoding_format 字段。
         body.addProperty("encoding_format", "float");
     }
 
@@ -74,6 +77,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
      * 单次请求最大批量大小，0 表示不限制
      */
     protected int maxBatchSize() {
+        // 默认 0 表示本客户端不额外拆批，具体供应商适配器可返回正数限制单次输入条数。
         return 0;
     }
 
@@ -81,12 +85,14 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
 
     @Override
     public List<Float> embed(String text, ModelTarget target) {
+        // 单条文本复用批量协议发送，随后取返回列表首项，不再维护另一套请求或响应格式。
         List<List<Float>> result = doEmbed(List.of(text), target);
         return result.get(0);
     }
 
     @Override
     public List<List<Float>> embedBatch(List<String> texts, ModelTarget target) {
+        // 1. 空输入直接返回空列表；未设置上限或条数未超限时一次请求完成，不做额外分片。
         if (CollUtil.isEmpty(texts)) {
             return Collections.emptyList();
         }
@@ -95,10 +101,12 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
             return doEmbed(texts, target);
         }
 
+        // 2. 预留与输入等长的结果位置，按批次起始偏移写回，保持各批之间的输入顺序。
         List<List<Float>> results = new ArrayList<>(Collections.nCopies(texts.size(), null));
         for (int i = 0, n = texts.size(); i < n; i += batch) {
             int end = Math.min(i + batch, n);
             List<String> slice = texts.subList(i, end);
+            // 3. 当前批次同步完成后再处理下一批，批内向量沿用供应商返回顺序，不按响应 index 重新排序。
             List<List<Float>> part = doEmbed(slice, target);
             for (int k = 0; k < part.size(); k++) {
                 results.set(i + k, part.get(k));
@@ -113,6 +121,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
      * 构建请求、发送 HTTP、解析 OpenAI 格式响应
      */
     protected List<List<Float>> doEmbed(List<String> texts, ModelTarget target) {
+        // 1. 校验提供商与可选密钥，解析 Embedding URL 和模型名，配置不完整时不发远程请求。
         AIModelProperties.ProviderConfig provider = HttpResponseHelper.requireProvider(target, provider());
         if (requiresApiKey()) {
             HttpResponseHelper.requireApiKey(provider, provider());
@@ -122,6 +131,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
 
         String model = HttpResponseHelper.requireModel(target, provider());
 
+        // 2. 多条文本放进同一 input 数组，向量维度取目标配置，再让供应商钩子补协议字段。
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         JsonArray inputArray = new JsonArray();
@@ -165,6 +175,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
                     ModelClientErrorType.NETWORK_ERROR, null, e);
         }
 
+        // 3. 即使 HTTP 成功，正文里的 error 也表示调用失败，不能继续把它当向量结果解析。
         if (json.has("error")) {
             JsonObject err = json.getAsJsonObject("error");
             String code = err.has("code") ? err.get("code").getAsString() : "unknown";
@@ -184,6 +195,7 @@ public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingCli
                     ModelClientErrorType.INVALID_RESPONSE, null);
         }
 
+        // 4. 按 data 原顺序将每个 embedding 数组转为 Float 列表；缺少向量时整次请求按无效响应失败。
         List<List<Float>> results = new ArrayList<>(data.size());
         for (JsonElement el : data) {
             JsonObject obj = el.getAsJsonObject();

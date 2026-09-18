@@ -49,6 +49,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
             ModelSelector selector,
             ModelRoutingExecutor executor,
             List<EmbeddingClient> clients) {
+        // 保存公共选择器与执行器，并将所有向量客户端按 provider 建表，后续每次调用直接查表分派。
         this.selector = selector;
         this.executor = executor;
         this.clientsByProvider = clients.stream()
@@ -57,6 +58,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
 
     @Override
     public List<Float> embed(String text) {
+        // 未指定模型时按默认模型与优先级选候选，普通失败允许执行器切换到下一可用客户端。
         return executor.executeWithFallback(
                 ModelCapability.EMBEDDING,
                 selector.selectEmbeddingCandidates(),
@@ -67,6 +69,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
 
     @Override
     public List<Float> embed(String text, String modelId) {
+        // 指定模型时只给执行器一个精确目标，不隐式换模型，以免查询向量落入不兼容的向量空间。
         return executor.executeWithFallback(
                 ModelCapability.EMBEDDING,
                 List.of(resolveTarget(modelId)),
@@ -80,6 +83,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
      */
     @Override
     public List<List<Float>> embedBatch(List<String> texts) {
+        // 按当前可用模型列表执行批量向量化，具体供应商的拆批与合并由客户端模板完成。
         return executor.executeWithFallback(
                 ModelCapability.EMBEDDING,
                 selector.selectEmbeddingCandidates(),
@@ -93,6 +97,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
      */
     @Override
     public List<List<Float>> embedBatch(List<String> texts, String modelId) {
+        // 显式模型 ID 先解析为唯一目标，整批失败也不会改用另一种向量模型。
         return executor.executeWithFallback(
                 ModelCapability.EMBEDDING,
                 List.of(resolveTarget(modelId)),
@@ -105,6 +110,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
      * 按提供商标识取得对应的 Embedding 客户端，客户端缺失时由外层执行器跳过。
      */
     private EmbeddingClient resolveClient(ModelTarget target) {
+        // 只按候选 provider 查适配器，客户端缺失时返回 null，由执行器记录并跳过。
         return clientsByProvider.get(target.candidate().getProvider());
     }
 
@@ -112,6 +118,7 @@ public class RoutingEmbeddingService implements EmbeddingService {
      * 校验 Embedding 模型 ID，并从当前可用候选中精确查找，找不到时返回远程调用异常。
      */
     private ModelTarget resolveTarget(String modelId) {
+        // 先拒绝空模型 ID，再从当前可用候选中精确匹配；未登记、停用或不可用均不能绕过筛选。
         if (!StringUtils.hasText(modelId)) {
             throw new RemoteException("Embedding 模型ID不能为空");
         }

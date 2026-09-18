@@ -48,12 +48,14 @@ public class ChatTierConfigValidator implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() {
+        // 1. 启动阶段读取 chat 组，集中收集结构性配置错误；组对象缺失时直接退出。
         AIModelProperties.ModelGroup group = properties.getChat();
         if (group == null) {
             return;
         }
 
         List<String> errors = new ArrayList<>();
+        // 2. 先验证物理模型 ID 唯一性，再核对档位引用、超时及思考能力，尽量一次报告全部错误。
         Map<String, AIModelProperties.ModelCandidate> registry = buildRegistry(group, errors);
         Set<String> registryIds = registry.keySet();
         Map<String, AIModelProperties.TierConfig> tiers = group.getTiers();
@@ -68,6 +70,7 @@ public class ChatTierConfigValidator implements InitializingBean {
             validateDeepThinkingCandidates(group, tiers, registry, errors);
         }
 
+        // 3. 结构性错误阻止启动；全部通过后才继续给出不影响可用性的思考能力告警。
         if (!errors.isEmpty()) {
             throw new IllegalStateException("chat 档位配置校验失败:\n - " + String.join("\n - ", errors));
         }
@@ -80,6 +83,7 @@ public class ChatTierConfigValidator implements InitializingBean {
      * 构建候选注册表（id→候选），并校验 id 唯一
      */
     private Map<String, AIModelProperties.ModelCandidate> buildRegistry(AIModelProperties.ModelGroup group, List<String> errors) {
+        // 遍历非空候选，按统一规则解析 ID；重复 ID 保留先登记项并追加错误，不等到调用时静默覆盖。
         Map<String, AIModelProperties.ModelCandidate> registry = new LinkedHashMap<>();
         List<AIModelProperties.ModelCandidate> candidates = group.getCandidates();
         if (candidates == null) {
@@ -99,6 +103,7 @@ public class ChatTierConfigValidator implements InitializingBean {
 
     private void validateTierRef(String tierName, String label,
                                  Map<String, AIModelProperties.TierConfig> tiers, List<String> errors) {
+        // 区分未填写档位名和引用不存在的档位，两种错误都追加到统一列表，不立即打断其他检查。
         if (StrUtil.isBlank(tierName)) {
             errors.add(label + " 未配置");
         } else if (!tiers.containsKey(tierName)) {
@@ -108,6 +113,7 @@ public class ChatTierConfigValidator implements InitializingBean {
 
     private void validateTierCandidates(Map<String, AIModelProperties.TierConfig> tiers,
                                         Set<String> registryIds, List<String> errors) {
+        // 1. 逐档检查超时预算与候选清单，timeout-ms 必须存在且为正数。
         for (Map.Entry<String, AIModelProperties.TierConfig> entry : tiers.entrySet()) {
             String tierName = entry.getKey();
             AIModelProperties.TierConfig tier = entry.getValue();
@@ -117,6 +123,7 @@ public class ChatTierConfigValidator implements InitializingBean {
             } else if (timeoutMs <= 0) {
                 errors.add("档位 " + tierName + " 的 timeout-ms 必须为正数: " + timeoutMs);
             }
+            // 2. 非空候选清单中的每个 ID 都必须已注册；否则运行时会被过滤，导致档位能力缺失。
             List<String> candidates = tier == null ? null : tier.getCandidates();
             if (candidates == null || candidates.isEmpty()) {
                 errors.add("档位 " + tierName + " 的候选列表为空");
@@ -135,6 +142,7 @@ public class ChatTierConfigValidator implements InitializingBean {
      * 否则调用点传入该档位覆盖时会在运行期落到"档位缺失"静默降级
      */
     private void validateTierEnumCoverage(Map<String, AIModelProperties.TierConfig> tiers, List<String> errors) {
+        // 业务代码能直接传 Tier 枚举，所以每个枚举键都必须在配置中存在，不能只校验默认档位。
         for (Tier tier : Tier.values()) {
             if (!tiers.containsKey(tier.getKey())) {
                 errors.add("Tier 枚举 " + tier.name() + " 对应的档位未在 ai.chat.tiers 配置: " + tier.getKey());
@@ -150,6 +158,7 @@ public class ChatTierConfigValidator implements InitializingBean {
                                                 Map<String, AIModelProperties.TierConfig> tiers,
                                                 Map<String, AIModelProperties.ModelCandidate> registry,
                                                 List<String> errors) {
+        // 1. 深度档位引用本身缺失时交给其他检查报告，这里只判断是否至少能选出一个有效思考候选。
         String deepTierName = group.getDeepThinkingTier();
         if (StrUtil.isBlank(deepTierName)) {
             return;
@@ -158,6 +167,7 @@ public class ChatTierConfigValidator implements InitializingBean {
         if (deep == null || deep.getCandidates() == null) {
             return;
         }
+        // 2. 只有已登记、没有显式停用且支持思考的模型才算可用，避免配置一个名义上的深度档。
         boolean hasThinkingCandidate = deep.getCandidates().stream().anyMatch(id -> {
             AIModelProperties.ModelCandidate candidate = registry.get(id);
             return candidate != null
@@ -176,6 +186,7 @@ public class ChatTierConfigValidator implements InitializingBean {
     private void warnDeepThinkingSupport(AIModelProperties.ModelGroup group,
                                          Map<String, AIModelProperties.TierConfig> tiers,
                                          Map<String, AIModelProperties.ModelCandidate> registry) {
+        // 只对已登记但未声明思考能力的深度档位候选告警，硬失败由前面的有效候选检查负责。
         if (tiers == null || StrUtil.isBlank(group.getDeepThinkingTier())) {
             return;
         }
@@ -195,6 +206,7 @@ public class ChatTierConfigValidator implements InitializingBean {
      * 与 ModelSelector 一致的 id 解析：显式 id 优先，缺省回退 provider::model
      */
     private String resolveId(AIModelProperties.ModelCandidate candidate) {
+        // 显式 ID 优先，缺省回退 provider::model，必须与运行时选择器使用相同规则。
         if (StrUtil.isNotBlank(candidate.getId())) {
             return candidate.getId();
         }

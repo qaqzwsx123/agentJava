@@ -67,6 +67,7 @@ public enum ModelClientErrorType {
      * @return 对应的错误类型
      */
     public static ModelClientErrorType fromHttpStatus(int status) {
+        // 按状态码固定归类：401/403 为鉴权，429 为限流，500 及以上为服务端错误，其余归客户端错误。
         if (status == 401 || status == 403) {
             return UNAUTHORIZED;
         }

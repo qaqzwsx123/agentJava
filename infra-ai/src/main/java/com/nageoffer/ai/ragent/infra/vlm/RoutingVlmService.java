@@ -61,6 +61,7 @@ public class RoutingVlmService implements VlmService {
 
     public RoutingVlmService(ModelSelector selector,
                              @Qualifier("syncHttpClient") OkHttpClient syncHttpClient) {
+        // 复用模型选择器和同步 HTTP 客户端，视觉请求只改变消息内容形态，不另建网络栈。
         this.selector = selector;
         this.syncHttpClient = syncHttpClient;
     }
@@ -72,6 +73,7 @@ public class RoutingVlmService implements VlmService {
     @Override
     @RagTraceNode(name = "vlm-describe", type = "VLM")
     public String describeImage(byte[] imageBytes, String mime, String prompt, Integer maxOutputTokens) {
+        // 1. 选取首个可用视觉目标并校验供应商与密钥，按聊天端点协议发送多模态消息。
         ModelTarget target = resolveTarget();
         AIModelProperties.ProviderConfig provider = HttpResponseHelper.requireProvider(target, LABEL);
         HttpResponseHelper.requireApiKey(provider, LABEL);
@@ -110,6 +112,7 @@ public class RoutingVlmService implements VlmService {
      * 选择当前首个可用 VLM 目标，没有可用模型时提示检查配置；本方法不遍历执行降级。
      */
     private ModelTarget resolveTarget() {
+        // 只取当前可用目标首项，无候选时提示检查 ai.vlm；执行失败也不在本类遍历其他目标。
         List<ModelTarget> targets = selector.selectVlmCandidates();
         if (targets.isEmpty()) {
             throw new ModelClientException("VLM 模型不可用，请检查 ai.vlm 配置",
@@ -123,12 +126,14 @@ public class RoutingVlmService implements VlmService {
      * 百炼 /compatible-mode 端点兼容 OpenAI image_url 协议
      */
     private JsonObject buildMultimodalBody(ModelTarget target, String prompt, byte[] image, String mime, Integer maxOutputTokens) {
+        // 1. 图片字节编码成带 MIME 的 Base64 data URL，作为请求内联数据，无需另行上传图片。
         String dataUrl = "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(image);
 
         JsonObject textPart = new JsonObject();
         textPart.addProperty("type", "text");
         textPart.addProperty("text", prompt);
 
+        // 2. 文本和图片分别构造内容块，再放到同一条 user 消息的 content 数组，保留多模态协议结构。
         JsonObject imageUrl = new JsonObject();
         imageUrl.addProperty("url", dataUrl);
         JsonObject imagePart = new JsonObject();
@@ -149,6 +154,7 @@ public class RoutingVlmService implements VlmService {
         JsonObject body = new JsonObject();
         body.addProperty("model", HttpResponseHelper.requireModel(target, LABEL));
         body.add("messages", messages);
+        // 3. 只有正数输出预算才发 max_tokens，未配置时沿用供应商的默认输出限制。
         if (maxOutputTokens != null && maxOutputTokens > 0) {
             body.addProperty("max_tokens", maxOutputTokens);
         }
@@ -159,6 +165,7 @@ public class RoutingVlmService implements VlmService {
      * 抽取 OpenAI 兼容响应的 choices[0].message.content
      */
     private String extractContent(JsonObject respJson) {
+        // 沿 choices[0].message.content 校验协议结构；这里只要求内容字段存在，不像文本聊天额外拒绝空白正文。
         if (respJson == null || !respJson.has("choices")) {
             throw new ModelClientException("VLM 响应缺少 choices", ModelClientErrorType.INVALID_RESPONSE, null);
         }

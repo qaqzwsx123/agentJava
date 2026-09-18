@@ -35,6 +35,7 @@ public class DeepSeekChatClient extends AbstractOpenAIStyleChatClient {
 
     @Override
     public String provider() {
+        // 返回 DeepSeek 的配置 ID，供客户端注册表和模型候选匹配。
         return ModelProvider.DEEP_SEEK.getId();
     }
 
@@ -45,6 +46,7 @@ public class DeepSeekChatClient extends AbstractOpenAIStyleChatClient {
      */
     @Override
     protected void customizeRequestBody(JsonObject body, ChatRequest request) {
+        // 使用 thinking.type 表达开关，不调用会生成 enable_thinking 的父类实现，避免混用协议方言。
         JsonObject thinking = new JsonObject();
         thinking.addProperty("type", Boolean.TRUE.equals(request.getThinking()) ? "enabled" : "disabled");
         body.add("thinking", thinking);
@@ -53,6 +55,7 @@ public class DeepSeekChatClient extends AbstractOpenAIStyleChatClient {
     @Override
     @RagTraceNode(name = "deepseek-chat", type = "LLM_PROVIDER")
     public String chat(ChatRequest request, ModelTarget target) {
+        // 同步请求仍走通用模板，DeepSeek 专有思考字段由本类扩展方法负责。
         return doChat(request, target);
     }
 
@@ -61,6 +64,7 @@ public class DeepSeekChatClient extends AbstractOpenAIStyleChatClient {
      */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
+        // 将 SSE 连接、增量解析和主动停止交给通用实现，返回相同的取消句柄接口。
         return doStreamChat(request, callback, target);
     }
 }

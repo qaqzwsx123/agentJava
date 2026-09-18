@@ -30,11 +30,13 @@ public class NoopRerankClient implements RerankClient {
 
     @Override
     public String provider() {
+        // 返回 NOOP 标识，选择器允许该候选没有供应商连接配置。
         return ModelProvider.NOOP.getId();
     }
 
     @Override
     public List<RetrievedChunk> rerank(String query, List<RetrievedChunk> candidates, int topN, ModelTarget target) {
+        // 保留原顺序和原分数，不调用远程模型；topN 无限制或已足够时直接返回原列表，否则只截前 topN 项。
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }

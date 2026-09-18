@@ -38,6 +38,7 @@ public final class OpenAIStyleSseParser {
      * 该方法只解析协议，不发送 SSE；解析异常由调用它的读取循环处理。
      */
     static ParsedEvent parseLine(String line, Gson gson, boolean reasoningEnabled) {
+        // 1. 空行不产生业务事件；非空内容先处理可选 data: 前缀，再判断独立的 [DONE] 标记。
         if (line == null || line.isBlank()) {
             return ParsedEvent.empty();
         }
@@ -50,6 +51,7 @@ public final class OpenAIStyleSseParser {
             return ParsedEvent.done();
         }
 
+        // 2. 普通数据帧解析 JSON，只读取首个 choice；没有 choice 的统计帧等内容返回空事件。
         JsonObject obj = gson.fromJson(payload, JsonObject.class);
         JsonArray choices = obj.getAsJsonArray("choices");
         if (choices == null || choices.isEmpty()) {
@@ -58,6 +60,7 @@ public final class OpenAIStyleSseParser {
 
         JsonObject choice0 = choices.get(0).getAsJsonObject();
         String content = extractText(choice0, "content");
+        // 3. 正文、思考和完成可同时出现在一帧，读取循环会先分发文本，再处理终止信号。
         String reasoning = reasoningEnabled ? extractText(choice0, "reasoning_content") : null;
         boolean completed = hasFinishReason(choice0);
 
@@ -68,6 +71,7 @@ public final class OpenAIStyleSseParser {
      * 仅当 finish_reason 字段存在且不为 JSON null 时识别为结束信号。
      */
     private static boolean hasFinishReason(JsonObject choice) {
+        // 字段缺失或 JSON null 均不算结束，避免把仍在输出的增量帧提前结算。
         if (choice == null || !choice.has("finish_reason")) {
             return false;
         }
@@ -79,6 +83,7 @@ public final class OpenAIStyleSseParser {
      * 优先从 delta 读取指定文本，缺少有效增量时兼容 message 结构，均不存在返回 null。
      */
     private static String extractText(JsonObject choice, String fieldName) {
+        // 1. 优先从增量 delta 中读取指定字段，字段不存在或为 null 才继续尝试完整 message 结构。
         if (choice == null) {
             return null;
         }
@@ -91,6 +96,7 @@ public final class OpenAIStyleSseParser {
                 }
             }
         }
+        // 2. 部分兼容端点返回 message 而非 delta，前一个分支未取到有效值时才走此回退。
         if (choice.has("message") && choice.get("message").isJsonObject()) {
             JsonObject message = choice.getAsJsonObject("message");
             if (message.has(fieldName)) {
@@ -106,18 +112,22 @@ public final class OpenAIStyleSseParser {
     record ParsedEvent(String content, String reasoning, boolean completed) {
 
         static ParsedEvent empty() {
+            // 表示这一行没有可分发内容，且不能据此结束整个流。
             return new ParsedEvent(null, null, false);
         }
 
         static ParsedEvent done() {
+            // 只携带完成标志，不附加正文或思考，调用方据此触发正常完成回调。
             return new ParsedEvent(null, null, true);
         }
 
         boolean hasContent() {
+            // 正文为 null 或全空白时不分发；是否完成仍由独立的 completed 字段决定。
             return content != null && !content.isBlank();
         }
 
         boolean hasReasoning() {
+            // 思考只排除 null 和空串，保留空白增量以延续供应商返回的片段格式。
             return reasoning != null && !reasoning.isEmpty();
         }
     }

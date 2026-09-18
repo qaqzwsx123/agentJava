@@ -56,11 +56,13 @@ public class BaiLianRerankClient implements RerankClient {
 
     @Override
     public String provider() {
+        // 返回百炼配置 ID，供重排序路由找到本客户端。
         return ModelProvider.BAI_LIAN.getId();
     }
 
     @Override
     public List<RetrievedChunk> rerank(String query, List<RetrievedChunk> candidates, int topN, ModelTarget target) {
+        // 1. 没有候选直接返回空列表；有候选先按切片 ID 去重，保持首次出现的顺序。
         if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
@@ -79,10 +81,12 @@ public class BaiLianRerankClient implements RerankClient {
             return dedup;
         }
 
+        // 2. topN 为正时始终执行精排，即使候选数已不足 topN，也仍需模型重排和给分。
         return doRerank(query, dedup, Math.min(topN, dedup.size()), target);
     }
 
     private List<RetrievedChunk> doRerank(String query, List<RetrievedChunk> candidates, int topN, ModelTarget target) {
+        // 1. 取得供应商配置并检查有效输入，再按百炼协议组装 query、documents 与 top_n。
         AIModelProperties.ProviderConfig provider = HttpResponseHelper.requireProvider(target, provider());
 
         if (candidates == null || candidates.isEmpty() || topN <= 0) {
@@ -108,6 +112,7 @@ public class BaiLianRerankClient implements RerankClient {
         reqBody.add("input", input);
         reqBody.add("parameters", parameters);
 
+        // 2. 使用重排专用端点和 Bearer 鉴权，HTTP 状态失败与网络异常分别转换为统一模型错误。
         Request request = new Request.Builder()
                 .url(ModelUrlResolver.resolveUrl(provider, target.candidate(), ModelCapability.RERANK))
                 .post(RequestBody.create(reqBody.toString(), HttpMediaTypes.JSON))
@@ -140,6 +145,7 @@ public class BaiLianRerankClient implements RerankClient {
         List<RetrievedChunk> reranked = new ArrayList<>();
         Set<String> addedIds = new HashSet<>();
 
+        // 3. 响应 index 指向请求文档数组，校验范围后回取原切片，避免用供应商返回文本重新拼装元数据。
         for (JsonElement elem : results) {
             if (!elem.isJsonObject()) {
                 continue;
@@ -178,6 +184,7 @@ public class BaiLianRerankClient implements RerankClient {
             }
         }
 
+        // 4. 返回结果不足时按原候选顺序补入未使用条目，通用分数设 0，不伪造新的精排分。
         if (reranked.size() < topN) {
             for (RetrievedChunk c : candidates) {
                 if (addedIds.add(c.getId())) {
@@ -198,10 +205,12 @@ public class BaiLianRerankClient implements RerankClient {
      * 不写 {@code rerankScore}，证据闸门据此认出这条没经过精排
      */
     private static RetrievedChunk unscored(RetrievedChunk chunk) {
+        // 复制全部切片字段，只把通用 score 设为 0；不新增或覆盖 rerankScore，保留未取得新精排分的事实。
         return chunk.toBuilder().score(0F).build();
     }
 
     private JsonObject requireOutput(JsonObject respJson) {
+        // 逐层要求 output 与 results 字段存在，空结果数组由外层继续校验，不把协议缺项当成正常空召回。
         if (respJson == null || !respJson.has("output")) {
             throw new ModelClientException(provider() + " rerank 响应缺少 output", ModelClientErrorType.INVALID_RESPONSE, null);
         }
