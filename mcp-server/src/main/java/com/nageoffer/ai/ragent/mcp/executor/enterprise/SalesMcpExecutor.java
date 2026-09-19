@@ -69,6 +69,7 @@ public class SalesMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification salesToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -76,6 +77,7 @@ public class SalesMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("region", "地区筛选：华东、华南、华北、西南、西北，不填则查询全国")
                         .options(List.of("华东", "华南", "华北", "西南", "西北")))
@@ -92,6 +94,7 @@ public class SalesMcpExecutor {
                         .defaultTo(10))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询软件销售数据，支持按地区、时间、产品、销售人员等维度筛选，支持汇总统计、排名、明细列表等多种查询")
@@ -101,6 +104,7 @@ public class SalesMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 规范统计周期、查询类型和限额，读取对应周期的模拟销售数据并按条件筛选，再分派不同报表。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -129,6 +133,7 @@ public class SalesMcpExecutor {
                     TOOL_ID, queryType, region, period, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("查询", e);
@@ -137,6 +142,7 @@ public class SalesMcpExecutor {
 
     private String buildSummaryResult(List<SalesRecord> data, String region, String period,
                                       String product, String salesPerson) {
+        // 计算销售额、订单量和平均单额，按是否已有筛选条件决定是否继续展示产品及区域分布。
         double totalAmount = data.stream().mapToDouble(r -> r.amount).sum();
         int orderCount = data.size();
         double avgAmount = orderCount > 0 ? totalAmount / orderCount : 0;
@@ -169,6 +175,7 @@ public class SalesMcpExecutor {
     }
 
     private String buildRankingResult(List<SalesRecord> data, String region, String period, int limit) {
+        // 按销售人员汇总销售额并降序排列，只展示请求限额内的名次。
         Map<String, Double> bySales = data.stream()
                 .collect(Collectors.groupingBy(r -> r.salesPerson, Collectors.summingDouble(r -> r.amount)));
         List<Map.Entry<String, Double>> ranking = bySales.entrySet().stream()
@@ -189,6 +196,7 @@ public class SalesMcpExecutor {
     }
 
     private String buildDetailResult(List<SalesRecord> data, String region, String period, int limit) {
+        // 按订单金额排序展示模拟销售明细，限制输出条数，避免一次返回整个周期的所有记录。
         List<SalesRecord> topRecords = data.stream().sorted((a, b) -> Double.compare(b.amount, a.amount)).limit(limit).toList();
         StringBuilder sb = new StringBuilder();
         sb.append("【").append(period);
@@ -205,6 +213,7 @@ public class SalesMcpExecutor {
     }
 
     private String buildTrendResult(List<SalesRecord> data, String region, String period) {
+        // 按日期中的日号分段汇总销售额，形成当前实现的“第几周”展示口径。
         Map<String, Double> byWeek = data.stream().collect(Collectors.groupingBy(
                 r -> "第" + ((LocalDate.parse(r.date).getDayOfMonth() - 1) / 7 + 1) + "周",
                 Collectors.summingDouble(r -> r.amount)));
@@ -222,6 +231,7 @@ public class SalesMcpExecutor {
     }
 
     private List<SalesRecord> filterData(List<SalesRecord> data, String region, String product, String salesPerson) {
+        // 对区域、产品或销售人员等非空条件执行筛选，未传入的条件保持原数据范围。
         return data.stream()
                 .filter(r -> region == null || region.equals(r.region))
                 .filter(r -> product == null || product.equals(r.product))
@@ -230,6 +240,7 @@ public class SalesMcpExecutor {
     }
 
     private List<SalesRecord> getOrGenerateData(String period) {
+        // 按周期和当天日期缓存模拟记录，同一缓存键复用，周期或日期变化时重新生成并替换缓存。
         String key = period + "_" + LocalDate.now();
         if (cachedData != null && key.equals(cacheKey)) return cachedData;
         LocalDate[] dateRange = getDateRange(period);
@@ -239,6 +250,7 @@ public class SalesMcpExecutor {
     }
 
     private LocalDate[] getDateRange(String period) {
+        // 把本月、上月、本季度、本年等周期选项转换成实际起止日期，供数据生成与标题说明共用。
         LocalDate now = LocalDate.now();
         return switch (period) {
             case "上月" -> new LocalDate[]{now.minusMonths(1).withDayOfMonth(1), now.withDayOfMonth(1).minusDays(1)};
@@ -258,6 +270,7 @@ public class SalesMcpExecutor {
     }
 
     private List<SalesRecord> generateMockData(LocalDate start, LocalDate end) {
+        // 以周期开始日期为随机种子，仅在工作日生成模拟订单，并按产品设置不同金额范围。
         List<SalesRecord> records = new ArrayList<>();
         Random random = new Random(start.toEpochDay());
         long days = end.toEpochDay() - start.toEpochDay() + 1;

@@ -35,6 +35,7 @@ public class McpServerConfig {
 
     @Bean
     public HttpServletStreamableServerTransportProvider transportProvider() {
+        // 创建基于 Servlet 的 Streamable HTTP 传输，JSON 编解码沿用应用提供的 ObjectMapper。
         return HttpServletStreamableServerTransportProvider.builder()
                 .build();
     }
@@ -42,12 +43,14 @@ public class McpServerConfig {
     @Bean
     public ServletRegistrationBean<HttpServletStreamableServerTransportProvider> mcpServlet(
             HttpServletStreamableServerTransportProvider transportProvider) {
+        // 将传输提供器暴露为 Servlet，客户端通过注册路径访问 MCP 协议入口。
         return new ServletRegistrationBean<>(transportProvider, "/mcp");
     }
 
     @Bean
     public McpSyncServer mcpServer(HttpServletStreamableServerTransportProvider transportProvider,
                                    List<McpServerFeatures.SyncToolSpecification> toolSpecs) {
+        // 收集各工具提供的同步规格，检查读写提示后统一注册到 MCP 服务，使客户端能够发现并调用工具。
         requireReadOnlyHint(toolSpecs);
         return McpServer.sync(transportProvider)
                 .serverInfo("ragent-mcp-server", "0.0.1")
@@ -59,6 +62,7 @@ public class McpServerConfig {
      * 工具必须自报是读还是写：调用方按 readOnlyHint 决定要不要拦下来让用户确认
      */
     static void requireReadOnlyHint(List<McpServerFeatures.SyncToolSpecification> toolSpecs) {
+        // 逐个检查工具是否显式设置 readOnlyHint；缺少提示时列出工具名称并拒绝启动。
         List<String> undeclared = toolSpecs.stream()
                 .filter(spec -> spec.tool().annotations() == null
                         || spec.tool().annotations().readOnlyHint() == null)

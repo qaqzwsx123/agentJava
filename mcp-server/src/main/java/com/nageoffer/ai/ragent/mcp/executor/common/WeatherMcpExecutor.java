@@ -79,6 +79,7 @@ public class WeatherMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification weatherToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -86,6 +87,7 @@ public class WeatherMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("city", "城市名称，如北京、上海、广州等"))
                 .optional(string("queryType", "查询类型：current(当前天气)、forecast(未来预报)")
@@ -95,6 +97,7 @@ public class WeatherMcpExecutor {
                         .defaultTo(3))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询城市天气信息，支持查看当前实时天气和未来多天天气预报，包含温度、湿度、风力、天气状况等信息")
@@ -104,6 +107,7 @@ public class WeatherMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 校验城市是否在支持列表中，再按查询类型选择当前天气或多日预报；当前实现使用确定性的模拟数据。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -131,6 +135,7 @@ public class WeatherMcpExecutor {
                     TOOL_ID, city, queryType, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("查询", e);
@@ -138,6 +143,7 @@ public class WeatherMcpExecutor {
     }
 
     private String buildCurrentResult(String city) {
+        // 根据当前日期生成该城市的模拟天气，组合温湿度、风力、空气质量等展示字段。
         LocalDate today = LocalDate.now();
         WeatherData weather = generateWeatherForDate(city, today);
 
@@ -165,6 +171,7 @@ public class WeatherMcpExecutor {
     }
 
     private String buildForecastResult(String city, int days) {
+        // 从今天起逐日生成指定天数的模拟预报，并根据首尾温度变化给出趋势提示。
         LocalDate today = LocalDate.now();
 
         StringBuilder sb = new StringBuilder();
@@ -194,11 +201,13 @@ public class WeatherMcpExecutor {
     }
 
     private WeatherData generateWeatherForDate(String city, LocalDate date) {
+        // 用城市和日期组合随机种子，使同城同日结果稳定；再结合季节和城市基础信息生成天气指标。
         double[] coords = CITY_COORDINATES.get(city);
         double latitude = coords[0];
         long seed = date.toEpochDay() * 31 + city.hashCode();
         Random random = new Random(seed);
 
+        // 按月份划分季节，结合纬度给出基础温度，再叠加种子随机数形成高低温。
         int month = date.getMonthValue();
         int season = (month >= 3 && month <= 5) ? 0 : (month >= 6 && month <= 8) ? 1 : (month >= 9 && month <= 11) ? 2 : 3;
 
@@ -213,6 +222,7 @@ public class WeatherMcpExecutor {
         int lowTemp = (int) (baseTemp - 3 - random.nextInt(5));
         int currentTemp = lowTemp + random.nextInt(Math.max(1, highTemp - lowTemp));
 
+        // 各季节使用不同的候选天气和湿度范围，雨雪天气额外提高湿度。
         List<String> weatherTypes = switch (season) {
             case 0 -> WEATHER_TYPES_SPRING;
             case 1 -> WEATHER_TYPES_SUMMER;
@@ -234,6 +244,7 @@ public class WeatherMcpExecutor {
         int windForce = 1 + random.nextInt(5);
         String windLevel = windForce + "-" + (windForce + 1) + "级";
 
+        // 空气质量也由模拟随机数和纬度修正得到，不代表实际监测数据。
         int aqiBase = 30 + random.nextInt(120);
         if (latitude > 35) aqiBase += 20;
         String airQuality;
@@ -242,6 +253,7 @@ public class WeatherMcpExecutor {
         else if (aqiBase <= 150) airQuality = "轻度污染";
         else airQuality = "中度污染";
 
+        // 把本次生成的所有字段封装为一条天气记录，当前天气和预报共用这一结构。
         WeatherData data = new WeatherData();
         data.weatherType = weatherType;
         data.currentTemp = currentTemp;

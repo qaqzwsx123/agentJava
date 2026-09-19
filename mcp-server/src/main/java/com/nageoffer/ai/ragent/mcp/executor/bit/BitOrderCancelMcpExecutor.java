@@ -55,6 +55,7 @@ public class BitOrderCancelMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification cancelOrderToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -62,11 +63,13 @@ public class BitOrderCancelMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("orderNo", "要取消的订单号，来自订单查询，不要凭对话内容拼")
                         .title("订单号"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("取消当前登录用户的一笔订单，同时归还它占用的库存与优惠券。"
@@ -78,6 +81,7 @@ public class BitOrderCancelMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 确认订单归属与可取消状态，再调用共用的事务释放逻辑；并发状态变化时返回失败原因而不重复归还资源。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -90,6 +94,7 @@ public class BitOrderCancelMcpExecutor {
                 return BitToolSupport.rejected("请先确认要取消哪一笔订单，订单号可用订单查询取得");
             }
 
+            // 先按当前用户读取订单，避免仅凭订单号取消其他用户的订单。
             OrderDO order = orderMapper.selectByNo(orderNo, userId);
             if (order == null) {
                 return BitToolSupport.rejected("未找到订单 " + orderNo);
@@ -100,6 +105,7 @@ public class BitOrderCancelMcpExecutor {
             }
 
             // 抢不到那一行说明状态刚被别人改了，照实说比抛异常有用
+            // 把刚读取到的状态作为预期状态传入，释放器在事务中竞争状态变更并归还资源。
             if (!bitOrderReleaser.release(orderNo, order.getStatus())) {
                 return BitToolSupport.rejected(String.format(
                         "订单 %s 的状态刚发生变化，本次没有取消成功，请重新查询订单确认当前状态", orderNo));
@@ -109,6 +115,7 @@ public class BitOrderCancelMcpExecutor {
                     TOOL_ID, orderNo, order.getStatus(), System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildReceipt(orderNo, order));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("订单取消", e);
@@ -116,6 +123,7 @@ public class BitOrderCancelMcpExecutor {
     }
 
     private String uncancellable(String orderNo, String status) {
+        // 把已取消、已发货等状态映射为具体提示，防止继续对不符合条件的订单执行取消。
         String guide = switch (status) {
             case "已发货" -> "包裹已经出库，可以拒收，拒收后订单自动退款；也可以等签收后走七天无理由退货";
             case "已签收" -> "订单已签收，取消已经不适用，请改用售后申请";
@@ -125,6 +133,7 @@ public class BitOrderCancelMcpExecutor {
     }
 
     private String buildReceipt(String orderNo, OrderDO order) {
+        // 列出取消结果和库存、优惠券的归还情况；原来已支付的订单补充演示退款说明。
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("订单 %s 已取消%n%n", orderNo));
         sb.append("库存已回补到商品\n");

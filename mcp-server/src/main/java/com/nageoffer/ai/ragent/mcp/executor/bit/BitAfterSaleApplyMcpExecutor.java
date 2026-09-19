@@ -88,6 +88,7 @@ public class BitAfterSaleApplyMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification applyAfterSaleToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -95,6 +96,7 @@ public class BitAfterSaleApplyMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("orderNo", "要申请售后的订单号，来自订单查询")
                         .title("订单号"))
@@ -107,6 +109,7 @@ public class BitAfterSaleApplyMcpExecutor {
                         .title("申请原因"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("为当前登录用户的某笔订单发起售后申请，提交后进入人工审核。"
@@ -119,6 +122,7 @@ public class BitAfterSaleApplyMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 先从请求元数据取得用户身份，再校验售后参数、订单归属和售后资格，通过后才写入售后记录。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -131,6 +135,7 @@ public class BitAfterSaleApplyMcpExecutor {
             String type = StrUtil.trimToNull(MapUtil.getStr(args, "type"));
             String reason = StrUtil.trimToNull(MapUtil.getStr(args, "reason"));
 
+            // 先检查必填项与申请类型，再限制原因长度；参数不合格时不继续访问业务数据。
             CallToolResult rejection = validate(orderNo, skuCode, type, reason);
             if (rejection != null) {
                 return rejection;
@@ -139,6 +144,7 @@ public class BitAfterSaleApplyMcpExecutor {
                 reason = reason.substring(0, MAX_REASON_LENGTH);
             }
 
+            // 订单查询同时带当前用户条件，确认归属后再判断签收状态及售后时限。
             OrderDO order = orderMapper.selectByNo(orderNo, userId);
             if (order == null) {
                 return BitToolSupport.rejected("未找到订单 " + orderNo);
@@ -149,6 +155,7 @@ public class BitAfterSaleApplyMcpExecutor {
                 return rejection;
             }
 
+            // 申请的 SKU 必须来自这张订单，不能只凭一个合法型号提交售后。
             List<OrderItemDO> items = orderItemMapper.selectList(Wrappers.<OrderItemDO>lambdaQuery()
                     .eq(OrderItemDO::getOrderNo, orderNo).orderByAsc(OrderItemDO::getId));
             OrderItemDO item = items.stream().filter(each -> each.getSkuCode().equalsIgnoreCase(skuCode))
@@ -159,11 +166,13 @@ public class BitAfterSaleApplyMcpExecutor {
                                 .reduce((left, right) -> left + "、" + right).orElse(BitToolSupport.EMPTY_FIELD)));
             }
 
+            // 先查同一商品的未结束申请，已有申请时返回原单号，不继续创建。
             CallToolResult duplicate = checkDuplicate(orderNo, item);
             if (duplicate != null) {
                 return duplicate;
             }
 
+            // 校验全部通过才分配编号并写库；后面的唯一键冲突分支用于处理并发重复申请。
             String afterSaleNo = nextAfterSaleNo(orderNo);
             try {
                 afterSaleMapper.insert(AfterSaleDO.builder()
@@ -180,6 +189,7 @@ public class BitAfterSaleApplyMcpExecutor {
                     TOOL_ID, afterSaleNo, orderNo, item.getSkuCode(), type, System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildReceipt(afterSaleNo, orderNo, item, type, reason, windowOf(order)));
         } catch (Exception e) {
+            // 内部异常记录在日志中，返回给模型的内容经过统一结果转换，避免直接透出堆栈。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("售后申请提交", e);
@@ -187,6 +197,7 @@ public class BitAfterSaleApplyMcpExecutor {
     }
 
     private CallToolResult validate(String orderNo, String skuCode, String type, String reason) {
+        // 逐项检查订单号、商品型号、申请类型和原因，返回可直接展示的业务错误；通过时返回 null。
         if (orderNo == null || skuCode == null) {
             return BitToolSupport.rejected("订单号与商品型号都要有，先用订单查询确认是哪一单的哪一件");
         }
@@ -206,6 +217,7 @@ public class BitAfterSaleApplyMcpExecutor {
      * 服务端只重算窗口与类型，判不了「是不是质量问题」——那正是要检测的原因
      */
     private CallToolResult checkEligible(String orderNo, OrderDO order, String type) {
+        // 只允许已签收且有签收时间的订单申请，再用签收后的实际时间跨度检查七天和十五天窗口。
         if (!"已签收".equals(order.getStatus())) {
             String guide = switch (order.getStatus()) {
                 case BitOrderReleaser.STATUS_PENDING -> "这单还没支付，不需要走售后，直接取消即可";
@@ -242,6 +254,7 @@ public class BitAfterSaleApplyMcpExecutor {
      * 走到这里已经保证已签收且有签收时间，超 15 天的在 checkEligible 就被挡掉了
      */
     private Window windowOf(OrderDO order) {
+        // 根据签收时间标记当前处于七天无理由期还是后续质量问题期，供申请记录和回执使用。
         Instant noReasonDeadline = order.getReceiveTime().toInstant().plus(Duration.ofDays(RETURN_WINDOW_DAYS));
         return Instant.now().isAfter(noReasonDeadline) ? Window.QUALITY : Window.NO_REASON;
     }
@@ -250,6 +263,7 @@ public class BitAfterSaleApplyMcpExecutor {
      * 重复提交回的是原单号，不是假装成功——对用户这才是有信息量的回答
      */
     private CallToolResult checkDuplicate(String orderNo, OrderItemDO item) {
+        // 检查同一订单与 SKU 是否已有待处理或处理中的申请，有则返回已有单号，避免重复提交。
         AfterSaleDO open = afterSaleMapper.selectOne(Wrappers.<AfterSaleDO>lambdaQuery()
                 .eq(AfterSaleDO::getOrderNo, orderNo)
                 .eq(AfterSaleDO::getSkuCode, item.getSkuCode())
@@ -266,6 +280,7 @@ public class BitAfterSaleApplyMcpExecutor {
     }
 
     private String nextAfterSaleNo(String orderNo) {
+        // 用订单号加该订单已有申请数量生成售后单号；并发下的编号冲突由调用处捕获后重新查询。
         long existing = afterSaleMapper.selectCount(Wrappers.<AfterSaleDO>lambdaQuery()
                 .eq(AfterSaleDO::getOrderNo, orderNo));
         return String.format("AS%s%03d", orderNo, existing + 1);
@@ -273,6 +288,7 @@ public class BitAfterSaleApplyMcpExecutor {
 
     private String buildReceipt(String afterSaleNo, String orderNo, OrderItemDO item,
                                 String type, String reason, Window window) {
+        // 按申请类型拼接已受理回执和下一步操作，并说明质量问题仍需后续审核，避免把申请当成审核通过。
         String next = switch (type) {
             case "退货退款" -> "审核通过后会给出寄回地址，货到并验收后原路退款";
             case "换货" -> "审核通过后会安排上门取件，换出的新品在旧品验收后寄出";

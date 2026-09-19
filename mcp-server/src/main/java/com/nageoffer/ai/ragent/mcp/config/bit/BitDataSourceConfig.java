@@ -52,6 +52,7 @@ public class BitDataSourceConfig {
      */
     @Bean
     public DataSource bitDataSource(BitProperties properties) {
+        // 先用配置中的连接信息完成建库和表结构检查，再创建供业务查询使用的 Hikari 连接池。
         new BitSchemaInitializer(properties.getDatasource()).initialize();
         HikariDataSource dataSource = new HikariDataSource();
         dataSource.setPoolName("bit-pool");
@@ -70,6 +71,7 @@ public class BitDataSourceConfig {
      */
     @Bean
     public SqlSessionFactory bitSqlSessionFactory(DataSource bitDataSource) throws Exception {
+        // 为业务库单独创建 MyBatis 会话工厂，并安装时间字段自动填充器，避免依赖其他数据源的配置。
         GlobalConfig globalConfig = new GlobalConfig();
         globalConfig.setMetaObjectHandler(new BitMetaObjectHandler());
 
@@ -82,11 +84,13 @@ public class BitDataSourceConfig {
 
     @Bean
     public SqlSessionTemplate bitSqlSessionTemplate(SqlSessionFactory bitSqlSessionFactory) {
+        // 把业务库会话工厂交给 Spring 管理的模板，Mapper 通过它获取和释放数据库会话。
         return new SqlSessionTemplate(bitSqlSessionFactory);
     }
 
     @Bean
     public PlatformTransactionManager bitTransactionManager(DataSource bitDataSource) {
+        // 事务管理器必须绑定同一个业务数据源，才能统一提交或回滚订单、库存和优惠券的修改。
         return new DataSourceTransactionManager(bitDataSource);
     }
 
@@ -98,6 +102,7 @@ public class BitDataSourceConfig {
      */
     @Bean
     public TransactionTemplate bitTransactionTemplate(PlatformTransactionManager bitTransactionManager) {
+        // 写工具使用编程式事务；后续 execute 回调内的数据库操作受这个事务模板管理。
         return new TransactionTemplate(bitTransactionManager);
     }
 }

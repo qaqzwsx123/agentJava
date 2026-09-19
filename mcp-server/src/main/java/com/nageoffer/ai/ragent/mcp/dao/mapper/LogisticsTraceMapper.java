@@ -32,6 +32,7 @@ import java.util.List;
 public interface LogisticsTraceMapper extends BaseMapper<LogisticsTraceDO> {
 
     default List<LogisticsTraceDO> selectByTrackingNo(String trackingNo) {
+        // 按运单号取物流节点并按发生时间倒序返回；订单所属用户的校验由调用方先完成。
         return selectList(Wrappers.<LogisticsTraceDO>lambdaQuery()
                 .eq(LogisticsTraceDO::getTrackingNo, trackingNo)
                 .orderByDesc(LogisticsTraceDO::getTraceTime));

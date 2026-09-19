@@ -86,6 +86,7 @@ public class AssetMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification assetToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -93,6 +94,7 @@ public class AssetMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("employeeName", "员工姓名或工号，不填则查询当前登录员工"))
                 .optional(string("assetType", "资产类别筛选：笔记本电脑、台式机、显示器、扩展坞、移动硬盘、测试手机，不填则查询全部类别")
@@ -106,6 +108,7 @@ public class AssetMcpExecutor {
                         .defaultTo(20))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询员工名下的公司 IT 资产，包括笔记本电脑、台式机、显示器、扩展坞等，支持按类别和状态筛选，"
@@ -116,6 +119,7 @@ public class AssetMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 规范员工、查询类型和条数，取得该员工的模拟资产后筛选，再按概览、清单或换新资格组织结果。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -142,6 +146,7 @@ public class AssetMcpExecutor {
                     TOOL_ID, queryType, employeeName, assetType, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("查询", e);
@@ -149,6 +154,7 @@ public class AssetMcpExecutor {
     }
 
     private String buildSummaryResult(List<AssetRecord> data, String employeeName, String assetType, String status) {
+        // 汇总模拟资产的状态、品类和达到使用年限的数量，帮助用户先了解名下资产分布。
         StringBuilder sb = new StringBuilder();
         sb.append("【").append(employeeName).append(" 名下 IT 资产汇总】\n\n");
         List<String> filters = new ArrayList<>();
@@ -163,6 +169,7 @@ public class AssetMcpExecutor {
 
         sb.append(String.format("资产总数: %d 件\n", data.size()));
 
+        // 同一份筛选结果分别按状态和品类分组，概览计数保持相同数据范围。
         Map<String, Long> byStatus = data.stream()
                 .collect(Collectors.groupingBy(r -> r.status, Collectors.counting()));
         sb.append("状态分布: ").append(byStatus.entrySet().stream()
@@ -180,6 +187,7 @@ public class AssetMcpExecutor {
         data.forEach(r -> sb.append(String.format("  %s | %s | %s | 领用于 %s | 已服役 %s\n",
                 r.assetNo, r.category, r.status, r.receiveDate, describeMonths(r.servedMonths()))));
 
+        // 换新资格按已服役月数与品类年限比较；这里只列出符合年限的候选资产。
         List<AssetRecord> renewable = data.stream().filter(AssetRecord::reachedServiceLimit).toList();
         sb.append("\n【换新提示】\n");
         if (renewable.isEmpty()) {
@@ -193,6 +201,7 @@ public class AssetMcpExecutor {
 
     private String buildListResult(List<AssetRecord> data, String employeeName,
                                    String assetType, String status, int limit) {
+        // 按限额逐条展示资产编号、型号、领用日期和使用时长，超过条数的部分只提示未全部列出。
         StringBuilder sb = new StringBuilder();
         sb.append("【").append(employeeName).append(" 名下 IT 资产明细】\n\n");
         List<String> filters = new ArrayList<>();
@@ -220,6 +229,7 @@ public class AssetMcpExecutor {
     }
 
     private String buildRenewalResult(List<AssetRecord> data, String employeeName) {
+        // 按当前资产的品类使用年限判断可否换新，仅输出资格说明，不在查询过程中创建换新申请。
         StringBuilder sb = new StringBuilder();
         sb.append("【").append(employeeName).append(" 资产换新资格检查】\n\n");
         if (data.isEmpty()) {
@@ -241,6 +251,7 @@ public class AssetMcpExecutor {
     }
 
     private List<AssetRecord> filterData(List<AssetRecord> data, String assetType, String status) {
+        // 按请求提供的品类和状态筛选资产；没有指定的条件不参与过滤。
         return data.stream()
                 .filter(r -> assetType == null || assetType.equals(r.category))
                 .filter(r -> status == null || status.equals(r.status))
@@ -248,6 +259,7 @@ public class AssetMcpExecutor {
     }
 
     private List<AssetRecord> getOrGenerateData(String employeeName) {
+        // 用员工和当天日期作为缓存键，同一天重复查询复用模拟数据；缓存未命中时重新生成并替换缓存。
         String key = employeeName + "_" + LocalDate.now();
         if (cachedData != null && key.equals(cacheKey)) return cachedData;
         cachedData = generateMockData(employeeName);
@@ -256,6 +268,7 @@ public class AssetMcpExecutor {
     }
 
     private List<AssetRecord> generateMockData(String employeeName) {
+        // 用员工信息设置随机种子，生成电脑、显示器等模拟资产，按领用时间排序后供各查询类型复用。
         Random random = new Random(employeeName.hashCode());
         String location = LOCATIONS.get(random.nextInt(LOCATIONS.size()));
 
@@ -274,6 +287,7 @@ public class AssetMcpExecutor {
     }
 
     private AssetRecord newRecord(Random random, String category, int servedMonths, String status, String location) {
+        // 根据资产品类选择型号和使用年限，生成编号、领用日期等字段，返回一条内存中的模拟记录。
         AssetRecord record = new AssetRecord();
         record.category = category;
         record.model = MODELS.get(category).get(random.nextInt(MODELS.get(category).size()));
@@ -288,6 +302,7 @@ public class AssetMcpExecutor {
     }
 
     private static String describeMonths(int months) {
+        // 把已使用月数换算成年、月的可读文本，供资产列表和换新判断说明复用。
         int years = months / 12;
         int rest = months % 12;
         if (years == 0) return rest + " 个月";
@@ -305,6 +320,7 @@ public class AssetMcpExecutor {
         int serviceLimitMonths;
 
         int servedMonths() {
+            // 先计算领用日至今天相差的月份，再根据日号修正尚未满一个月的部分。
             LocalDate received = LocalDate.parse(receiveDate);
             LocalDate now = LocalDate.now();
             return (now.getYear() - received.getYear()) * 12 + now.getMonthValue() - received.getMonthValue()
@@ -312,6 +328,7 @@ public class AssetMcpExecutor {
         }
 
         boolean reachedServiceLimit() {
+            // 将实际已使用月数与该品类配置的使用年限（月）比较，达到或超过即标记为可按年限换新。
             return servedMonths() >= serviceLimitMonths;
         }
     }

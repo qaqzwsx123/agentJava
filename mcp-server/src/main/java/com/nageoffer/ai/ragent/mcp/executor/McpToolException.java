@@ -27,6 +27,7 @@ package com.nageoffer.ai.ragent.mcp.executor;
 public class McpToolException extends RuntimeException {
 
     public McpToolException(String message) {
+        // 保存允许直接展示给模型和用户的业务失败原因，统一结果转换时可与内部异常区别处理。
         super(message);
     }
 }

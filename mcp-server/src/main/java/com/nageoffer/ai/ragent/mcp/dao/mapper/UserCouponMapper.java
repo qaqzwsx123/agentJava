@@ -43,9 +43,15 @@ public interface UserCouponMapper extends BaseMapper<UserCouponDO> {
             WHERE uc.user_id = #{userId}
             """;
 
+    /**
+     * 按当前用户联查持券状态与券规则，并按到期时间排序；是否过期、是否满足门槛由上层规则判断。
+     */
     @Select(HELD_SQL + " ORDER BY c.valid_to")
     List<HeldCouponResult> selectHeld(@Param("userId") String userId);
 
+    /**
+     * 同时限定用户和优惠券编码，取得下单试算所需规则；未持有这张券时返回 null。
+     */
     @Select(HELD_SQL + " AND uc.coupon_code = #{couponCode}")
     HeldCouponResult selectHeldOne(@Param("userId") String userId, @Param("couponCode") String couponCode);
 
@@ -60,6 +66,9 @@ public interface UserCouponMapper extends BaseMapper<UserCouponDO> {
     int use(@Param("orderNo") String orderNo, @Param("userId") String userId,
             @Param("couponCode") String couponCode);
 
+    /**
+     * 将指定订单已核销的券恢复为未使用，并清除订单号和核销时间；应与取消订单、回补库存放在同一事务中。
+     */
     @Update("""
             UPDATE t_user_coupon SET status = '未使用', order_no = NULL, use_time = NULL, update_time = now()
             WHERE order_no = #{orderNo} AND status = '已使用'

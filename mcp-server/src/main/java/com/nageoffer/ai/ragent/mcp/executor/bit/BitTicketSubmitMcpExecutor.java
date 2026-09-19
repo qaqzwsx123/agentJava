@@ -65,6 +65,7 @@ public class BitTicketSubmitMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification submitTicketToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -72,6 +73,7 @@ public class BitTicketSubmitMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("category", "问题分类")
                         .title("问题分类")
@@ -81,6 +83,7 @@ public class BitTicketSubmitMcpExecutor {
                         .title("问题描述"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("为当前登录用户提交人工客服工单，提交后由人工在工作时间内跟进。"
@@ -92,6 +95,7 @@ public class BitTicketSubmitMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 确认用户身份并校验分类和内容，限制内容长度后写入待处理工单，再返回生成的工单号。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -108,10 +112,12 @@ public class BitTicketSubmitMcpExecutor {
             if (content == null) {
                 return BitToolSupport.rejected("问题描述为必填项，请把用户的诉求整理清楚后再提交");
             }
+            // 限制入库内容长度，超出部分按现有规则截断，避免模型传入过长描述。
             if (content.length() > MAX_CONTENT_LENGTH) {
                 content = content.substring(0, MAX_CONTENT_LENGTH);
             }
 
+            // 全部校验通过后生成工单号，将用户标识与待处理状态一起保存到业务库。
             String ticketNo = nextTicketNo();
             ticketMapper.insert(TicketDO.builder().ticketNo(ticketNo).userId(userId)
                     .category(category).content(content).status(STATUS_PENDING).build());
@@ -128,6 +134,7 @@ public class BitTicketSubmitMcpExecutor {
 
                     人工客服会在工作时间内跟进，请把工单号告知用户以便后续查询""", ticketNo, category, content));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("工单提交", e);
@@ -135,6 +142,7 @@ public class BitTicketSubmitMcpExecutor {
     }
 
     private String nextTicketNo() {
+        // 用当天日期和当前日期前缀的已有工单数生成序号，拼成新的业务工单编号。
         String prefix = "TK" + TICKET_DATE.format(LocalDate.now());
         long today = ticketMapper.countByNoPrefix(prefix + "%");
         return String.format("%s%04d", prefix, today + 1);

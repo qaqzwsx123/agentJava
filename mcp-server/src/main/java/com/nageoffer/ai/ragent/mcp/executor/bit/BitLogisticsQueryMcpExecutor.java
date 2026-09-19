@@ -58,6 +58,7 @@ public class BitLogisticsQueryMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification queryLogisticsToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -65,10 +66,12 @@ public class BitLogisticsQueryMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("trackingNo", "运单号，如 BIT9100000233，从订单查询的结果里取"))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("按运单号查询物流轨迹，返回对应订单号、订单状态与全部轨迹节点，由新到旧。"
@@ -79,6 +82,7 @@ public class BitLogisticsQueryMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 先确认用户身份和运单号，再按用户查关联订单；确认归属后才读取物流轨迹，避免凭运单号越界查询。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -100,6 +104,7 @@ public class BitLogisticsQueryMcpExecutor {
                     ? BitToolSupport.notFound("运单 " + trackingNo + " 的物流信息")
                     : McpToolResults.success(buildResult(order, trackingNo));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("物流查询", e);
@@ -107,6 +112,7 @@ public class BitLogisticsQueryMcpExecutor {
     }
 
     private String buildResult(OrderDO order, String trackingNo) {
+        // 输出订单与运单信息，按查询返回的倒序轨迹展示最新进展；没有节点时给出尚无更新的说明。
         List<LogisticsTraceDO> traces = logisticsTraceMapper.selectByTrackingNo(trackingNo);
 
         StringBuilder sb = new StringBuilder();

@@ -27,6 +27,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class McpServerApplication {
 
     public static void main(String[] args) {
+        // 启动 Spring Boot，扫描配置和工具组件，装配数据库访问与 MCP HTTP 服务入口。
         SpringApplication.run(McpServerApplication.class, args);
     }
 }

@@ -66,6 +66,7 @@ public class BitOrderAddressMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification changeAddressToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -73,6 +74,7 @@ public class BitOrderAddressMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("orderNo", "要修改的订单号，来自订单查询，不要凭对话内容拼")
                         .title("订单号"))
@@ -85,6 +87,7 @@ public class BitOrderAddressMcpExecutor {
                         .title("收货地址"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("修改当前登录用户某笔订单的收货信息，只有待支付和已支付待发货的订单能改，"
@@ -96,6 +99,7 @@ public class BitOrderAddressMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 读取并校验要修改的收货字段，确认订单属于当前用户且状态允许修改，再通过带状态条件的 SQL 写入。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -113,6 +117,7 @@ public class BitOrderAddressMcpExecutor {
                 return rejection;
             }
 
+            // 先查询用户自己的订单并检查当前状态，给出明确的业务拒绝原因。
             OrderDO order = orderMapper.selectByNo(orderNo, userId);
             if (order == null) {
                 return BitToolSupport.rejected("未找到订单 " + orderNo);
@@ -122,6 +127,7 @@ public class BitOrderAddressMcpExecutor {
                 return BitToolSupport.rejected(unmodifiable(orderNo, status));
             }
 
+            // 写入时再次限定用户和可修改状态，防止查询后订单恰好已发货；null 字段保留原值。
             int updated = orderMapper.updateReceiver(name, phone, address, orderNo, userId);
             if (updated == 0) {
                 return BitToolSupport.rejected(
@@ -133,6 +139,7 @@ public class BitOrderAddressMcpExecutor {
                     System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildReceipt(orderNo, status, name, phone, address));
         } catch (Exception e) {
+            // 查询或条件更新异常统一记日志，再转换为可展示的工具失败结果。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("收货信息修改", e);
@@ -140,6 +147,7 @@ public class BitOrderAddressMcpExecutor {
     }
 
     private CallToolResult validate(String orderNo, String name, String phone, String address) {
+        // 订单号必填，姓名、电话和地址至少修改一项；传入电话或地址时继续检查各自格式和长度约束。
         if (orderNo == null) {
             return BitToolSupport.rejected("请先确认要修改哪一笔订单，订单号可用订单查询取得");
         }
@@ -156,6 +164,7 @@ public class BitOrderAddressMcpExecutor {
     }
 
     private String unmodifiable(String orderNo, String status) {
+        // 将当前订单状态转换成不能修改地址的具体原因，已发货等状态不会进入更新路径。
         String guide = switch (status) {
             case "已发货" -> "包裹已经出库，改地址已经来不及，可以拒收后重新下单，或直接联系快递改派";
             case "已签收" -> "订单已签收，收货信息不再可改";
@@ -170,6 +179,7 @@ public class BitOrderAddressMcpExecutor {
      * 库里存的收货信息该打码还是打码，但刚从用户嘴里过来的值再打码，用户就无从确认存对没有
      */
     private String buildReceipt(String orderNo, String status, String name, String phone, String address) {
+        // 只列出这次实际提供的修改项，让用户能够核对收货信息变更结果。
         List<String> changed = new ArrayList<>();
         if (name != null) {
             changed.add("收货人: " + name);

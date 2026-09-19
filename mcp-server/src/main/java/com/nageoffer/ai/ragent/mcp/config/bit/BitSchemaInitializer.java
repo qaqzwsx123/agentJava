@@ -70,6 +70,7 @@ public class BitSchemaInitializer {
     private final BitProperties.Datasource datasource;
 
     public void initialize() {
+        // 启动时先解析并校验 JDBC 地址，再确保业务库存在，最后按版本记录决定是否创建表结构。
         ParsedUrl parsed = parseUrl(datasource.getUrl());
         ensureDatabase(parsed);
         applySchema(parsed);
@@ -79,6 +80,7 @@ public class BitSchemaInitializer {
      * 库不存在就建，建库这一步必须 autocommit——CREATE DATABASE 在任何事务块里都直接报错
      */
     private void ensureDatabase(ParsedUrl parsed) {
+        // 切换到维护库检查目标库；不存在时执行建库语句，这一步使用独立连接且不进入建表事务。
         String maintenanceUrl = parsed.withDatabase(resolveMaintenanceDb());
         try (Connection connection = connect(maintenanceUrl)) {
             if (databaseExists(connection, parsed.database())) {
@@ -98,6 +100,7 @@ public class BitSchemaInitializer {
     }
 
     private boolean databaseExists(Connection connection, String database) throws SQLException {
+        // 用参数化查询匹配 pg_database 中的库名，存在任意一行就表示目标数据库已创建。
         try (PreparedStatement statement = connection
                 .prepareStatement("SELECT 1 FROM pg_database WHERE datname = ?")) {
             statement.setString(1, database);
@@ -114,6 +117,7 @@ public class BitSchemaInitializer {
      * 会静默跳过，报错最后以「某个字段不存在」的形式出现在离原因很远的地方
      */
     private void applySchema(ParsedUrl parsed) {
+        // 先确保版本表存在，再读取当前版本：相同直接复用，没有版本记录才执行初始化脚本。
         try (Connection connection = connect(datasource.getUrl())) {
             try (Statement statement = connection.createStatement()) {
                 statement.execute(VERSION_TABLE_DDL);
@@ -122,9 +126,11 @@ public class BitSchemaInitializer {
             if (current != null && current == SCHEMA_VERSION) {
                 return;
             }
+            // 已有版本但与代码要求不一致时拒绝启动，不把 CREATE IF NOT EXISTS 当作结构迁移。
             if (current != null) {
                 throw new IllegalStateException(versionMismatch(current, parsed.database()));
             }
+            // 没有版本记录才运行初始化脚本；已有业务数据不会在每次启动时重新灌入。
             createSchema(connection);
             log.info("比特严选业务库表结构已建, database={}, version={}", parsed.database(), SCHEMA_VERSION);
         } catch (SQLException e) {
@@ -136,6 +142,7 @@ public class BitSchemaInitializer {
      * 建表与写版本号同一个事务，PostgreSQL 的 DDL 可回滚，中途失败不会留下半套表配一条版本记录
      */
     private void createSchema(Connection connection) throws SQLException {
+        // 关闭自动提交，把表结构脚本和版本号写入放在同一事务内，防止只完成其中一半。
         connection.setAutoCommit(false);
         try {
             ScriptUtils.executeSqlScript(connection,
@@ -145,16 +152,20 @@ public class BitSchemaInitializer {
                 statement.setInt(1, SCHEMA_VERSION);
                 statement.executeUpdate();
             }
+            // DDL 和版本号均成功才提交，使版本记录能够代表结构初始化已完整完成。
             connection.commit();
         } catch (RuntimeException | SQLException e) {
+            // 脚本或版本写入任一步失败都撤销本事务，然后把原异常交给启动流程处理。
             connection.rollback();
             throw e;
         } finally {
+            // 无论成功或失败都恢复连接的自动提交设置。
             connection.setAutoCommit(true);
         }
     }
 
     private Integer readVersion(Connection connection) throws SQLException {
+        // 读取版本表中的最大版本号；getInt 对 SQL NULL 会返回 0，因此还要用 wasNull 区分空表。
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT max(version) FROM t_schema_version")) {
             if (!resultSet.next()) {
@@ -166,6 +177,7 @@ public class BitSchemaInitializer {
     }
 
     private Connection connect(String url) throws SQLException {
+        // 把账号、密码和连接超时时间作为 JDBC 属性传入，返回初始化阶段使用的短生命周期连接。
         Properties properties = new Properties();
         properties.setProperty("user", StrUtil.emptyIfNull(datasource.getUsername()));
         properties.setProperty("password", StrUtil.emptyIfNull(datasource.getPassword()));
@@ -175,6 +187,7 @@ public class BitSchemaInitializer {
     }
 
     private String resolveMaintenanceDb() {
+        // 维护库默认使用 postgres；与业务库一样限制库名字符，保证后续地址拼接符合约定。
         String maintenanceDb = StrUtil.blankToDefault(datasource.getMaintenanceDb(), "postgres");
         if (!DATABASE_NAME.matcher(maintenanceDb).matches()) {
             throw new IllegalStateException("ragent.bit.datasource.maintenance-db 只允许字母数字下划线: " + maintenanceDb);
@@ -186,6 +199,7 @@ public class BitSchemaInitializer {
      * 原生报错离原因太远，每一种都换成能照着做的下一步
      */
     static String explain(SQLException e, ParsedUrl parsed) {
+        // 根据 PostgreSQL 的 SQLState 区分权限不足、连接或认证失败，其余错误保留数据库报错说明。
         String state = StrUtil.emptyIfNull(e.getSQLState());
         if ("42501".equals(state)) {
             return "当前数据库账号无 CREATEDB 权限，请手动执行 createdb %s 后重启".formatted(parsed.database());
@@ -198,6 +212,7 @@ public class BitSchemaInitializer {
     }
 
     static String versionMismatch(int current, String database) {
+        // 只生成结构版本不匹配的启动错误提示，供调用方抛出异常；这里不会自动删除或迁移数据库。
         return ("业务库结构版本 %d，代码要求 %d。本项目不做增量迁移，"
                 + "请执行 dropdb %s 后重启，再跑一次 BizDataInitMain 灌数据")
                 .formatted(current, SCHEMA_VERSION, database);
@@ -207,6 +222,7 @@ public class BitSchemaInitializer {
      * 从 JDBC URL 里拆出库名，建库时要换成维护库再连一次
      */
     static ParsedUrl parseUrl(String url) {
+        // 先限制为 PostgreSQL JDBC 地址，再拆分主机、库名和查询参数；库名会参与 DDL，必须严格校验。
         if (!StrUtil.startWith(url, URL_PREFIX)) {
             throw new IllegalStateException("ragent.bit.datasource.url 必须是 " + URL_PREFIX + " 开头: " + url);
         }
@@ -218,6 +234,7 @@ public class BitSchemaInitializer {
         String tail = rest.substring(slash + 1);
         int question = tail.indexOf('?');
         String database = question < 0 ? tail : tail.substring(0, question);
+        // 库名将拼进 CREATE DATABASE，限制为字母、数字和下划线，并限制长度。
         if (!DATABASE_NAME.matcher(database).matches()) {
             throw new IllegalStateException("业务库库名只允许字母数字下划线: " + database);
         }
@@ -227,10 +244,12 @@ public class BitSchemaInitializer {
     record ParsedUrl(String authority, String database, String query) {
 
         String withDatabase(String other) {
+            // 只替换地址中的数据库名，保留原来的主机、端口和连接参数，供维护库连接复用。
             return URL_PREFIX + authority + "/" + other + (query.isEmpty() ? "" : "?" + query);
         }
 
         String url() {
+            // 使用当前记录保存的库名重建 JDBC 地址，便于输出与实际配置一致的诊断信息。
             return withDatabase(database);
         }
     }

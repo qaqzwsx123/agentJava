@@ -39,18 +39,21 @@ public interface OrderMapper extends BaseMapper<OrderDO> {
      * 否则返回文案本身就成了一个存在性探针
      */
     default OrderDO selectByNo(String orderNo, String userId) {
+        // 同时限定当前用户和订单号，避免仅凭订单号读取到其他用户的订单。
         return selectOne(Wrappers.<OrderDO>lambdaQuery()
                 .eq(OrderDO::getOrderNo, orderNo)
                 .eq(OrderDO::getUserId, userId));
     }
 
     default OrderDO selectByTrackingNo(String trackingNo, String userId) {
+        // 用用户 ID 与运单号共同定位订单，供物流查询先确认这张运单属于当前用户。
         return selectOne(Wrappers.<OrderDO>lambdaQuery()
                 .eq(OrderDO::getTrackingNo, trackingNo)
                 .eq(OrderDO::getUserId, userId));
     }
 
     default List<OrderDO> selectRecent(String userId, int limit) {
+        // 仅查询当前用户的订单，按创建时间倒序并限制条数，供未指定订单号时展示最近订单。
         return selectList(Wrappers.<OrderDO>lambdaQuery()
                 .eq(OrderDO::getUserId, userId)
                 .orderByDesc(OrderDO::getCreateTime)
@@ -61,6 +64,7 @@ public interface OrderMapper extends BaseMapper<OrderDO> {
      * 不传收货信息时沿用最近一笔有地址的订单
      */
     default OrderDO selectLatestReceiver(String userId) {
+        // 从当前用户的历史订单中取最近一条具有收货人和地址的记录，供下单时补齐未填写的信息。
         return selectOne(Wrappers.<OrderDO>lambdaQuery()
                 .eq(OrderDO::getUserId, userId)
                 .isNotNull(OrderDO::getReceiverName)
@@ -75,6 +79,9 @@ public interface OrderMapper extends BaseMapper<OrderDO> {
     @Select("SELECT COALESCE(MAX(order_no::bigint), #{base}) + 1 FROM t_order WHERE order_no ~ '^[0-9]+$'")
     long selectNextOrderNo(@Param("base") long base);
 
+    /**
+     * 选出创建时间早于超时阈值的待支付订单，按创建时间返回单号；实际取消时仍须检查预期状态。
+     */
     @Select("""
             SELECT order_no FROM t_order
             WHERE status = '待支付' AND create_time < now() - CAST(#{interval} AS interval)
@@ -100,6 +107,9 @@ public interface OrderMapper extends BaseMapper<OrderDO> {
             """)
     int cancel(@Param("orderNo") String orderNo, @Param("expectedStatus") String expectedStatus);
 
+    /**
+     * 只更新当前用户仍待支付或待发货的订单；未提供的字段通过 COALESCE 保留原值，返回实际更新行数。
+     */
     @Update("""
             UPDATE t_order
                SET receiver_name = COALESCE(#{name}, receiver_name),

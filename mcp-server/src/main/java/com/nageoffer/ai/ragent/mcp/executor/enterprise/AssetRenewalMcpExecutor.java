@@ -63,6 +63,7 @@ public class AssetRenewalMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification assetRenewalToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -70,6 +71,7 @@ public class AssetRenewalMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("assetNo", "待换新的资产编号，如 IT-NB-2021-0473，需取自名下资产查询结果")
                         .title("资产编号"))
@@ -82,6 +84,7 @@ public class AssetRenewalMcpExecutor {
                         .title("补充说明"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("为当前登录员工提交 IT 资产换新工单，提交后进入直属经理与 IT 资产管理员审批流程。"
@@ -93,6 +96,7 @@ public class AssetRenewalMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 规范资产编号并校验换新原因，通过后生成演示申请号和回执；当前不会写入真实资产或审批系统。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -115,6 +119,7 @@ public class AssetRenewalMcpExecutor {
                     System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildReceipt(ticketNo, assetNo, reason, expectedModel, remark));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("提交", e);
@@ -122,6 +127,7 @@ public class AssetRenewalMcpExecutor {
     }
 
     private String validate(String assetNo, String reason) {
+        // 校验资产编号格式和支持的换新原因；这里按请求字段验证，不会查询真实资产归属或使用年限。
         if (StrUtil.isBlank(assetNo)) {
             return "资产编号为必填项，请先用名下资产查询确认待换新设备的编号";
         }
@@ -136,6 +142,7 @@ public class AssetRenewalMcpExecutor {
 
     private String buildReceipt(String ticketNo, String assetNo, String reason,
                                 String expectedModel, String remark) {
+        // 使用固定演示员工和审批人组装回执，补充可选型号与备注，供用户核对本次模拟申请内容。
         StringBuilder sb = new StringBuilder();
         sb.append("【资产换新工单已提交】\n\n");
         sb.append(String.format("工单号: %s%n", ticketNo));
@@ -152,11 +159,13 @@ public class AssetRenewalMcpExecutor {
     }
 
     private String nextTicketNo() {
+        // 将当天日期与四位随机数拼成演示换新单号，这里没有数据库编号分配或唯一性校验。
         return String.format("AR-%s-%04d", LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE),
                 RandomUtil.randomInt(10000));
     }
 
     private static String normalize(String assetNo) {
+        // 去除首尾空白并统一字母大小写，使同一资产编号的不同输入形式使用一致格式。
         return StrUtil.isBlank(assetNo) ? null : StrUtil.trim(assetNo).toUpperCase();
     }
 }

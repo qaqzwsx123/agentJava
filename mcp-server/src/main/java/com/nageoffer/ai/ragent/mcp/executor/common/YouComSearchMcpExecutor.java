@@ -94,6 +94,7 @@ public class YouComSearchMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification youComSearchToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -101,6 +102,7 @@ public class YouComSearchMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("query", "检索关键词或问题"))
                 .optional(integer("count", "最多返回的结果条数（网页+新闻合计），默认 5，最大 20")
@@ -109,6 +111,7 @@ public class YouComSearchMcpExecutor {
                         .options(FRESHNESS_VALUES))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("基于 You.com Search API 的联网搜索，返回带来源链接和摘录片段的网页与新闻结果。需要配置 YDC_API_KEY 环境变量")
@@ -118,6 +121,7 @@ public class YouComSearchMcpExecutor {
     }
 
     CallToolResult handleCall(CallToolRequest request) {
+        // 校验搜索词，限制结果数量并规范时间范围；确认环境变量中有 API Key 后才发起外部搜索请求。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -146,6 +150,7 @@ public class YouComSearchMcpExecutor {
                     TOOL_ID, query, count, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 外部 HTTP、JSON 解析等错误统一记录，工具只收到经过筛选的失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("搜索", e);
@@ -156,6 +161,7 @@ public class YouComSearchMcpExecutor {
      * 调用 You.com Search API 并格式化结果文本
      */
     private String doSearch(String query, int count, String freshness, String apiKey) throws Exception {
+        // 对搜索词等查询参数做 URL 编码，携带 API Key 和超时设置调用 You.com，再把响应正文解析为 JSON。
         StringBuilder url = new StringBuilder(apiUrl)
                 .append("?query=").append(URLEncoder.encode(query, StandardCharsets.UTF_8))
                 .append("&count=").append(count);
@@ -188,6 +194,7 @@ public class YouComSearchMcpExecutor {
      * 使 count 对外表达「返回结果总条数上限」，与直觉一致，也避免多余结果占用 LLM token
      */
     private String formatResults(JsonNode root, int count) {
+        // 依次整理网页与新闻结果，限制最终条数，并将标题、链接和摘要转换为供模型阅读的文本。
         JsonNode results = root.path("results");
         List<JsonNode> items = new ArrayList<>();
         collectItems(items, results.path("web"));
@@ -224,6 +231,7 @@ public class YouComSearchMcpExecutor {
      * 摘录优先取 description，缺失时回退第一条 snippet
      */
     private String resolveExcerpt(JsonNode item) {
+        // 优先使用结果中的描述字段，没有描述时回落到首段 snippet，避免直接输出整段原始 JSON。
         String description = item.path("description").asText("");
         if (!description.isBlank()) {
             return description;
@@ -236,6 +244,7 @@ public class YouComSearchMcpExecutor {
     }
 
     private void collectItems(List<JsonNode> items, JsonNode array) {
+        // 只遍历 JSON 数组节点，将每条结果加入汇总列表，兼容响应缺少某一类结果的情况。
         if (array != null && array.isArray()) {
             array.forEach(items::add);
         }
@@ -245,6 +254,7 @@ public class YouComSearchMcpExecutor {
      * 读取环境变量（可测试性：单元测试可覆盖此方法屏蔽真实环境）
      */
     protected String readEnv(String name) {
+        // 集中封装环境变量读取，默认从当前进程环境获取，也便于测试替换 API Key 来源。
         return System.getenv(name);
     }
 }

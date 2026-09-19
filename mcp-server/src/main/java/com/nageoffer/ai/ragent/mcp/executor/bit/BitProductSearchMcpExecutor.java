@@ -75,6 +75,7 @@ public class BitProductSearchMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification searchProductToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -82,6 +83,7 @@ public class BitProductSearchMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("spuCodes", "按商品款查，多个用逗号分隔，如 SPU-IPHONE-18-PRO；"
                         + "返回该款全部可选配置与各自的下单编码，用户说定了要哪个容量哪个颜色时用它取编码"))
@@ -100,6 +102,7 @@ public class BitProductSearchMcpExecutor {
                         .defaultTo(DEFAULT_LIMIT))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("检索比特严选在售商品，支持按品类、价格区间、标签、关键词筛选。"
@@ -113,6 +116,7 @@ public class BitProductSearchMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 整理型号、品类、关键词、标签、价格和排序条件；有精确型号时查 SKU 明细，否则查询商品 SPU 摘要。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -136,6 +140,7 @@ public class BitProductSearchMcpExecutor {
                     System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("商品查询", e);
@@ -143,17 +148,20 @@ public class BitProductSearchMcpExecutor {
     }
 
     private List<SkuDetailResult> querySkus(Criteria criteria) {
+        // 查询指定商品或型号的规格明细，多取一条用于检测是否超出展示上限；精确查询可返回下架商品供说明状态。
         return productSkuMapper.selectDetails(criteria.spuCodes(), criteria.skuCodes(),
                 "price_desc".equals(criteria.sort()), MAX_SKU_DETAIL + 1);
     }
 
     private List<ProductSummaryResult> querySpus(Criteria criteria) {
+        // 按筛选条件聚合在售 SKU 的价格和库存，再返回满足条件的商品摘要，避免每个型号都占一条搜索结果。
         return productMapper.selectSummaries(criteria.category(), criteria.keyword(), criteria.tags(),
                 criteria.minPrice(), criteria.maxPrice(),
                 "price_desc".equals(criteria.sort()), criteria.limit());
     }
 
     private String renderSpus(Criteria criteria, List<ProductSummaryResult> spus) {
+        // 按商品展示价格区间、可售规格和库存，并提示后续可用型号进一步查询具体配置。
         if (spus.isEmpty()) {
             return "没有符合条件的商品，可以放宽价格区间或换个品类再试";
         }
@@ -179,6 +187,7 @@ public class BitProductSearchMcpExecutor {
     }
 
     private String renderSkus(Criteria criteria, List<SkuDetailResult> skus) {
+        // 按 SPU 归组展示 SKU 的价格、规格和库存；超过明细上限时截断展示并提醒缩小查询范围。
         if (skus.isEmpty()) {
             return "没有找到对应的商品配置，请确认款编码或下单编码是否正确";
         }
@@ -206,6 +215,7 @@ public class BitProductSearchMcpExecutor {
     }
 
     private String priceRange(ProductSummaryResult summary) {
+        // 最低价和最高价相同只显示一个价格，否则输出价格区间，金额格式统一复用工具方法。
         BigDecimal min = summary.getMinPrice();
         return min.compareTo(summary.getMaxPrice()) == 0
                 ? BitToolSupport.money(min)
@@ -216,6 +226,7 @@ public class BitProductSearchMcpExecutor {
      * 把生效的筛选条件回显出来，模型才知道这批结果是按什么筛的
      */
     private String describe(Criteria criteria) {
+        // 将实际生效的筛选条件拼成查询说明，便于用户核对搜索范围。
         if (!criteria.spuCodes().isEmpty()) {
             return "按款查配置: " + String.join("、", criteria.spuCodes());
         }
@@ -249,6 +260,7 @@ public class BitProductSearchMcpExecutor {
          * 点了名才走配置粒度，否则一律按款聚合，免得同一款的十几个配置把结果刷满
          */
         boolean bySku() {
+            // 只要提供 SPU 编码或 SKU 编码就走型号明细路径，其余条件用于普通商品筛选路径。
             return !spuCodes.isEmpty() || !skuCodes.isEmpty();
         }
     }
