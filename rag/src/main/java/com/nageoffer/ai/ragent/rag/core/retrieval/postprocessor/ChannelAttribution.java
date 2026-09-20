@@ -40,12 +40,14 @@ import java.util.Set;
 final class ChannelAttribution {
 
     private ChannelAttribution() {
+        // 通道归因统计通过静态方法复用，私有构造器阻止实例化。
     }
 
     /**
      * 反查每个 chunk key 命中的通道集合（一条证据可被多路命中，故值为集合）
      */
     static Map<String, Set<SearchChannelType>> index(List<SearchChannelResult> results) {
+        // 按统一块键收集所有原始召回通道，同一块可以同时属于多个通道。
         Map<String, Set<SearchChannelType>> index = new HashMap<>();
         if (results == null) {
             return index;
@@ -67,6 +69,7 @@ final class ChannelAttribution {
      */
     static Map<SearchChannelType, Integer> countByChannel(List<RetrievedChunk> chunks,
                                                           Map<String, Set<SearchChannelType>> index) {
+        // 遍历当前阶段保留的块，依据原始归因给每个来源通道分别计数。
         Map<SearchChannelType, Integer> counts = new EnumMap<>(SearchChannelType.class);
         for (RetrievedChunk chunk : chunks) {
             Set<SearchChannelType> channels = index.get(RetrievedChunkKey.of(chunk));
@@ -86,6 +89,7 @@ final class ChannelAttribution {
     static long countOfChannel(List<RetrievedChunk> chunks,
                                Map<String, Set<SearchChannelType>> index,
                                SearchChannelType channel) {
+        // 统计当前块列表中曾由指定通道召回的数量，多来源块仍可计入该通道。
         return chunks.stream()
                 .map(RetrievedChunkKey::of)
                 .map(index::get)
@@ -97,6 +101,7 @@ final class ChannelAttribution {
      * 通道分布转中文可读串，如「意图定向=4 图谱=8 关键词=6」
      */
     static String format(Map<SearchChannelType, Integer> counts) {
+        // 将通道计数转成简洁日志文本，空映射显示无。
         if (counts.isEmpty()) {
             return "无";
         }
@@ -109,6 +114,7 @@ final class ChannelAttribution {
      * 通道类型中文标签
      */
     static String label(SearchChannelType type) {
+        // 把通道类型映射为中文标签，供统一归因日志展示。
         return switch (type) {
             case VECTOR -> "向量";
             case KEYWORD -> "关键词";

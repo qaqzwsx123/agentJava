@@ -62,6 +62,7 @@ public interface SearchChannel {
      * 引擎的超时降级与各通道的异常兜底共用，保证空结果的形状全站一致
      */
     default SearchChannelResult emptyResult(long latencyMs) {
+        // 构造携带本通道名称、类型和耗时的空结果，异常或超时仍可参与统一统计。
         return SearchChannelResult.builder()
                 .channelType(getType())
                 .channelName(getName())

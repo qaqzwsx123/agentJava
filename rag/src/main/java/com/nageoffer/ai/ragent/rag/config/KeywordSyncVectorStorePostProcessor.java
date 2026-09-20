@@ -46,6 +46,7 @@ public class KeywordSyncVectorStorePostProcessor implements BeanPostProcessor {
 
     @Override
     public Object postProcessAfterInitialization(@NonNull Object bean, @NonNull String beanName) {
+        // 仅在关键词索引实现存在时装饰向量服务，使向量修改同步维护关键词索引，避免重复包同类装饰器。
         if (bean instanceof VectorStoreService vectorStore
                 && !(bean instanceof KeywordSyncingVectorStoreService)) {
             KeywordIndexService keywordIndexService = keywordIndexServiceProvider.getIfAvailable();

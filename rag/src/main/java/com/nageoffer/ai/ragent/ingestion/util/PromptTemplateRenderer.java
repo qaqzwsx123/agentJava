@@ -25,12 +25,14 @@ import java.util.Map;
 public final class PromptTemplateRenderer {
 
     private PromptTemplateRenderer() {
+        // 模板替换通过静态方法使用，私有构造器阻止实例化工具类。
     }
 
     /**
      * 逐项替换双花括号变量，null 变量替换为空字符串，未提供的变量保持原样。
      */
     public static String render(String template, Map<String, Object> variables) {
+        // 逐个替换双大括号变量，null 值替换为空串；没有提供的变量保持模板原样。
         if (template == null || template.isBlank()) {
             return template;
         }

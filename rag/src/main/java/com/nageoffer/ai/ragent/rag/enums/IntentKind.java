@@ -55,6 +55,7 @@ public enum IntentKind {
      * @return 对应的意图类型枚举值，如果编码不存在则返回null
      */
     public static IntentKind fromCode(Integer code) {
+        // 按稳定数字编码查找枚举，空编码或没有匹配项时返回 null。
         if (code == null) {
             return null;
         }
@@ -73,6 +74,7 @@ public enum IntentKind {
      */
     @Override
     public String toString() {
+        // 返回枚举名称，供日志与文本展示使用，不混同数字存储编码。
         return name();
     }
 }

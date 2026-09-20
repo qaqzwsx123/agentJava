@@ -47,6 +47,7 @@ public class AgentSkillCacheManager {
      * @return 已启用技能列表，缓存不存在则返回 null；空列表是有效结果，代表确实一个技能都没配
      */
     public List<AgentSkill> getFromCache() {
+        // 读取技能列表 JSON，未命中或缓存解析错误返回 null，供注册表重新查询。
         try {
             String cacheJson = stringRedisTemplate.opsForValue().get(CACHE_KEY);
             if (cacheJson == null) {
@@ -64,6 +65,7 @@ public class AgentSkillCacheManager {
      * 序列化技能列表并写入带过期时间的 Redis 缓存，失败只记录日志，由注册表保留回源路径。
      */
     public void saveToCache(List<AgentSkill> skills) {
+        // 序列化技能列表并设置小时级过期时间，缓存失败仅记录日志。
         try {
             String cacheJson = objectMapper.writeValueAsString(skills);
             stringRedisTemplate.opsForValue().set(CACHE_KEY, cacheJson, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
@@ -76,6 +78,7 @@ public class AgentSkillCacheManager {
      * 任何技能写操作后必须调用，否则改动直到过期才生效
      */
     public void clearCache() {
+        // 清除技能缓存，管理修改后的下一次加载会重新装配技能内容。
         try {
             stringRedisTemplate.delete(CACHE_KEY);
             log.info("技能缓存已清除");

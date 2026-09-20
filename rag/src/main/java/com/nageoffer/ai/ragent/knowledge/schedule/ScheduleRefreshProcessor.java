@@ -64,6 +64,7 @@ public class ScheduleRefreshProcessor {
     private final DocumentStatusHelper documentStatusHelper;
 
     public void process(ScheduleLockLease lease) {
+        // 先确认租约并启动心跳，再校验调度与文档，按文件变化决定跳过或重建分块，最后依执行阶段清理资源。
         if (lease == null) {
             return;
         }
@@ -88,6 +89,7 @@ public class ScheduleRefreshProcessor {
             }
             return;
         }
+        // 用阶段状态记录本轮已完成哪些副作用，异常和 finally 据此决定能否删除文件或恢复文档。
         RefreshRunState state = new RefreshRunState();
         try {
             KnowledgeDocumentScheduleDO schedule = scheduleMapper.selectById(scheduleId);
@@ -105,6 +107,7 @@ public class ScheduleRefreshProcessor {
                 return;
             }
 
+            // 执行时重新读取文档的调度配置，关闭、删除或不再属于 URL 来源的文档不继续刷新。
             String cron = state.document.getScheduleCron();
             boolean enabled = state.document.getScheduleEnabled() != null && state.document.getScheduleEnabled() == 1;
             if (!StringUtils.hasText(cron) || !SourceType.URL.getValue().equalsIgnoreCase(state.document.getSourceType())) {
@@ -129,6 +132,7 @@ public class ScheduleRefreshProcessor {
                 return;
             }
 
+            // 通过配置校验后才创建本轮执行记录，保存运行状态和下一次计划时间。
             KnowledgeDocumentScheduleExecDO exec = KnowledgeDocumentScheduleExecDO.builder()
                     .scheduleId(scheduleId)
                     .docId(state.document.getId())
@@ -146,6 +150,7 @@ public class ScheduleRefreshProcessor {
                     .nextRunTime(nextRunTime)
                     .build();
 
+            // 抓取结果持有临时文件，使用资源块保证跳过、成功或异常路径都会释放下载结果。
             try (RemoteFileFetcher.RemoteFetchResult fetchResult = remoteFileFetcher.fetchIfChanged(
                     state.document.getSourceLocation(),
                     schedule.getLastEtag(),
@@ -170,6 +175,7 @@ public class ScheduleRefreshProcessor {
                     stateManager.markLeaseLost(state.ctx, "领取文档运行权");
                     return;
                 }
+                // 调度锁之外还要竞争文档 RUNNING 状态，避免与手动分块同时处理同一文档。
                 if (!documentStatusHelper.tryMarkRunning(state.document.getId())) {
                     markSkippedIfOwnedOrMarkLeaseLost(lease, state, "文档正在分块中，跳过本次调度", "文档运行权争抢失败");
                     return;
@@ -181,6 +187,7 @@ public class ScheduleRefreshProcessor {
                     throw new ClientException("知识库不存在");
                 }
 
+                // 先上传新文件供本轮分块使用，数据库中的正式文件地址此时仍不切换。
                 state.oldFileUrl = state.document.getFileUrl();
                 try (InputStream tempIn = Files.newInputStream(fetchResult.tempFile())) {
                     state.stored = fileStorageService.upload(
@@ -208,6 +215,7 @@ public class ScheduleRefreshProcessor {
                     return;
                 }
                 state.phase = Phase.CHUNK_STARTED;
+                // 后台线程临时设置系统操作人，分块结束用 finally 清理，防止线程复用污染上下文。
                 UserContext.set(LoginUser.builder().username(SYSTEM_USER).build());
                 try {
                     documentService.chunkDocument(runtimeDoc);
@@ -221,6 +229,7 @@ public class ScheduleRefreshProcessor {
                     return;
                 }
 
+                // 只有确认文档分块成功后才切换文件元数据，随后更新调度成功状态。
                 state.phase = Phase.CHUNK_COMPLETED;
                 documentStatusHelper.applyRefreshedFileMetadata(state.document.getId(), state.stored);
                 state.phase = Phase.FILE_SWITCHED;
@@ -253,6 +262,7 @@ public class ScheduleRefreshProcessor {
                         lease.scheduleId(), lease.lockToken(), e);
             }
         } finally {
+            // 停止续约后按阶段决定清理旧文件或未完成的新文件；分块已完成但未切换时保留新文件便于后续处理。
             heartbeat.close();
             if (state.leaseLost && state.phase == Phase.DOC_OCCUPIED && state.document != null) {
                 documentStatusHelper.markFailedIfRunning(state.document.getId());
@@ -277,6 +287,7 @@ public class ScheduleRefreshProcessor {
                                                RefreshRunState state,
                                                String reason,
                                                String logStage) {
+        // 仅持有当前令牌才禁用调度，未更新成功则记录已失去租约，不继续冒用旧锁写主状态。
         if (!stateManager.disableIfOwned(lease, reason)) {
             state.leaseLost = true;
             logScheduleStateWriteSkipped(lease, logStage);
@@ -287,6 +298,7 @@ public class ScheduleRefreshProcessor {
                                                    RefreshRunState state,
                                                    RemoteFileFetcher.RemoteFetchResult fetchResult,
                                                    String logStage) {
+        // 带当前租约写入跳过结果，未命中所有权条件时标记丢锁并记录阶段。
         if (!stateManager.markSkippedIfOwned(lease, state.ctx, fetchResult)) {
             state.leaseLost = true;
             logScheduleStateWriteSkipped(lease, logStage);
@@ -297,6 +309,7 @@ public class ScheduleRefreshProcessor {
                                                    RefreshRunState state,
                                                    String message,
                                                    String logStage) {
+        // 带当前租约写入跳过结果，未命中所有权条件时标记丢锁并记录阶段。
         if (!stateManager.markSkippedIfOwned(lease, state.ctx, message)) {
             state.leaseLost = true;
             logScheduleStateWriteSkipped(lease, logStage);
@@ -307,6 +320,7 @@ public class ScheduleRefreshProcessor {
                                                   RefreshRunState state,
                                                   String message,
                                                   String logStage) {
+        // 尝试在仍拥有锁时写失败状态，所有权已变化则只记录租约丢失。
         if (!stateManager.markFailedIfOwned(lease, state.ctx, message)) {
             state.leaseLost = true;
             logScheduleStateWriteSkipped(lease, logStage);
@@ -317,6 +331,7 @@ public class ScheduleRefreshProcessor {
                                                    RefreshRunState state,
                                                    RemoteFileFetcher.RemoteFetchResult fetchResult,
                                                    String logStage) {
+        // 仅当前锁所有者写刷新成功主状态，失败表示不能再假定拥有本轮调度权。
         if (!stateManager.markSuccessIfOwned(lease, state.ctx, fetchResult, state.stored)) {
             state.leaseLost = true;
             logScheduleStateWriteSkipped(lease, logStage);
@@ -326,6 +341,7 @@ public class ScheduleRefreshProcessor {
     private boolean shouldAbortForLeaseLoss(ScheduleLockLease lease,
                                             ScheduleLockManager.ScheduleLockHeartbeat heartbeat,
                                             String stage) {
+        // 先检查心跳终态，再主动续约确认；丢锁或续约异常都返回应终止，避免继续产生副作用。
         if (heartbeat != null && heartbeat.isLost()) {
             log.warn("定时刷新锁已丢失，停止继续执行: scheduleId={}, stage={}, lockToken={}",
                     lease.scheduleId(), stage, lease.lockToken());
@@ -346,11 +362,13 @@ public class ScheduleRefreshProcessor {
     }
 
     private void logScheduleStateWriteSkipped(ScheduleLockLease lease, String stage) {
+        // 记录未能按原令牌写调度状态的阶段，便于区分业务失败与锁所有权丢失。
         log.warn("定时刷新锁已失效，未写回调度主状态: scheduleId={}, stage={}, lockToken={}",
                 lease.scheduleId(), stage, lease.lockToken());
     }
 
     private void deleteOldFileQuietly(String oldFileUrl, String newFileUrl) {
+        // 空地址或新旧地址相同不删除，其余按 URL 清理对象存储文件，清理异常仅记日志。
         if (!StringUtils.hasText(oldFileUrl) || oldFileUrl.equals(newFileUrl)) {
             return;
         }
@@ -380,6 +398,7 @@ public class ScheduleRefreshProcessor {
         private FetchSnapshot fetch;
 
         private boolean hasDocumentOccupied() {
+            // 根据阶段顺序判断是否已取得文档运行权，供失败处理决定是否恢复文档状态。
             return phase.ordinal() >= Phase.DOC_OCCUPIED.ordinal();
         }
     }
@@ -387,6 +406,7 @@ public class ScheduleRefreshProcessor {
     private record FetchSnapshot(String contentHash, String etag, String lastModified) {
 
         private static FetchSnapshot from(RemoteFileFetcher.RemoteFetchResult fetchResult) {
+            // 从抓取结果复制哈希、ETag 和修改时间，不保留即将被关闭的临时文件对象。
             if (fetchResult == null) {
                 return null;
             }

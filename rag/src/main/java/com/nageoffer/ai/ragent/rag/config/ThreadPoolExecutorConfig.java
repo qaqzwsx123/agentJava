@@ -45,6 +45,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor ragContextExecutor() {
+        // 上下文任务使用直接交接队列，饱和时由提交线程执行，并包装 TTL 以传播线程上下文。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 CPU_COUNT << 2,
                 CPU_COUNT << 2,
@@ -64,6 +65,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor ragRetrievalExecutor() {
+        // 为外层检索配置独立线程池，直接交接并在饱和时回到调用线程，TTL 包装保留调用上下文。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 CPU_COUNT << 2,
                 CPU_COUNT << 2,
@@ -83,6 +85,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor innerRetrievalExecutor() {
+        // 内部并行检索使用有界队列和可扩展线程数，饱和后由调用线程执行，限制额外排队规模。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 CPU_COUNT << 1,
                 CPU_COUNT << 2,
@@ -102,6 +105,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor intentClassifyExecutor() {
+        // 意图分类线程数按 CPU 配置，采用直接交接与调用线程回退，避免无限积压分类任务。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 CPU_COUNT,
                 CPU_COUNT << 1,
@@ -121,6 +125,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor memorySummaryExecutor() {
+        // 摘要任务使用较小线程池与有界队列，饱和时由提交线程承担，TTL 保留用户和追踪上下文。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 1,
                 Math.max(2, CPU_COUNT >> 1),
@@ -140,6 +145,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor modelStreamExecutor() {
+        // 模型流使用独立有界线程池，饱和时明确拒绝，由上层处理，不在提交线程里阻塞执行长流。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 Math.max(2, CPU_COUNT >> 1),
                 Math.max(4, CPU_COUNT),
@@ -159,6 +165,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor chatEntryExecutor(RAGRateLimitProperties rateLimitProperties) {
+        // 线程数与全局聊天并发一致，直接交接且饱和拒绝；允许核心线程超时，避免空闲时长期占用线程。
         int size = rateLimitProperties.getGlobalMaxConcurrent();
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 size,
@@ -180,6 +187,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor knowledgeChunkExecutor() {
+        // 文档分块使用独立有界队列和拒绝策略，超载时交给调用方处理，避免无限堆积大文件任务。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 Math.max(2, CPU_COUNT >> 1),
                 Math.max(4, CPU_COUNT),
@@ -199,6 +207,7 @@ public class ThreadPoolExecutorConfig {
      */
     @Bean
     public Executor memoryLoadExecutor() {
+        // 历史加载使用独立有界线程池，饱和时在调用线程执行，所有任务继续使用 TTL 传播上下文。
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 Math.max(2, CPU_COUNT >> 1),
                 Math.max(4, CPU_COUNT),

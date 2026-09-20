@@ -79,6 +79,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public IngestionPipelineVO create(IngestionPipelineCreateRequest request) {
+        // 校验请求并插入流水线主记录，名称冲突转换为业务提示；再保存节点并记录创建后的变更快照。
         // 先保存主记录取得 ID，再把节点与该流水线建立关联。
         Assert.notNull(request, () -> new ClientException("请求不能为空"));
         IngestionPipelineDO pipeline = IngestionPipelineDO.builder()
@@ -155,6 +156,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      */
     @Override
     public IPage<IngestionPipelineVO> page(Page<IngestionPipelineVO> page, String keyword) {
+        // 按未删除和可选名称关键词分页，逐条加载节点配置，转换为页面需要的流水线视图。
         // 把接口分页对象转换为数据库实体分页对象。
         Page<IngestionPipelineDO> mpPage = new Page<>(page.getCurrent(), page.getSize());
         LambdaQueryWrapper<IngestionPipelineDO> qw = new LambdaQueryWrapper<IngestionPipelineDO>()
@@ -185,6 +187,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String pipelineId) {
+        // 先保存删除前快照，再删除主记录及其节点配置，最后登记本次删除的变更日志。
         // 主记录和节点配置统一清理，避免留下没有所属流水线的有效节点。
         IngestionPipelineDO pipeline = pipelineMapper.selectById(pipelineId);
         Assert.notNull(pipeline, () -> new ClientException("未找到流水线"));
@@ -205,6 +208,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      */
     @Override
     public PipelineDefinition getDefinition(String pipelineId) {
+        // 从持久化配置组装执行引擎使用的定义，节点设置和条件恢复为 JSON 结构。
         // 管理端 VO 与引擎 PipelineDefinition 分开构造，避免执行层依赖页面字段。
         IngestionPipelineDO pipeline = pipelineMapper.selectById(pipelineId);
         Assert.notNull(pipeline, () -> new ClientException("未找到流水线"));
@@ -253,6 +257,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 查询指定流水线下未删除的节点，供详情展示与执行配置组装使用。
      */
     private List<IngestionPipelineNodeDO> fetchNodes(String pipelineId) {
+        // 只查询指定流水线下未删除的节点，避免混入其他流水线配置。
         LambdaQueryWrapper<IngestionPipelineNodeDO> qw = new LambdaQueryWrapper<IngestionPipelineNodeDO>()
                 .eq(IngestionPipelineNodeDO::getPipelineId, pipelineId)
                 .eq(IngestionPipelineNodeDO::getDeleted, 0);
@@ -263,6 +268,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 将流水线记录和节点列表合并为详情响应，节点配置通过 toNodeVO 统一转换。
      */
     private IngestionPipelineVO toVO(IngestionPipelineDO pipeline, List<IngestionPipelineNodeDO> nodes) {
+        // 复制流水线基本字段，并把节点实体逐个转成管理端视图。
         IngestionPipelineVO vo = BeanUtil.toBean(pipeline, IngestionPipelineVO.class);
         vo.setNodes(nodes.stream().map(this::toNodeVO).toList());
         return vo;
@@ -272,6 +278,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 将节点记录转换为前端结构，统一节点类型并把 settings、condition JSON 还原为树节点。
      */
     private IngestionPipelineNodeVO toNodeVO(IngestionPipelineNodeDO node) {
+        // 复制节点字段，规范化节点类型，同时把设置和条件文本解析为 JSON。
         IngestionPipelineNodeVO vo = BeanUtil.toBean(node, IngestionPipelineNodeVO.class);
         vo.setNodeType(normalizeNodeTypeForOutput(node.getNodeType()));
         vo.setSettings(parseJson(node.getSettingsJson()));
@@ -283,6 +290,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 组装执行器所需的节点配置，包含节点类型、参数、执行条件和下一个节点 ID。
      */
     private NodeConfig toNodeConfig(IngestionPipelineNodeDO node) {
+        // 把数据库节点映射成引擎配置，保留节点 ID、类型、设置、条件及后继节点关系。
         return NodeConfig.builder()
                 .nodeId(node.getNodeId())
                 .nodeType(normalizeNodeType(node.getNodeType()))
@@ -296,6 +304,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 将非空 JSON 树序列化为数据库文本；null 和 JSON null 都按空值处理。
      */
     private String toJson(JsonNode node) {
+        // JSON 空值保存为 null，有效节点直接转换为 JSON 文本。
         if (node == null || node.isNull()) {
             return null;
         }
@@ -306,6 +315,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 解析节点配置 JSON；配置为空或解析失败时返回 null，由后续配置处理决定默认行为。
      */
     private JsonNode parseJson(String raw) {
+        // 空文本或解析失败返回 null，防止历史无效配置文本直接导致展示失败。
         if (!StringUtils.hasText(raw)) {
             return null;
         }
@@ -336,6 +346,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
      * 把可识别的节点类型转换为标准值；历史未知值保留原文，避免读取详情时直接失败。
      */
     private String normalizeNodeTypeForOutput(String nodeType) {
+        // 能识别的旧写法归一为稳定类型值，无法识别的历史值原样保留供诊断。
         if (!StringUtils.hasText(nodeType)) {
             return nodeType;
         }

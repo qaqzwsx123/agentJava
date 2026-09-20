@@ -42,6 +42,7 @@ public record RetrievalScope(boolean directed,
                              List<String> supplementCollections) {
 
     public Set<String> directedIntentIds() {
+        // 只有定向范围才收集有效意图 ID，去掉空候选与重复值，用于后续判断定向意图是否实际命中。
         if (!directed) {
             return Set.of();
         }
@@ -63,6 +64,7 @@ public record RetrievalScope(boolean directed,
      * 全局作用域：不收窄，无补充路
      */
     public static RetrievalScope global(double topScore, List<String> activeCollections) {
+        // 构造非定向范围，保留最高意图分和有效集合范围，不绑定定向意图列表。
         return new RetrievalScope(false, topScore, List.of(), activeCollections, List.of());
     }
 }

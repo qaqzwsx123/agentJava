@@ -114,6 +114,7 @@ public class DefaultIngestionKernel implements IngestionKernel {
      * 组装解析器入参：docId 必须传，解析器用它给图片资产命名，漏传则资产与文档失联
      */
     private Map<String, Object> parserOptions(DocumentRef doc) {
+        // 把文件名和文档 ID 放入解析选项，供各解析器生成文件溯源及资产路径。
         Map<String, Object> options = new HashMap<>();
         if (StringUtils.hasText(doc.filename())) {
             options.put(OPT_SOURCE_FILE, doc.filename());

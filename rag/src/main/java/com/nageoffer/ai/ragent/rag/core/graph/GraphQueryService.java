@@ -194,6 +194,7 @@ public class GraphQueryService {
      * @param joiner 去重后各段的重组连接符
      */
     private static String cleanMerged(String raw, String joiner) {
+        // 按远端 SEP 标记拆分合并字段，去掉空项并按顺序去重，再用页面需要的连接符重组。
         if (StrUtil.isBlank(raw)) {
             return "";
         }

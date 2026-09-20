@@ -55,6 +55,7 @@ public final class ExcelTableNormalizer {
     private static final String STRIKETHROUGH_WRAP = "~~";
 
     private ExcelTableNormalizer() {
+        // 规范化能力集中在静态方法中，私有构造器避免无意义实例化。
     }
 
     /**
@@ -68,10 +69,12 @@ public final class ExcelTableNormalizer {
             List<List<String>> rows
     ) {
         public boolean isEmpty() {
+            // 表头和数据行都为空才判定为空表，只有表头的表仍保留。
             return headers.isEmpty() && rows.isEmpty();
         }
 
         static NormalizedTable empty() {
+            // 返回表头和数据都为空的规范化结果。
             return new NormalizedTable(List.of(), List.of());
         }
     }
@@ -128,6 +131,7 @@ public final class ExcelTableNormalizer {
      * 计算 sheet 内最大列数（跨所有行）
      */
     private static int computeMaxColumns(Sheet sheet, int lastRowNum) {
+        // 扫描所有非空行，取最大末列位置，确定读取二维网格的宽度。
         int maxCol = 0;
         for (int r = 0; r <= lastRowNum; r++) {
             Row row = sheet.getRow(r);
@@ -149,6 +153,7 @@ public final class ExcelTableNormalizer {
      * 仅表头空但有数据的列保留（数据本身有意义）
      */
     private static int[] selectNonEmptyColumns(String[][] grid, int startRow, int endRow, int maxCol) {
+        // 逐列检查指定行区间，仅保留至少出现一个有效值的列，并维持原列顺序。
         List<Integer> kept = new ArrayList<>(maxCol);
         for (int c = 0; c < maxCol; c++) {
             boolean hasValue = false;
@@ -178,6 +183,7 @@ public final class ExcelTableNormalizer {
      */
     private static String[][] readGrid(Sheet sheet, int lastRowNum, int maxCol,
                                        DataFormatter formatter, FormulaEvaluator evaluator) {
+        // 把单元格格式化为文本，保留超链接，并用删除线标记约定表达软删除内容。
         String[][] grid = new String[lastRowNum + 1][maxCol];
         for (int r = 0; r <= lastRowNum; r++) {
             Row row = sheet.getRow(r);
@@ -186,6 +192,7 @@ public final class ExcelTableNormalizer {
                 if (row != null) {
                     Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_NULL_AND_BLANK);
                     if (cell != null) {
+                        // 先按 Excel 展示格式取值，再处理链接和删除线，避免原始数值或样式语义丢失。
                         String formatted = ExcelValueFormatter.format(cell, formatter, evaluator);
                         value = ExcelHyperlinkResolver.wrap(formatted, cell);
                         // 软删除约定：非空且划删除线的 cell，用 ~~值~~ 包裹原值
@@ -206,6 +213,7 @@ public final class ExcelTableNormalizer {
     private static void expandMergedRegions(String[][] grid,
                                             List<CellRangeAddress> mergedRegions,
                                             int lastRowNum, int maxCol) {
+        // 将合并区域左上角的有效值展开到区域内各格，并裁剪越出网格的边界。
         if (mergedRegions == null || mergedRegions.isEmpty()) {
             return;
         }
@@ -233,6 +241,7 @@ public final class ExcelTableNormalizer {
      * 展平前 N 行为单行表头：相邻相同值合并（避免合并单元格展开后的重复）
      */
     private static List<String> flattenHeaders(String[][] grid, int startRow, int headerRows, int[] cols) {
+        // 按列从多行表头收集层级名称，跳过空值和连续重复值，再用统一分隔符连接。
         List<String> headers = new ArrayList<>(cols.length);
         for (int c : cols) {
             StringBuilder sb = new StringBuilder();
@@ -262,6 +271,7 @@ public final class ExcelTableNormalizer {
      */
     private static List<List<String>> collectDataRows(String[][] grid, int startRow,
                                                       int endRow, int[] cols) {
+        // 只采集已选列，把空值转为空字符串，并过滤整行为空的数据。
         List<List<String>> rows = new ArrayList<>();
         for (int r = startRow; r <= endRow; r++) {
             List<String> rowValues = new ArrayList<>(cols.length);

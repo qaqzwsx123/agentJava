@@ -36,6 +36,7 @@ public class HttpClientConfig {
     @Bean
     @Primary
     public OkHttpClient streamingHttpClient() {
+        // 流式调用不设置读取和总调用截止时间，避免长 SSE 被普通超时切断；连接与写入仍有超时。
         return new OkHttpClient.Builder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .writeTimeout(Duration.ofSeconds(60))
@@ -50,6 +51,7 @@ public class HttpClientConfig {
      */
     @Bean
     public OkHttpClient syncHttpClient() {
+        // 同步请求分别限制连接、写入、读取和总调用时长，避免远端异常长期占用业务线程。
         return new OkHttpClient.Builder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .writeTimeout(Duration.ofSeconds(30))

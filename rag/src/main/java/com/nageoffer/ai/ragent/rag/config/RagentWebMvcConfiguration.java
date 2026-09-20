@@ -83,6 +83,7 @@ public class RagentWebMvcConfiguration implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        // 为所有接口登记跨域方法和请求头，暴露 Authorization，并允许携带凭证，预检结果缓存一小时。
         registry.addMapping("/**")
                 .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")

@@ -40,6 +40,7 @@ public enum OrchestrationMode {
      * 解析配置值，大小写不敏感，无法识别时回落 WORKFLOW
      */
     public static OrchestrationMode of(String value) {
+        // 去空白并忽略大小写识别编排模式，空值或未知值都回落 WORKFLOW。
         if (StrUtil.isBlank(value)) {
             return WORKFLOW;
         }

@@ -37,6 +37,7 @@ public record RetrievalBudget(int recallBudget, int candidateLimit, int contextT
      * 三段同值构造：用于测试或无需区分预算的平凡场景
      */
     public static RetrievalBudget uniform(int k) {
+        // 将同一个 K 同时用于上下文、召回和候选上限，供不需要区分三种预算的兼容调用。
         return new RetrievalBudget(k, k, k);
     }
 }

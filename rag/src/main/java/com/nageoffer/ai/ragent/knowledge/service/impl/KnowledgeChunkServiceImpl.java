@@ -90,6 +90,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
      */
     @Override
     public IPage<KnowledgeChunkVO> pageQuery(String docId, KnowledgeChunkPageRequest requestParam) {
+        // 确认文档存在后按文档 ID 和可选启用状态分页，按块序号保持文档内顺序。
         // 分块查询显式限定文档 ID，不跨文档混合分页。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
@@ -255,6 +256,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String docId, String chunkId) {
+        // 拒绝运行中文档的修改并校验块归属，删除关系库记录、递减块数，再删除向量并保存变更日志。
         // 先加载文档和分块，保证后续清理使用正确知识库的向量集合。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
@@ -457,6 +459,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
      */
     @Override
     public List<EmbeddedChunk> embedPersistedChunks(String docId, VectorTarget target) {
+        // 按文档内序号加载已有块，使用指定知识库落点重新生成嵌入，空块列表直接返回。
         // 先验证文档存在，再按分块顺序读取原始向量文本来源。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
@@ -521,6 +524,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
      * 从向量库删除单个 chunk
      */
     private void deleteChunkFromVector(String collectionName, String chunkId) {
+        // 将集合名与块 ID 一起交给向量服务，删除对应索引记录并记录调试日志。
         vectorStoreService.deleteChunkById(collectionName, chunkId);
         log.debug("从向量库删除 Chunk, collectionName={}, chunkId={}", collectionName, chunkId);
     }
@@ -546,6 +550,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
      * 估算非空切片的 token 数；空正文记为零，供切片信息保存和展示使用。
      */
     private Integer resolveTokenCount(String content) {
+        // 空白正文无需分词计数，其余统一调用 Token 计数服务。
         if (!StringUtils.hasText(content)) {
             return 0;
         }

@@ -53,12 +53,14 @@ public class MinerUPollingExecutor {
     private ScheduledExecutorService scheduler;
 
     public MinerUPollingExecutor(MinerUClient client, MinerUProperties properties) {
+        // 保存远端客户端和轮询配置，调度线程池在初始化阶段单独创建。
         this.client = client;
         this.properties = properties;
     }
 
     @PostConstruct
     void init() {
+        // 创建命名调度线程池，用于定期查询异步解析任务状态。
         this.scheduler = Executors.newScheduledThreadPool(SCHEDULER_THREADS, namedFactory());
         log.info("MinerUPollingExecutor 启动: schedulerThreads={}", SCHEDULER_THREADS);
     }
@@ -108,6 +110,7 @@ public class MinerUPollingExecutor {
                         CompletableFuture<MinerUStatus> future,
                         Instant deadline,
                         ScheduledFuture<?>[] holder) {
+        // 已完成的 future 不再查询；成功、失败或超时分别结束等待，临时网络错误在期限内保留重试机会。
         if (future.isDone()) {
             return;
         }
@@ -139,6 +142,7 @@ public class MinerUPollingExecutor {
     private void complete(CompletableFuture<MinerUStatus> future,
                           MinerUStatus status,
                           ScheduledFuture<?>[] holder) {
+        // 只有本次调用成功完成 future 时才取消后续轮询，避免多个结束分支重复处理。
         if (future.complete(status)) {
             cancelPolling(holder);
         }
@@ -150,6 +154,7 @@ public class MinerUPollingExecutor {
     private void completeExceptionally(CompletableFuture<MinerUStatus> future,
                                        Throwable error,
                                        ScheduledFuture<?>[] holder) {
+        // 用异常完成 future，并在成功设置终态后取消调度任务。
         if (future.completeExceptionally(error)) {
             cancelPolling(holder);
         }
@@ -159,6 +164,7 @@ public class MinerUPollingExecutor {
      * 取消已登记的后续调度，不中断当前正在执行的轮询。
      */
     private void cancelPolling(ScheduledFuture<?>[] holder) {
+        // 已有调度句柄时取消后续触发，不强制中断正在运行的一次查询。
         ScheduledFuture<?> task = holder[0];
         if (task != null) {
             task.cancel(false);
@@ -167,6 +173,7 @@ public class MinerUPollingExecutor {
 
     @PreDestroy
     void shutdown() {
+        // 先正常关闭并等待存量任务，超过等待期限或线程被中断时再强制停止线程池。
         if (scheduler == null) {
             return;
         }
@@ -184,6 +191,7 @@ public class MinerUPollingExecutor {
     }
 
     private static ThreadFactory namedFactory() {
+        // 为轮询线程分配递增名称并标为守护线程，便于诊断且不单独阻止进程退出。
         AtomicInteger seq = new AtomicInteger(1);
         return r -> {
             Thread t = new Thread(r, "minerU-poll-" + seq.getAndIncrement());

@@ -37,6 +37,7 @@ public class SemaphoreInitializer {
 
     @PostConstruct
     public void documentUploadSemaphoreInitialize() {
+        // 按配置设置 Redis 上传许可总量，使多个节点共享同一上传并发限制。
         RagSemaphoreProperties.PermitExpirableConfig config = semaphoreProperties.getDocumentUpload();
         RPermitExpirableSemaphore semaphore = redissonClient.getPermitExpirableSemaphore(config.getName());
 

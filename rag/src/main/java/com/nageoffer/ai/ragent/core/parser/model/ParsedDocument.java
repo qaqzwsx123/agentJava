@@ -34,6 +34,7 @@ public record ParsedDocument(List<Block> blocks, Map<String, Object> metadata) {
      * 组装结构化解析结果，将缺失的块列表和元数据规范为空集合，避免下游反复判空。
      */
     public static ParsedDocument of(List<Block> blocks) {
+        // 封装结构化块与可选元数据，null 集合统一回落为空集合，避免调用方逐处判空。
         return new ParsedDocument(blocks != null ? blocks : List.of(), Map.of());
     }
 
@@ -41,6 +42,7 @@ public record ParsedDocument(List<Block> blocks, Map<String, Object> metadata) {
      * 组装结构化解析结果，将缺失的块列表和元数据规范为空集合，避免下游反复判空。
      */
     public static ParsedDocument of(List<Block> blocks, Map<String, Object> metadata) {
+        // 封装结构化块与可选元数据，null 集合统一回落为空集合，避免调用方逐处判空。
         return new ParsedDocument(blocks != null ? blocks : List.of(), metadata != null ? metadata : Map.of());
     }
 }

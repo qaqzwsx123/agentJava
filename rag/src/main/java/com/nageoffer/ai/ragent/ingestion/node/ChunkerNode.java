@@ -58,6 +58,7 @@ public class ChunkerNode implements IngestionNode {
 
     @Override
     public String getNodeType() {
+        // 返回分块节点的稳定类型值，供引擎匹配节点配置。
         return IngestionNodeType.CHUNKER.getValue();
     }
 
@@ -66,6 +67,7 @@ public class ChunkerNode implements IngestionNode {
      */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
+        // 要求上下文已绑定向量落点，再按配置分块并生成嵌入；缺少落点或没有有效分块时返回失败。
         VectorTarget target = context.getVectorTarget();
         if (target == null) {
             return NodeResult.fail(new ClientException("分块节点缺少向量落点（分区 / 嵌入模型 / 维度）"));
@@ -87,6 +89,7 @@ public class ChunkerNode implements IngestionNode {
      * 解析分块节点设置，转换结果为空时使用默认设置对象。
      */
     private ChunkerSettings parseSettings(JsonNode node) {
+        // 把 JSON 设置转换成分块配置，未得到配置对象时使用默认构建值。
         ChunkerSettings settings = objectMapper.convertValue(node, ChunkerSettings.class);
         return settings == null ? ChunkerSettings.builder().build() : settings;
     }

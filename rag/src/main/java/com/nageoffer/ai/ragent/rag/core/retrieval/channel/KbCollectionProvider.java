@@ -43,6 +43,7 @@ public class KbCollectionProvider {
      * 返回所有有效知识库的 collection 名称（去重、去空）
      */
     public List<String> listActiveCollections() {
+        // 只查询未删除知识库的集合名，去掉空白并去重，形成全局检索允许范围。
         List<KnowledgeBaseDO> kbList = knowledgeBaseMapper.selectList(
                 Wrappers.lambdaQuery(KnowledgeBaseDO.class)
                         .select(KnowledgeBaseDO::getCollectionName)

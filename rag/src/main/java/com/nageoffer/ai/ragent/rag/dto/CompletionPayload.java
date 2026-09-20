@@ -38,6 +38,7 @@ public record CompletionPayload(String messageId, String title, List<SourceRef> 
      * 无来源场景的便捷构造 sources 置空（NON_NULL 序列化时自动省略该字段）
      */
     public CompletionPayload(String messageId, String title) {
+        // 兼容只提供消息 ID 和标题的构造方式，补默认正常状态并将来源列表留空。
         this(messageId, title, null, MessageStatus.NORMAL);
     }
 }

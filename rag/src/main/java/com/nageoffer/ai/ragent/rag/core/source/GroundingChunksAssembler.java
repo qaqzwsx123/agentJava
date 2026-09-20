@@ -88,6 +88,7 @@ public class GroundingChunksAssembler {
      * 读取召回得分，缺失时按零参与证据素材排序。
      */
     private static double score(RetrievedChunk chunk) {
+        // 召回分数缺失时按零计算，保证排序和证据比较不会因空值失败。
         return chunk.getScore() == null ? 0D : chunk.getScore();
     }
 }

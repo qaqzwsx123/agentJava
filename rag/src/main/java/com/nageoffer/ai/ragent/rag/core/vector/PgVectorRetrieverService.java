@@ -39,6 +39,7 @@ public class PgVectorRetrieverService implements VectorRetrieverService {
 
     @Override
     public List<RetrievedChunk> retrieve(RetrieveRequest request) {
+        // 将问题转成归一化向量后委托向量检索入口，供文本查询和复用向量查询共用 SQL。
         float[] vector = embedAndNormalize(request.getQuery());
         return retrieveByVector(vector, request);
     }
@@ -55,11 +56,13 @@ public class PgVectorRetrieverService implements VectorRetrieverService {
 
     @Override
     public float[] embedAndNormalize(String query) {
+        // 调用嵌入模型，再把结果转换为数组并归一化。
         return normalize(toArray(embeddingService.embed(query)));
     }
 
     @Override
     public boolean supportsGlobalRetrieval() {
+        // 共享向量表支持跨逻辑集合查询，因此显式声明支持全局检索。
         return true;
     }
 
@@ -99,6 +102,7 @@ public class PgVectorRetrieverService implements VectorRetrieverService {
     }
 
     private float[] normalize(float[] vector) {
+        // 计算 L2 范数并原地归一化，零向量保持原值，避免除零。
         float norm = 0;
         for (float v : vector) {
             norm += v * v;
@@ -113,6 +117,7 @@ public class PgVectorRetrieverService implements VectorRetrieverService {
     }
 
     private float[] toArray(List<Float> list) {
+        // 将模型返回的 Float 列表复制成顺序一致的 float 数组。
         float[] arr = new float[list.size()];
         for (int i = 0; i < list.size(); i++) {
             arr[i] = list.get(i);
@@ -121,6 +126,7 @@ public class PgVectorRetrieverService implements VectorRetrieverService {
     }
 
     private String toVectorLiteral(float[] embedding) {
+        // 按 pgvector 的方括号逗号格式编码向量，用于参数化绑定后转换为 vector 类型。
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < embedding.length; i++) {
             if (i > 0) sb.append(",");

@@ -103,6 +103,7 @@ public class UploadRateLimitFilter extends OncePerRequestFilter {
      * 判断是否是文档上传请求
      */
     private boolean isUploadRequest(HttpServletRequest request) {
+        // 只识别 POST 且路径符合文档上传模式的请求，其他接口不进入上传限流分支。
         if (!"POST".equals(request.getMethod())) {
             return false;
         }

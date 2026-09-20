@@ -115,6 +115,7 @@ public class EvalController {
      * 使用保序集合保留首次命中的顺序，供上下文和文档列表稳定对齐。
      */
     private List<RetrievedChunk> flattenChunks(RetrievalContext rc) {
+        // 合并各意图的召回块并按有效块 ID 去重，空意图结果或无效块直接跳过。
         // 不同意图命中同一分块时只保留一份，避免评测时重复计数。
         if (rc == null || CollUtil.isEmpty(rc.getIntentChunks())) {
             return Collections.emptyList();
@@ -231,6 +232,7 @@ public class EvalController {
      * 没有候选节点的子问题保留 null，保持与子问题处理位置的关联。
      */
     private List<String> extractTopLeafIds(List<SubQuestionIntent> intents) {
+        // 按子问题顺序读取最高排序候选的节点 ID，没有候选则保留 null，不在评测接口重新打分。
         // 依赖上游 nodeScores 排序，读取第一个候选而不重新计算分数。
         if (CollUtil.isEmpty(intents)) {
             return Collections.emptyList();

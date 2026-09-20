@@ -39,6 +39,7 @@ public class PgVectorStoreAdmin implements VectorStoreAdmin {
      */
     @Override
     public void ensureVectorSpace(VectorSpaceSpec spec) {
+        // 检查共享向量表的 HNSW 索引是否存在，没有时创建余弦距离索引；这里不为每个逻辑集合新建一张表。
         String indexName = "idx_kv_embedding_hnsw";
 
         // noinspection SqlDialectInspection,SqlNoDataSourceInspection

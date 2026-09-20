@@ -31,12 +31,14 @@ import java.util.Date;
 public final class CronScheduleHelper {
 
     private CronScheduleHelper() {
+        // Cron 计算以静态方法提供，私有构造器阻止实例化工具类。
     }
 
     /**
      * 按系统时区计算给定时间之后的下一次 Cron 触发时间；缺少参数或无后续触发返回 null。
      */
     public static Date nextRunTime(String cron, Date from) {
+        // 按系统时区从给定时刻推算下一次触发时间，参数缺失或没有后续触发时返回 null。
         if (!StringUtils.hasText(cron) || from == null) {
             return null;
         }
@@ -53,6 +55,7 @@ public final class CronScheduleHelper {
      * 取接下来两次 Cron 触发时间比较间隔，判断是否小于允许值；缺少参数或无法计算按不合格处理。
      */
     public static boolean isIntervalLessThan(String cron, Date from, long minSeconds) {
+        // 计算相邻两次触发间隔并与最小秒数比较，无法得到两个触发点时也按不符合要求处理。
         if (!StringUtils.hasText(cron) || from == null) {
             return true;
         }

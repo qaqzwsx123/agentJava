@@ -53,6 +53,7 @@ public class VectorSearchChannel implements SearchChannel {
     public VectorSearchChannel(VectorRetrieverService retrieverService,
                                SearchChannelProperties properties,
                                Executor innerRetrievalExecutor) {
+        // 保存向量检索实现、配置与执行器，并创建不支持全局单次查询时使用的多集合并行检索器。
         this.properties = properties;
         this.retrieverService = retrieverService;
         this.globalRetriever = new CollectionParallelRetriever(retrieverService, innerRetrievalExecutor);
@@ -64,6 +65,7 @@ public class VectorSearchChannel implements SearchChannel {
      */
     @Override
     public String getName() {
+        // 返回向量通道名称，供日志和追踪展示。
         return "VectorSearch";
     }
 
@@ -75,6 +77,7 @@ public class VectorSearchChannel implements SearchChannel {
 
     @Override
     public SearchChannelResult search(SearchContext context) {
+        // 依据检索范围选择定向或全局召回，返回耗时与范围元数据，通道异常降级为空结果。
         long startTime = System.currentTimeMillis();
 
         try {
@@ -106,6 +109,7 @@ public class VectorSearchChannel implements SearchChannel {
 
     @Override
     public SearchChannelType getType() {
+        // 声明 VECTOR 类型，供融合权重与结果归因使用。
         return SearchChannelType.VECTOR;
     }
 
@@ -146,6 +150,7 @@ public class VectorSearchChannel implements SearchChannel {
      * 任何按意图切分配额的方案都是在重造 fan-out。再按候选池上限钳制：超出的部分进不了 Rerank，查了也是空转
      */
     private int resolveDirectedBudget(RetrievalScope scope, RetrievalBudget budget) {
+        // 取各定向意图配置的最大召回深度，缺省使用统一召回预算，再受精排候选上限约束。
         int depth = scope.intents().stream()
                 .mapToInt(nodeScore -> {
                     Integer topK = nodeScore.getNode() == null ? null : nodeScore.getNode().getTopK();
@@ -162,6 +167,7 @@ public class VectorSearchChannel implements SearchChannel {
      * 取数深度与其他通道同源、只受 recallBudget 管——候选池上限是 RRF 之后的闸门而非取数目标
      */
     private List<RetrievedChunk> retrieveGlobal(SearchContext context, RetrievalScope scope) {
+        // 有效知识库范围为空时跳过，否则只计算一次查询向量，再在目标集合范围内召回并记录统计。
         if (scope.targetCollections().isEmpty()) {
             log.warn("未找到任何 KB collection，跳过全局检索");
             return List.of();
@@ -186,6 +192,7 @@ public class VectorSearchChannel implements SearchChannel {
      * pgvector 在该模式下允许轻微乱序且规划器不补 Sort 节点，先排后截才是取全局最优的前 budget 条
      */
     private List<RetrievedChunk> retrieveOver(String question, float[] queryVector, List<String> collections, int budget) {
+        // 支持全局的后端一次查询多个逻辑集合，否则并行逐集合查询；最后按分数排序并按总预算截断。
         if (collections.isEmpty()) {
             return List.of();
         }
@@ -200,6 +207,7 @@ public class VectorSearchChannel implements SearchChannel {
     }
 
     private double supplementRatio() {
+        // 读取全局补充比例，用于定向范围与补充范围之间的预算分配。
         return properties.getScope().getSupplementRatio();
     }
 }

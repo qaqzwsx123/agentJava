@@ -142,6 +142,7 @@ public class RetrievalEngine {
      * 提取知识库意图并执行召回、重排与格式化，保留子问题和证据归因关系。
      */
     private SubQuestionContext buildSubQuestionContext(SubQuestionIntent intent, RetrievalBudget budget) {
+        // 先提取当前子问题的知识意图，再调用多通道检索装配上下文、意图分块与准入集合。
         List<NodeScore> kbIntents = NodeScoreFilters.kb(intent.nodeScores());
         KbResult kbResult = retrieveAndRerank(intent, kbIntents, budget);
         return new SubQuestionContext(intent.subQuestion(), kbResult.groupedContext(),
@@ -152,6 +153,7 @@ public class RetrievalEngine {
      * 用子问题编号、问题和证据正文渲染上下文段落，在多问题结果之间添加换行。
      */
     private void appendSection(StringBuilder builder, int index, String question, String context) {
+        // 给各子问题上下文补编号和问题标题，使用统一模板并在相邻段之间添加换行。
         if (!builder.isEmpty()) {
             builder.append("\n");
         }
@@ -167,6 +169,7 @@ public class RetrievalEngine {
      * 无切片时仍返回可用意图集合，避免把无召回误判为没有意图配置。
      */
     private KbResult retrieveAndRerank(SubQuestionIntent intent, List<NodeScore> kbIntents, RetrievalBudget budget) {
+        // 取得融合与后处理后的证据，根据真实归因决定意图准入，再按上下文预算渲染分组证据。
         KnowledgeRetrievalResult retrievalResult = multiChannelRetrievalEngine.retrieveKnowledgeChannels(intent, budget);
         List<RetrievedChunk> chunks = retrievalResult.chunks();
         // 定向意图必须在召回证据中有归因，不能仅因分类分数高就注入其业务规则。

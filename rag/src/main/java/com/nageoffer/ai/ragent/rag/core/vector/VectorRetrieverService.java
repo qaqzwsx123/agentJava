@@ -61,6 +61,7 @@ public interface VectorRetrieverService {
      * @return RetrievedChunk 列表（包含 chunk 内容、得分、metadata 等）
      */
     default List<RetrievedChunk> retrieve(String query, int topK) {
+        // 兼容只提供查询文本和 Top-K 的调用，组装统一请求后委托后端实现。
         RetrieveRequest req = RetrieveRequest.builder()
                 .query(query)
                 .topK(topK)
@@ -118,6 +119,7 @@ public interface VectorRetrieverService {
      * @return 是否支持跨库单次检索
      */
     default boolean supportsGlobalRetrieval() {
+        // 接口默认不假定后端支持全局范围，具备该能力的实现必须显式覆盖。
         return false;
     }
 }

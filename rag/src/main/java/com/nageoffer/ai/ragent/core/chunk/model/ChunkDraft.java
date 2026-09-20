@@ -36,6 +36,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
                          boolean piece, boolean heading) {
 
     public ChunkDraft {
+        // 展示内容为 null 时用空串，元数据为 null 时使用空对象，简化后续打包逻辑。
         content = content == null ? "" : content;
         metadata = metadata == null ? ChunkMetadata.empty() : metadata;
     }
@@ -44,6 +45,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
      * 创建普通分块草稿，可单独指定嵌入正文；不标记为标题或分段边界。
      */
     public static ChunkDraft of(String content, ChunkMetadata metadata) {
+        // 创建普通草稿，可选地独立指定嵌入正文，默认不标记为切片或标题。
         return new ChunkDraft(content, null, metadata, false, false);
     }
 
@@ -51,6 +53,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
      * 创建普通分块草稿，可单独指定嵌入正文；不标记为标题或分段边界。
      */
     public static ChunkDraft of(String content, String embeddingBody, ChunkMetadata metadata) {
+        // 创建普通草稿，可选地独立指定嵌入正文，默认不标记为切片或标题。
         return new ChunkDraft(content, embeddingBody, metadata, false, false);
     }
 
@@ -61,6 +64,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
      * 任何比较级别的判据都会给出两种切法；位置则是客观的
      */
     public static ChunkDraft ofHeading(String content, String embeddingBody, ChunkMetadata metadata) {
+        // 创建标题草稿，保留独立嵌入正文并标记标题，供章节打包识别边界。
         return new ChunkDraft(content, embeddingBody, metadata, false, true);
     }
 
@@ -71,6 +75,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
      * 上限就形同虚设；段落切出的片各自带着重叠文本，并回去等于把那段重叠在同一块里复制一遍
      */
     public static List<ChunkDraft> pieces(List<ChunkDraft> drafts) {
+        // 只有拆成多段时才统一标记为切片，单段保持原对象列表，避免打包器误判。
         if (drafts.size() <= 1) {
             return drafts;
         }
@@ -86,6 +91,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
      * 检索正文：未显式提供时回落到展示原貌
      */
     public String effectiveBody() {
+        // 优先取显式嵌入正文，没有有效正文时回落到展示内容。
         return StringUtils.hasText(embeddingBody) ? embeddingBody : content;
     }
 
@@ -93,6 +99,7 @@ public record ChunkDraft(String content, String embeddingBody, ChunkMetadata met
      * 是否显式指定了检索正文：合并时据此区分，否则图片块那份去掉 URL 噪声的检索正文会退化成带 URL 的展示文本
      */
     public boolean hasExplicitBody() {
+        // 判断是否提供了有效的独立嵌入正文，供合并时保留语义文本使用。
         return StringUtils.hasText(embeddingBody);
     }
 }

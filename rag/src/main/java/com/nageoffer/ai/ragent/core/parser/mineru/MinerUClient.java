@@ -61,6 +61,7 @@ public class MinerUClient {
     public MinerUClient(@Qualifier("syncHttpClient") OkHttpClient httpClient,
                         ObjectMapper objectMapper,
                         MinerUProperties properties) {
+        // 保存同步 HTTP 客户端、JSON 编解码器与远端配置，统一后续上传和轮询请求的依赖。
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.properties = properties;
@@ -77,6 +78,7 @@ public class MinerUClient {
      * @throws ServiceException 网络异常 / api-key 缺失 / SaaS 返回错误 / 缺少上传 URL
      */
     public BatchUploadTicket requestUpload(BatchSubmitRequest request) {
+        // 校验 API Key，组装单文件批次请求，调用申请接口后校验批次 ID 和上传地址均有效。
         requireApiKey();
 
         ObjectNode body = objectMapper.createObjectNode();
@@ -97,9 +99,11 @@ public class MinerUClient {
         String url = properties.getApiUrl() + "/file-urls/batch";
         Request httpRequest = newJsonPost(url, body.toString());
 
+        // 发起鉴权业务请求后同时检查 HTTP 和业务返回码，不能只以 HTTP 200 判断申请成功。
         JsonNode root = executeAndParse(httpRequest, "requestUpload");
         ensureSuccess(root, "requestUpload");
 
+        // 批次 ID 用于后续轮询，上传链接用于直传文件，两项缺一都无法继续解析。
         JsonNode data = root.path("data");
         String batchId = data.path("batch_id").asText(null);
         if (batchId == null || batchId.isBlank()) {
@@ -130,6 +134,7 @@ public class MinerUClient {
      * @throws ServiceException 网络异常 / 非 2xx 响应
      */
     public void uploadFile(String uploadUrl, byte[] content) {
+        // 校验地址和文件字节，再向预签名链接执行 PUT；此请求不附加业务接口的鉴权头。
         if (uploadUrl == null || uploadUrl.isBlank()) {
             throw new ServiceException("uploadUrl 不能为空");
         }
@@ -191,6 +196,7 @@ public class MinerUClient {
      * 注意:此 URL 通常是一次性预签名 URL,有时效;拿到 MinerUStatus.zipUrl 后立即下载
      */
     public byte[] downloadZip(String zipUrl) {
+        // 按下载地址获取结果包字节，HTTP 失败或响应体缺失时明确报错，并自动关闭响应。
         if (zipUrl == null || zipUrl.isBlank()) {
             throw new ServiceException("zipUrl 不能为空");
         }
@@ -216,6 +222,7 @@ public class MinerUClient {
      * 调用 MinerU 前检查 API Key 是否已配置，缺失时给出明确的配置错误。
      */
     private void requireApiKey() {
+        // 缺少 API Key 时提前抛出配置错误，避免发出必然失败的远端请求。
         if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             throw new ServiceException("MinerU api-key 未配置,请设置环境变量 MINERU_API_KEY");
         }
@@ -225,6 +232,7 @@ public class MinerUClient {
      * 构造携带 Bearer 鉴权和 JSON 正文的 POST 请求，供上传票据等接口共用。
      */
     private Request newJsonPost(String url, String jsonBody) {
+        // 为业务 API 构造携带 Bearer 鉴权的 JSON POST 请求。
         return new Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer " + properties.getApiKey())
@@ -237,6 +245,7 @@ public class MinerUClient {
      * 构造携带 MinerU 鉴权信息的 GET 请求。
      */
     private Request newGet(String url) {
+        // 为业务 API 构造携带 Bearer 鉴权的 GET 请求。
         return new Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer " + properties.getApiKey())
@@ -248,6 +257,7 @@ public class MinerUClient {
      * 同步执行 MinerU 请求并解析 JSON，区分 HTTP、非 JSON 和网络错误，退出时关闭响应。
      */
     private JsonNode executeAndParse(Request request, String opName) {
+        // 执行请求并关闭响应，依次区分 HTTP 错误、非 JSON 正文和网络异常。
         try (Response response = httpClient.newCall(request).execute()) {
             String body = readBodySafe(response);
             if (!response.isSuccessful()) {
@@ -270,6 +280,7 @@ public class MinerUClient {
      * MinerU 标准响应格式 {@code {"code":0,"msg":"ok","data":{...}}}
      */
     private void ensureSuccess(JsonNode root, String opName) {
+        // 检查 MinerU 业务返回码必须为零，否则把业务码和错误说明转换为服务异常。
         int code = root.path("code").asInt(-1);
         if (code != 0) {
             String msg = root.path("msg").asText("unknown");
@@ -282,6 +293,7 @@ public class MinerUClient {
      * 读取响应正文用于解析或错误信息；没有正文或读取失败时返回空字符串。
      */
     private String readBodySafe(Response response) {
+        // 读取响应体字符串，正文缺失或读取失败时回落为空文本，供错误诊断复用。
         try {
             ResponseBody body = response.body();
             return body == null ? "" : body.string();

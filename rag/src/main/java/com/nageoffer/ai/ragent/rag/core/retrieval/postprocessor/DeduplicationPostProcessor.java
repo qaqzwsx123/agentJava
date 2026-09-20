@@ -39,6 +39,7 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public String getName() {
+        // 返回去重处理器名称，便于日志识别当前阶段。
         return "Deduplication";
     }
 
@@ -47,11 +48,13 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
      */
     @Override
     public int getOrder() {
+        // 去重顺序设为一，先消除重复块再交给后续融合与精排。
         return 1;
     }
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 去重始终启用，避免不同召回通道把同一证据重复传下去。
         return true;
     }
 
@@ -59,6 +62,7 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
     public List<RetrievedChunk> process(List<RetrievedChunk> chunks,
                                         List<SearchChannelResult> results,
                                         SearchContext context) {
+        // 按通道结果原顺序遍历，以统一块键首次出现者优先，输出去重后的有序列表。
         Map<String, RetrievedChunk> chunkMap = new LinkedHashMap<>();
         for (SearchChannelResult result : results) {
             for (RetrievedChunk chunk : result.getChunks()) {

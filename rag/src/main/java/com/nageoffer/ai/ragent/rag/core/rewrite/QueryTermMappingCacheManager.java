@@ -53,6 +53,7 @@ public class QueryTermMappingCacheManager {
      * @return 映射规则列表，缓存不存在则返回 null
      */
     public List<QueryTermMappingDO> getMappingsFromCache() {
+        // 读取并反序列化术语规则列表，缓存未命中或异常返回 null，供上层回源加载。
         try {
             String cacheJson = stringRedisTemplate.opsForValue().get(CACHE_KEY);
             if (cacheJson == null) {
@@ -73,6 +74,7 @@ public class QueryTermMappingCacheManager {
      * @param mappings 映射规则列表（已排序）
      */
     public void saveMappingsToCache(List<QueryTermMappingDO> mappings) {
+        // 保存规则 JSON 并设置天级有效期，缓存异常只记录日志，不阻止正常查询。
         try {
             String cacheJson = objectMapper.writeValueAsString(mappings);
             stringRedisTemplate.opsForValue().set(CACHE_KEY, cacheJson, CACHE_EXPIRE_DAYS, TimeUnit.DAYS);
@@ -87,6 +89,7 @@ public class QueryTermMappingCacheManager {
      * 在映射规则发生增删改时调用
      */
     public void clearCache() {
+        // 删除术语规则缓存并记录结果，使后续归一化读取最新管理配置。
         Boolean deleted = stringRedisTemplate.delete(CACHE_KEY);
         if (deleted) {
             log.info("术语映射缓存已清除");

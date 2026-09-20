@@ -41,6 +41,7 @@ public class CollectionParallelRetriever {
 
     public CollectionParallelRetriever(VectorRetrieverService retrieverService,
                                        Executor executor) {
+        // 保存统一向量检索器与并行执行器，多个逻辑集合可复用同一查询向量。
         this.retrieverService = retrieverService;
         this.executor = executor;
     }
@@ -51,6 +52,7 @@ public class CollectionParallelRetriever {
     public List<RetrievedChunk> executeParallelRetrieval(String question,
                                                          List<String> collections,
                                                          int topK) {
+        // 只计算一次问题向量，再交给带向量重载并行查询，避免每个集合重复请求嵌入模型。
         return executeParallelRetrieval(question, collections, topK, retrieverService.embedAndNormalize(question));
     }
 
@@ -102,6 +104,7 @@ public class CollectionParallelRetriever {
      * 单库取数，失败返回空列表兑现「单库失败只损失自己」
      */
     private List<RetrievedChunk> retrieveOne(String question, String collectionName, float[] queryVector, int topK) {
+        // 为单集合构造带 Top-K 的检索请求并复用预计算向量，单集合失败记日志并回落空列表。
         try {
             return retrieverService.retrieveByVector(
                     queryVector,

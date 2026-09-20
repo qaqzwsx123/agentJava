@@ -59,6 +59,7 @@ public class IngestionSpecSchemaProvider {
      */
     @PostConstruct
     void checkProfileCopyCoversAllSensitiveFormats() {
+        // 核对会因档位切换而变化的 MIME 都属于表格类，否则拒绝启动以提醒同步更新档位说明。
         List<String> unexpected = parserRegistry.profileSensitiveMimeTypes().stream()
                 .filter(mime -> !DisplayType.of(null, mime).isTabular())
                 .toList();

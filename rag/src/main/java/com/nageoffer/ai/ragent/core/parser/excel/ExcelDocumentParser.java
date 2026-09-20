@@ -61,6 +61,7 @@ public class ExcelDocumentParser implements DocumentParser {
      */
     @Override
     public String getParserType() {
+        // 返回 Excel POI 解析器标识，供解析路由和结果元数据使用。
         return ParserType.EXCEL_POI.getType();
     }
 
@@ -70,6 +71,7 @@ public class ExcelDocumentParser implements DocumentParser {
      */
     @Override
     public Map<ParseProfile, Set<String>> supportedMimeTypes() {
+        // 声明快速档位支持的 Excel MIME 类型，兼容探测到的 Office 容器类型。
         return Map.of(ParseProfile.FAST, Set.of(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "application/vnd.ms-excel",
@@ -133,6 +135,7 @@ public class ExcelDocumentParser implements DocumentParser {
      */
     private List<Block> buildSheetBlocks(Sheet sheet, String sourceFile, int headerRows,
                                          DataFormatter formatter, FormulaEvaluator evaluator) {
+        // 先规范化工作表表头和数据，空表跳过；有效工作表生成表名标题和表格块，并保留 sheet 溯源。
         NormalizedTable table = ExcelTableNormalizer.normalize(sheet, formatter, evaluator, headerRows);
         if (table.isEmpty()) {
             log.debug("Sheet [{}] 为空，跳过", sheet.getSheetName());
@@ -150,6 +153,7 @@ public class ExcelDocumentParser implements DocumentParser {
      * 从选项读取源文件名，未配置时使用空字符串。
      */
     private static String extractString(Map<String, Object> options) {
+        // 从可选参数取得源文件名，参数或值缺失时使用空字符串。
         if (options == null) {
             return "";
         }
@@ -161,6 +165,7 @@ public class ExcelDocumentParser implements DocumentParser {
      * 兼容数字或字符串形式的表头行数配置，缺失或格式错误时使用默认表头行数。
      */
     private static int extractInt(Map<String, Object> options) {
+        // 读取表头行数配置，接受数字或数字文本，缺失或解析失败时使用默认行数。
         if (options == null) {
             return ExcelDocumentParser.DEFAULT_HEADER_ROWS;
         }

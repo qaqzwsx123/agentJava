@@ -78,6 +78,7 @@ public class WebSearchChannel implements SearchChannel {
     public WebSearchChannel(@Qualifier("syncHttpClient") OkHttpClient httpClient,
                                   ObjectMapper objectMapper,
                                   SearchChannelProperties properties) {
+        // 保存同步客户端、JSON 解析器和通道配置，供联网搜索请求与结果转换使用。
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.properties = properties;
@@ -88,16 +89,19 @@ public class WebSearchChannel implements SearchChannel {
      */
     @Override
     public String getName() {
+        // 返回 You.com 联网通道名称，供追踪区分外部搜索来源。
         return "YouComWebSearch";
     }
 
     @Override
     public SearchChannelType getType() {
+        // 声明 WEB_SEARCH 类型，供融合权重和来源统计使用。
         return SearchChannelType.WEB_SEARCH;
     }
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 通道开关开启且最终能取得 API Key 时才允许联网搜索，避免发送缺少鉴权的请求。
         SearchChannelProperties.WebSearch config = properties.getChannels().getWebSearch();
         return config.isEnabled() && StrUtil.isNotBlank(resolveApiKey());
     }
@@ -202,6 +206,7 @@ public class WebSearchChannel implements SearchChannel {
      * 富化阶段按 id 查不到会跳过、这些字段保持 null，组装上下文时作为「无标题文档块」渲染，不影响出证据
      */
     private RetrievedChunk toChunk(JsonNode item, int rank) {
+        // 合并标题、描述、摘要与链接作为证据正文，空正文跳过，并按原始排名生成递减分数。
         String url = item.path("url").asText("");
         String title = item.path("title").asText("");
         String description = item.path("description").asText("");
@@ -238,6 +243,7 @@ public class WebSearchChannel implements SearchChannel {
     }
 
     private void collectItems(List<JsonNode> items, JsonNode array) {
+        // 只把数组型响应加入结果集合，缺失或非数组字段不参与遍历。
         if (array != null && array.isArray()) {
             array.forEach(items::add);
         }
@@ -247,6 +253,7 @@ public class WebSearchChannel implements SearchChannel {
      * 解析结果数量：配置非法时回退默认值，超过上限截断
      */
     private int resolveCount(SearchChannelProperties.WebSearch config) {
+        // 未设置正数条数时用默认值，再限制不超过联网请求上限。
         int count = config.getCount() > 0 ? config.getCount() : DEFAULT_COUNT;
         return Math.min(count, MAX_COUNT);
     }
@@ -255,6 +262,7 @@ public class WebSearchChannel implements SearchChannel {
      * 解析 API Key：优先取配置 api-key，为空回退环境变量 YDC_API_KEY
      */
     private String resolveApiKey() {
+        // 优先使用通道显式密钥，缺失时回落约定环境变量。
         String apiKey = properties.getChannels().getWebSearch().getApiKey();
         return StrUtil.isNotBlank(apiKey) ? apiKey : readEnv(ENV_API_KEY);
     }
@@ -263,6 +271,7 @@ public class WebSearchChannel implements SearchChannel {
      * 读取环境变量（可测试性：单元测试可覆盖此方法屏蔽真实环境）
      */
     protected String readEnv(String name) {
+        // 集中封装进程环境读取，便于测试替换外部密钥来源。
         return System.getenv(name);
     }
 

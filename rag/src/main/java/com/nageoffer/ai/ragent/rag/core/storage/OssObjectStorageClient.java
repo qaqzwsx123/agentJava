@@ -55,6 +55,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
     private final RagStorageProperties.Oss ossProperties;
 
     public OssObjectStorageClient(OSS ossClient, RagStorageProperties properties) {
+        // 保存 OSS 原生客户端和对应配置，后续 URL 与对象操作使用同一配置来源。
         this.ossClient = ossClient;
         this.ossProperties = properties.getOss();
     }
@@ -64,11 +65,13 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public void streamPut(String bucket, String key, InputStream content, long size, String contentType) {
+        // 流式上传在 OSS 实现中复用同一个 put 方法，长度与内容类型由调用方提供。
         put(bucket, key, content, size, contentType);
     }
 
     @Override
     public void reliablePut(String bucket, String key, InputStream content, long size, String contentType) {
+        // 已知长度的可靠上传同样委托 OSS put 实现，不另行复制一套元数据处理。
         put(bucket, key, content, size, contentType);
     }
 
@@ -76,6 +79,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      * 设置对象长度及可选媒体类型，然后调用 OSS SDK 上传输入流。
      */
     private void put(String bucket, String key, InputStream content, long size, String contentType) {
+        // 设置准确对象长度和可选 Content-Type，再把输入流交给 OSS SDK 上传。
         ObjectMetadata meta = new ObjectMetadata();
         meta.setContentLength(size);
         if (StringUtils.hasText(contentType)) {
@@ -89,6 +93,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public InputStream getObject(String bucket, String key) {
+        // 返回对象内容流，读取完毕后的关闭责任交给调用方。
         return ossClient.getObject(bucket, key).getObjectContent();
     }
 
@@ -97,11 +102,13 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public void deleteObject(String bucket, String key) {
+        // 按桶与对象键删除单个存储对象，异常沿用 SDK 约定向上传递。
         ossClient.deleteObject(bucket, key);
     }
 
     @Override
     public void deleteByPrefix(String bucket, String prefix) {
+        // 桶不存在视为已清理，存在时按前缀分页列出并批量删除，直到没有后续分页。
         if (!bucketExists(bucket)) {
             // 幂等：桶不存在视为前缀已清空
             return;
@@ -136,11 +143,13 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public boolean objectExists(String bucket, String key) {
+        // 委托 OSS SDK 检查指定对象是否存在。
         return ossClient.doesObjectExist(bucket, key);
     }
 
     @Override
     public boolean bucketExists(String bucket) {
+        // 委托 OSS SDK 判断桶是否存在，供初始化和幂等清理使用。
         return ossClient.doesBucketExist(bucket);
     }
 
@@ -162,6 +171,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
 
     @Override
     public void setBucketPublicRead(String bucket) {
+        // 将桶 ACL 设置为公共读，供图片等公开资产直接访问。
         ossClient.setBucketAcl(bucket, CannedAccessControlList.PublicRead);
     }
 
@@ -170,6 +180,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public String buildPublicUrl(String bucket, String key) {
+        // 显式公网基地址优先，未配置时使用带桶名的虚拟主机地址，再追加对象键。
         String base = StringUtils.hasText(ossProperties.getPublicUrl())
                 ? stripTrailingSlash(ossProperties.getPublicUrl())
                 : virtualHostedBase(bucket);
@@ -181,6 +192,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      * {@code https://oss-cn-hangzhou.aliyuncs.com} → {@code https://{bucket}.oss-cn-hangzhou.aliyuncs.com}
      */
     private String virtualHostedBase(String bucket) {
+        // 保留配置协议并把桶名加到主机前，端点未带协议时采用 HTTPS。
         String endpoint = stripTrailingSlash(ossProperties.getEndpoint());
         int schemeIdx = endpoint.indexOf("://");
         if (schemeIdx < 0) {
@@ -195,6 +207,7 @@ public class OssObjectStorageClient implements ObjectStorageClient {
      * 移除地址末尾一个斜线，避免拼接对象键时产生双斜线。
      */
     private String stripTrailingSlash(String s) {
+        // 只移除末尾一个斜线，便于后续统一追加路径分隔符。
         return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }
 }

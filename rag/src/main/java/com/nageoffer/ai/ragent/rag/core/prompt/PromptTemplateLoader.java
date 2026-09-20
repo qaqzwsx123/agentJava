@@ -52,6 +52,7 @@ public class PromptTemplateLoader {
      * @throws IllegalStateException    当模板文件不存在或读取失败时抛出
      */
     public String load(String path) {
+        // 模板路径必填，首次读取类路径资源后缓存，后续同路径直接复用文本。
         if (StrUtil.isBlank(path)) {
             throw new IllegalArgumentException("提示模板路径为空");
         }
@@ -66,6 +67,7 @@ public class PromptTemplateLoader {
      * @return 渲染后的完整提示文本
      */
     public String render(String path, Map<String, String> slots) {
+        // 读取整份模板、替换占位符，再清理空行与首尾空白。
         String template = load(path);
         String filled = PromptTemplateUtils.fillSlots(template, slots);
         return PromptTemplateUtils.cleanupPrompt(filled);
@@ -80,6 +82,7 @@ public class PromptTemplateLoader {
      * @throws IllegalStateException 当 section 不存在时抛出
      */
     public String loadSection(String path, String section) {
+        // 缓存模板的区段拆分结果，按名称读取区段，不存在时明确报出路径与区段名。
         Map<String, String> sections = sectionCache.computeIfAbsent(path, p -> {
             String content = load(p);
             return PromptTemplateUtils.parseSections(content);
@@ -100,6 +103,7 @@ public class PromptTemplateLoader {
      * @return 渲染后的文本
      */
     public String renderSection(String path, String section, Map<String, String> slots) {
+        // 只渲染指定区段，替换变量后统一清理格式，避免不同调用方重复处理模板。
         String template = loadSection(path, section);
         String filled = PromptTemplateUtils.fillSlots(template, slots);
         return PromptTemplateUtils.cleanupPrompt(filled);
@@ -113,6 +117,7 @@ public class PromptTemplateLoader {
      * @throws IllegalStateException 当模板文件不存在或读取失败时抛出
      */
     private String readResource(String path) {
+        // 兼容带或不带 classpath 前缀的路径，以 UTF-8 读取并自动关闭流，缺失或读取失败明确报错。
         String location = path.startsWith("classpath:") ? path : "classpath:" + path;
         Resource resource = resourceLoader.getResource(location);
         if (!resource.exists()) {

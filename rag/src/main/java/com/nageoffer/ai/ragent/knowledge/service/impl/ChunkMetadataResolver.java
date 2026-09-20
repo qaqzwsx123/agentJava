@@ -60,6 +60,7 @@ public class ChunkMetadataResolver {
      * @return chunkId 到 {@link ChunkMeta} 的映射 未命中的分块不出现在结果中
      */
     public Map<String, ChunkMeta> resolve(Collection<String> chunkIds) {
+        // 清理并去重块 ID，批量查询块和关联文档，再建立块 ID 到文档、序号、名称的映射，避免逐块查库。
         if (CollUtil.isEmpty(chunkIds)) {
             return Map.of();
         }
@@ -105,6 +106,7 @@ public class ChunkMetadataResolver {
      * @return docId 到文档标题的映射 未命中的不出现在结果中
      */
     public Map<String, String> resolveDocNames(Collection<String> docIds) {
+        // 过滤无效文档 ID 后批量取名称，同一 ID 重复出现时保留首个名称，空输入不执行查询。
         if (CollUtil.isEmpty(docIds)) {
             return Map.of();
         }

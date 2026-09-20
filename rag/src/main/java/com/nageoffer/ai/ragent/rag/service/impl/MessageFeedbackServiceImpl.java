@@ -85,6 +85,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
      */
     @Override
     public void cancelFeedbackAsync(String messageId) {
+        // 校验登录用户和消息 ID，发送带取消标记与提交时间的反馈事件，归属始终取登录上下文。
         // 事件用户 ID 来自登录上下文，不接受前端指定他人的评价归属。
         String userId = UserContext.getUserId();
         Assert.notBlank(userId, () -> new ClientException("未获取到当前登录用户"));
@@ -105,6 +106,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
      */
     @Override
     public void submitFeedback(String messageId, MessageFeedbackRequest request) {
+        // 同步入口只接受正负一赞踩值，确认是当前用户的助手消息后再写入反馈。
         // 同步入口与异步入口共用相同的合法赞踩值约束。
         String userId = UserContext.getUserId();
         Assert.notBlank(userId, () -> new ClientException("未获取到当前登录用户"));
@@ -126,6 +128,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
      */
     @Override
     public Map<String, Integer> getUserVotes(String userId, List<String> messageIds) {
+        // 按用户和消息集合批量查询有效反馈，同一消息重复记录保留首次值，空输入不查库。
         // 按 userId 和消息 ID 集合一次读取有效评价记录。
         if (StrUtil.isBlank(userId) || CollUtil.isEmpty(messageIds)) {
             return Collections.emptyMap();
@@ -152,6 +155,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
      * 消费者传入事件中的 userId；不存在或不符合角色、归属时拒绝写反馈。
      */
     private ConversationMessageDO loadAssistantMessage(String messageId, String userId) {
+        // 查询必须同时匹配消息 ID、所属用户及未删除状态，再检查角色为助手，避免越权或评价用户消息。
         ConversationMessageDO message = conversationMessageMapper.selectOne(
                 Wrappers.lambdaQuery(ConversationMessageDO.class)
                         .eq(ConversationMessageDO::getId, messageId)

@@ -50,6 +50,7 @@ public record ChunkMetadata(
     public static final String KEY_SHEET_NAME = "sheet_name";
 
     public ChunkMetadata {
+        // 复制章节、资产及扩展字段为只读集合，防止调用方后续修改影响已经生成的块。
         outlinePath = immutableCopy(outlinePath);
         assets = immutableCopy(assets);
         extras = extras == null || extras.isEmpty() ? Map.of() : Map.copyOf(extras);
@@ -59,6 +60,7 @@ public record ChunkMetadata(
      * 空元数据：仅用于测试与确实没有任何结构信息的场景
      */
     public static ChunkMetadata empty() {
+        // 创建没有章节、资产、溯源和扩展字段的空元数据。
         return new ChunkMetadata(List.of(), List.of(), null, Map.of());
     }
 
@@ -66,6 +68,7 @@ public record ChunkMetadata(
      * 合并扩展位并返回新对象：块级加工（摘要 / 关键词）与文档级元数据注入用
      */
     public ChunkMetadata withExtras(Map<String, Object> additional) {
+        // 复制已有扩展字段后合并新增字段，同名项采用新增值，并保持其他元数据不变。
         if (additional == null || additional.isEmpty()) {
             return this;
         }
@@ -78,6 +81,7 @@ public record ChunkMetadata(
      * 序列化为各索引后端通用的扁平 Map：空值一律不写入，向量库 JSONB 与 ES 文档都按需读键
      */
     public Map<String, Object> toMap() {
+        // 先写扩展字段，再输出结构化资产与溯源字段；结构化键后写以避免扩展信息覆盖事实。
         Map<String, Object> map = new LinkedHashMap<>();
         // 扩展位先写，结构化键后写：结构化事实是权威，加工产物不得覆盖它
         map.putAll(extras);
@@ -99,12 +103,14 @@ public record ChunkMetadata(
     }
 
     private static void putIfPresent(Map<String, Object> map, String key, String value) {
+        // 只有字符串非空白才写入映射，减少无意义的元数据键。
         if (value != null && !value.isBlank()) {
             map.put(key, value);
         }
     }
 
     private static <T> List<T> immutableCopy(List<T> source) {
+        // 空集合统一使用空列表，非空集合复制为只读列表，隔离调用方后续修改。
         return source == null || source.isEmpty() ? List.of() : List.copyOf(source);
     }
 }

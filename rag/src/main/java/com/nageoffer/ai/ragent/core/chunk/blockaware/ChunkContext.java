@@ -27,6 +27,7 @@ import java.util.List;
 public record ChunkContext(List<String> outlinePath, ChunkBudget budget) {
 
     public ChunkContext {
+        // 把章节路径复制为只读列表，空路径统一为空列表，避免外部修改正在传递的上下文。
         outlinePath = outlinePath == null ? List.of() : List.copyOf(outlinePath);
     }
 
@@ -34,6 +35,7 @@ public record ChunkContext(List<String> outlinePath, ChunkBudget budget) {
      * 组合当前章节路径与分块预算，传给具体块类型的分块策略。
      */
     public static ChunkContext of(List<String> outlinePath, ChunkBudget budget) {
+        // 将当前章节路径和分块预算绑定为一次块处理的上下文。
         return new ChunkContext(outlinePath, budget);
     }
 }

@@ -107,6 +107,7 @@ public class SourcesAssembler {
      * 批量查询来源文档并按 ID 建表，避免逐个切片查询文档。
      */
     private Map<String, KnowledgeDocumentDO> loadDocs(List<String> docIds) {
+        // 批量读取关联文档并按文档 ID 建映射，供来源装配复用，避免逐个块查询文档。
         List<KnowledgeDocumentDO> docs = documentMapper.selectBatchIds(docIds);
         Map<String, KnowledgeDocumentDO> map = new LinkedHashMap<>();
         if (CollUtil.isNotEmpty(docs)) {
@@ -119,6 +120,7 @@ public class SourcesAssembler {
      * 外部原始链接：仅 url/feishu 来源携带 file 走 docId 预览提取正文
      */
     private String resolveUrl(String sourceType, KnowledgeDocumentDO doc) {
+        // 只有 URL 或飞书来源才返回原始来源地址，本地上传文件或无效文档不编造外部链接。
         if (doc == null || sourceType == null) {
             return null;
         }
@@ -132,6 +134,7 @@ public class SourcesAssembler {
      * 优先复用召回切片自带的名称，否则从回查的文档记录补齐。
      */
     private String resolveDocName(RetrievedChunk chunk, KnowledgeDocumentDO doc) {
+        // 优先使用召回块已有名称，缺失时回落数据库文档名称。
         if (StrUtil.isNotBlank(chunk.getDocName())) {
             return chunk.getDocName();
         }
@@ -142,6 +145,7 @@ public class SourcesAssembler {
      * 将缺失的召回得分视为零，统一来源排序时的数值口径。
      */
     private static double score(RetrievedChunk chunk) {
+        // 分数为 null 时回落零，供来源选择时保持稳定的数值比较。
         return chunk.getScore() != null ? chunk.getScore() : 0D;
     }
 }

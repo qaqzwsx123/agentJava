@@ -88,6 +88,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 初始化：发送元数据事件并注册任务
      */
     private void initialize() {
+        // 先发送本轮会话与任务元信息，再登记取消回调，供用户停止时统一保存部分回复并结束流。
         sender.sendEvent(SSEEventType.META.value(), new MetaPayload(conversationId, taskId));
         taskManager.register(taskId, userId, this::finishCancelledStream);
     }
@@ -96,6 +97,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 解析消息块大小
      */
     private int resolveMessageChunkSize(AIModelProperties modelProperties) {
+        // 缺省每个事件按五个码点切块，配置至少取一，避免零值导致输出循环异常。
         return Math.max(1, Optional.ofNullable(modelProperties.getStream())
                 .map(AIModelProperties.Stream::getMessageChunkSize)
                 .orElse(5));
@@ -105,6 +107,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 判断是否需要发送标题
      */
     private boolean shouldSendTitle() {
+        // 会话尚未创建或没有标题时才需要在完成事件中补标题，已有标题不重复发送。
         ConversationDO existingConversation = conversationGroupService.findConversation(
                 conversationId,
                 userId
@@ -116,6 +119,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 构造取消时的完成载荷（如果有内容则先落库）
      */
     private CompletionPayload buildCompletionPayloadOnCancel() {
+        // 只有已经产生正文才保存 INTERRUPTED 消息，保留思考、证据和回复关联；保存失败仍构造取消载荷。
         String content = answer.toString();
         String messageId = null;
         if (StrUtil.isNotBlank(content)) {
@@ -140,6 +144,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 取消收尾：持久化已累积内容后补发 cancel/done 事件并结束响应流
      */
     private void finishCancelledStream() {
+        // 组装取消载荷，依次发 cancel 与 done 并关闭 sender，使前端能结束本轮等待。
         CompletionPayload payload = buildCompletionPayloadOnCancel();
         CompletionPayload actualPayload = payload == null ? new CompletionPayload(null, null) : payload;
         sender.sendEvent(SSEEventType.CANCEL.value(), actualPayload);
@@ -149,6 +154,7 @@ public class StreamChatEventHandler implements StreamCallback {
 
     @Override
     public void onReplyToMessageId(String messageId) {
+        // 保存本轮用户问题消息 ID，后续助手消息落库时据此建立回复关联。
         this.replyToMessageId = messageId;
     }
 
@@ -181,6 +187,7 @@ public class StreamChatEventHandler implements StreamCallback {
      */
     @Override
     public void onContent(String chunk) {
+        // 取消后或空白增量不处理，首段正文到达时结算思考时间，再累加正文并分块发送。
         if (taskManager.isCancelled(taskId)) {
             return;
         }
@@ -199,6 +206,7 @@ public class StreamChatEventHandler implements StreamCallback {
      */
     @Override
     public void onThinking(String chunk) {
+        // 取消后不继续推送，首段有效思考开始计时，并将思考内容独立累积和发送。
         if (taskManager.isCancelled(taskId)) {
             return;
         }
@@ -218,6 +226,7 @@ public class StreamChatEventHandler implements StreamCallback {
      */
     @Override
     public void onComplete() {
+        // 未取消时保存正常助手消息，再发送完成和结束事件，最后注销任务并关闭流，持久化失败也执行收尾。
         if (taskManager.isCancelled(taskId)) {
             return;
         }
@@ -234,6 +243,7 @@ public class StreamChatEventHandler implements StreamCallback {
         } catch (Exception e) {
             log.error("对话完成时持久化消息失败，conversationId：{}", conversationId, e);
         }
+        // 正文持久化尝试结束后再发送消息 ID；落库失败时允许空 ID，但客户端仍收到完整终止事件。
         String title = resolveTitleForEvent();
         String messageIdText = StrUtil.isBlank(messageId) ? null : messageId;
         sender.sendEvent(SSEEventType.FINISH.value(),
@@ -248,6 +258,7 @@ public class StreamChatEventHandler implements StreamCallback {
      */
     @Override
     public void onError(Throwable t) {
+        // 已取消任务不重复报错，其余先注销任务再由 sender 处理异常并终止输出。
         if (taskManager.isCancelled(taskId)) {
             return;
         }
@@ -259,6 +270,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 按 Unicode 码点数量拆分 SSE 文本，避免把表情等代理对从中间截断，末尾不足一块也发送。
      */
     private void sendChunked(String type, String content) {
+        // 按 Unicode 码点计数拆成多个 SSE 增量，避免切断代理对，最后发送未达到块大小的尾部文本。
         int length = content.length();
         int idx = 0;
         int count = 0;
@@ -284,6 +296,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 返回已记录的正数思考秒数，尚未产生有效计时时返回 null。
      */
     private Integer resolveThinkingDuration() {
+        // 只有正数思考秒数才写入消息，未测得有效值时保持 null。
         return thinkingDurationSeconds > 0 ? thinkingDurationSeconds : null;
     }
 
@@ -291,6 +304,7 @@ public class StreamChatEventHandler implements StreamCallback {
      * 需要返回标题时按用户和会话查询，缺少有效标题则使用“新对话”；无需标题时返回 null。
      */
     private String resolveTitleForEvent() {
+        // 只在需要补标题时查询当前会话，优先真实标题，未能取得时回落新对话。
         if (!sendTitleOnComplete) {
             return null;
         }

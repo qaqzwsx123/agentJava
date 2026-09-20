@@ -57,6 +57,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      */
     @PostConstruct
     public void initSharedIndex() {
+        // 初始化时确保共享关键词索引已存在，具体检查和并发创建容错统一在内部方法处理。
         ensureSharedIndex();
     }
 
@@ -66,6 +67,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
+        // 把块写入共享索引，以全局块 ID 作为文档主键，集合与文档归属保存在字段中，批量响应逐项失败仅告警。
         if (CollUtil.isEmpty(chunks)) {
             return;
         }
@@ -80,6 +82,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
             bulk.operations(op -> op.index(idx -> idx.index(index).id(chunkId).document(doc)));
         }
 
+        // 请求整体失败会抛出异常；批量请求成功但某些项失败时仅记录告警，调用方需按现有同步策略处理。
         try {
             BulkResponse resp = esClient.bulk(bulk.build());
             if (resp.errors()) {
@@ -97,6 +100,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
+        // 把单块更新转成单元素批量索引，复用文档构建和主键覆盖写逻辑。
         indexDocumentChunks(collectionName, docId, List.of(chunk));
     }
 
@@ -105,6 +109,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      */
     @Override
     public void deleteDocumentIndex(String collectionName, String docId) {
+        // 在共享索引中同时限定逻辑集合和文档 ID 删除，索引不存在视为已完成清理。
         try {
             esClient.deleteByQuery(d -> d
                     .index(sharedIndex())
@@ -128,6 +133,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
+        // 按全局唯一块 ID 删除 ES 文档，不存在视为幂等成功，其他错误转换后抛出。
         // chunkId 为全局唯一雪花主键，直接按 _id 删除，无需再限定 collection_name
         try {
             esClient.delete(d -> d.index(sharedIndex()).id(chunkId));
@@ -146,6 +152,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
+        // 空列表不请求，非空列表构造批量主键删除，索引不存在时跳过，其他异常上抛。
         if (CollUtil.isEmpty(chunkIds)) {
             return;
         }
@@ -168,6 +175,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
 
     @Override
     public void deleteByCollection(String collectionName) {
+        // 按 collection_name 精确删除某知识库全部关键词记录，不删除其他集合的数据。
         try {
             esClient.deleteByQuery(d -> d
                     .index(sharedIndex())
@@ -188,6 +196,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      * 识别 Elasticsearch 返回的 404 异常，供删除流程做缺失兼容。
      */
     private boolean isNotFound(Exception e) {
+        // 仅把具有 404 响应的 ES 异常识别为不存在，其他错误不应被吞成幂等成功。
         return e instanceof ElasticsearchException esException
                 && esException.response() != null
                 && esException.response().status() == 404;
@@ -199,6 +208,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      * 落后者会收到 resource_already_exists_exception，此时视作创建成功
      */
     private boolean isAlreadyExists(Exception e) {
+        // 识别资源已存在的业务错误，供多线程或多节点同时建索引时容错。
         return e instanceof ElasticsearchException esException
                 && esException.response() != null
                 && esException.response().error() != null
@@ -210,6 +220,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      * ik_max_word / ik_smart 需安装 IK 分词插件
      */
     private void ensureSharedIndex() {
+        // 不存在时按配置创建正文分词与归属字段映射，并发先建成的情况视为成功。
         String index = sharedIndex();
         try {
             boolean exists = esClient.indices().exists(e -> e.index(index)).value();
@@ -240,6 +251,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      * 截断超长正文并附加逻辑集合、文档 ID 和切片序号，生成关键词索引字段。
      */
     private Map<String, Object> buildDocument(String collectionName, String docId, EmbeddedChunk chunk) {
+        // 按内容长度上限截取正文，再保存集合、文档和块序号，形成关键词搜索需要的字段集合。
         String content = chunk.content() == null ? "" : chunk.content();
         if (content.length() > MAX_CONTENT_LENGTH) {
             content = content.substring(0, MAX_CONTENT_LENGTH);
@@ -257,6 +269,7 @@ public class EsKeywordIndexService implements KeywordIndexService {
      * 读取关键词检索配置中的共享物理索引名，逻辑集合由文档字段隔离。
      */
     private String sharedIndex() {
+        // 统一读取配置的共享索引名称，所有逻辑知识库在该索引中按字段隔离。
         return keywordProperties.sharedIndex();
     }
 }

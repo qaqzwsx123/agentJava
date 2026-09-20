@@ -295,6 +295,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 统计左闭右开时间区间内创建的用户数。
      */
     private long countUsers(Date start, Date end) {
+        // 按创建时间的左闭右开区间统计新增用户，避免相邻窗口在边界重复计数。
         return userMapper.selectCount(Wrappers.lambdaQuery(UserDO.class)
                 .ge(UserDO::getCreateTime, start)
                 .lt(UserDO::getCreateTime, end));
@@ -304,6 +305,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 统计左闭右开时间区间内创建的会话数。
      */
     private long countConversations(Date start, Date end) {
+        // 按创建时间统计窗口内新增会话，结束时刻不包含在当前窗口中。
         return conversationMapper.selectCount(Wrappers.lambdaQuery(ConversationDO.class)
                 .ge(ConversationDO::getCreateTime, start)
                 .lt(ConversationDO::getCreateTime, end));
@@ -313,6 +315,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 统计左闭右开时间区间内创建的消息数，包含各角色消息。
      */
     private long countMessages(Date start, Date end) {
+        // 统计指定时间段内创建的全部消息，时间边界使用大于等于开始、小于结束。
         return messageMapper.selectCount(Wrappers.lambdaQuery(ConversationMessageDO.class)
                 .ge(ConversationMessageDO::getCreateTime, start)
                 .lt(ConversationMessageDO::getCreateTime, end));
@@ -322,6 +325,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按区间内消息的 user_id 去重统计活跃用户，不以用户注册时间判断活跃。
      */
     private long countActiveUsers(Date start, Date end) {
+        // 对窗口内消息的 user_id 去重计数，同一用户发多条消息仍只计一次。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("count(distinct user_id) as cnt")
                 .ge("create_time", start)
@@ -333,6 +337,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按区间内消息的会话 ID 与用户 ID 组合去重，统计发生过消息的活跃会话。
      */
     private long countActiveSessions(Date start, Date end) {
+        // 按会话 ID 与用户 ID 的组合去重，统计窗口内实际出现消息的会话。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("count(distinct (conversation_id, user_id)) as cnt")
                 .ge("create_time", start)
@@ -344,6 +349,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 统计区间内开始的追踪运行次数；status 非空时只统计指定状态。
      */
     private long countTraceRuns(Date start, Date end, String status) {
+        // 先限定追踪开始时间，需要时再按状态筛选，返回满足条件的运行次数。
         QueryWrapper<RagTraceRunDO> wrapper = new QueryWrapper<>();
         wrapper.ge("start_time", start).lt("start_time", end);
         if (status != null) {
@@ -356,6 +362,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 统计区间内助手角色的消息数，作为回复相关指标的统计基础。
      */
     private long countAssistantMessages(Date start, Date end) {
+        // 在时间窗口内只统计助手角色消息，作为回答量的统计口径。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.ge("create_time", start)
                 .lt("create_time", end)
@@ -367,6 +374,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 统计正文等于固定无文档回复的助手消息数，作为当前实现的无命中口径。
      */
     private long countNoDocMessages(Date start, Date end) {
+        // 同时匹配助手角色和无文档固定回复，统计未找到知识证据时的回答量。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.ge("create_time", start)
                 .lt("create_time", end)
@@ -379,6 +387,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 查询区间内成功运行的 duration_ms，只保留数值型且大于零的样本用于耗时统计。
      */
     private List<Long> listDurations(Date start, Date end) {
+        // 仅取成功追踪的耗时字段，过滤空结果、非数值及非正耗时，供性能指标计算。
         QueryWrapper<RagTraceRunDO> wrapper = new QueryWrapper<>();
         wrapper.select("duration_ms")
                 .ge("start_time", start)
@@ -404,6 +413,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 读取聚合查询第一行的 cnt 数值；无结果或非数值时按零处理。
      */
     private long extractCount(List<Map<String, Object>> maps) {
+        // 读取聚合查询第一行的 cnt 数字，空结果或非数值结果按零处理。
         if (maps == null || maps.isEmpty()) {
             return 0L;
         }
@@ -418,6 +428,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 计算相对上周期的百分比变化并保留一位小数；上周期非正数时返回 null。
      */
     private Double calcPct(long current, long prev) {
+        // 上期值非正时不计算增长率，否则按上期为分母计算百分比并保留一位小数。
         if (prev <= 0) {
             return null;
         }
@@ -428,6 +439,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 封装指标当前值、增减量和变化百分比，统一看板概览响应结构。
      */
     private DashboardOverviewKpiVO buildKpi(long value, long delta, Double deltaPct) {
+        // 把当前值、变化量和变化率装配成仪表盘统一的指标结构。
         return DashboardOverviewKpiVO.builder()
                 .value(value)
                 .delta(delta)
@@ -439,6 +451,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 在指定日期区间内按创建日期聚合会话数，返回日期到数量的映射。
      */
     private Map<LocalDate, Long> countConversationsByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId) {
+        // 在指定时间范围按数据库格式化日期分组计数，再转换为日期到数量的映射。
         QueryWrapper<ConversationDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD') as d", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -451,6 +464,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 在指定日期区间内按创建日期聚合全部消息数。
      */
     private Map<LocalDate, Long> countMessagesByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId) {
+        // 按天汇总窗口内消息数，日期边界先按传入时区转换为数据库查询时间。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD') as d", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -463,6 +477,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按创建日期聚合助手消息数，限定 role 为助手。
      */
     private Map<LocalDate, Long> countAssistantMessagesByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId) {
+        // 限定助手角色后按天分组，得到每日回答量。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD') as d", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -476,6 +491,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按日期统计固定无文档回复的助手消息数，用于每日无命中趋势。
      */
     private Map<LocalDate, Long> countNoDocMessagesByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId) {
+        // 按天统计助手的固定无文档回复，供无命中趋势图使用。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD') as d", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -490,6 +506,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按日期分别对消息用户去重，得到每日活跃用户数。
      */
     private Map<LocalDate, Long> countActiveUsersByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId) {
+        // 每日分别对用户 ID 去重，同一用户可以在不同日期分别计为活跃。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD') as d", "count(distinct user_id) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -502,6 +519,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按运行开始日期计算成功追踪的平均耗时，并转换为保留一位小数的日期映射。
      */
     private Map<LocalDate, Double> averageLatencyByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId) {
+        // 只统计成功运行的平均耗时，跳过无法解析的日期，结果保留一位小数。
         QueryWrapper<RagTraceRunDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(start_time,'YYYY-MM-DD') as d", "avg(duration_ms) as avg")
                 .ge("start_time", toDate(start, zoneId))
@@ -529,6 +547,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按日期聚合追踪运行次数，允许额外按状态过滤。
      */
     private Map<LocalDate, Long> countTraceRunsByDay(LocalDate start, LocalDate endExclusive, ZoneId zoneId, String status) {
+        // 按日期汇总追踪运行数，传入状态时再附加状态过滤。
         QueryWrapper<RagTraceRunDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(start_time,'YYYY-MM-DD') as d", "count(*) as cnt")
                 .ge("start_time", toDate(start, zoneId))
@@ -544,6 +563,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按创建时间所在小时聚合会话数，查询范围采用左闭右开区间。
      */
     private Map<LocalDateTime, Long> countConversationsByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId) {
+        // 按数据库格式化的整点小时分组，统计每小时新建会话数。
         QueryWrapper<ConversationDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD HH24:00:00') as h", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -556,6 +576,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按创建时间所在小时聚合全部消息数。
      */
     private Map<LocalDateTime, Long> countMessagesByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId) {
+        // 按整点小时统计消息数量，再转换为小时到数量的映射。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD HH24:00:00') as h", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -568,6 +589,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按小时聚合助手角色的消息数。
      */
     private Map<LocalDateTime, Long> countAssistantMessagesByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId) {
+        // 限定助手角色并按小时分组，得到每小时回答量。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD HH24:00:00') as h", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -581,6 +603,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按小时聚合正文匹配固定无文档提示的助手消息数。
      */
     private Map<LocalDateTime, Long> countNoDocMessagesByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId) {
+        // 按小时汇总助手的无文档固定回复，保持与回答量相同的时间范围。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD HH24:00:00') as h", "count(*) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -595,6 +618,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 在每个小时内分别对消息用户去重，得到小时活跃用户数。
      */
     private Map<LocalDateTime, Long> countActiveUsersByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId) {
+        // 在各小时内分别去重用户 ID，统计每小时活跃用户数。
         QueryWrapper<ConversationMessageDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(create_time,'YYYY-MM-DD HH24:00:00') as h", "count(distinct user_id) as cnt")
                 .ge("create_time", toDate(start, zoneId))
@@ -607,6 +631,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按运行开始小时计算成功追踪的平均耗时，交给统一结果转换方法处理。
      */
     private Map<LocalDateTime, Double> averageLatencyByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId) {
+        // 仅对成功追踪按小时计算平均耗时，再整理成趋势点需要的映射。
         QueryWrapper<RagTraceRunDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(start_time,'YYYY-MM-DD HH24:00:00') as h", "avg(duration_ms) as avg")
                 .ge("start_time", toDate(start, zoneId))
@@ -620,6 +645,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按小时统计追踪运行次数；status 非空时仅统计该状态。
      */
     private Map<LocalDateTime, Long> countTraceRunsByHour(LocalDateTime start, LocalDateTime endExclusive, ZoneId zoneId, String status) {
+        // 按小时汇总运行次数，并按可选状态区分成功或失败等运行。
         QueryWrapper<RagTraceRunDO> wrapper = new QueryWrapper<>();
         wrapper.select("to_char(start_time,'YYYY-MM-DD HH24:00:00') as h", "count(*) as cnt")
                 .ge("start_time", toDate(start, zoneId))
@@ -635,6 +661,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 把 SQL 返回的日期 d 和数量 cnt 转换为日期映射，跳过缺少日期或无有效数量的行。
      */
     private Map<LocalDate, Long> mapLongResults(List<Map<String, Object>> maps) {
+        // 把 SQL 的 d、cnt 字段转成日期映射，跳过空日期或无法转为整数的数量。
         Map<LocalDate, Long> result = new HashMap<>();
         if (maps == null) {
             return result;
@@ -656,6 +683,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 把 SQL 的小时桶 h 和数量 cnt 转换为小时映射，跳过无有效键值的行。
      */
     private Map<LocalDateTime, Long> mapLongResultsByHour(List<Map<String, Object>> maps) {
+        // 把 SQL 的 h、cnt 字段转成小时映射，无效日期和无效计数不写入结果。
         Map<LocalDateTime, Long> result = new HashMap<>();
         if (maps == null) {
             return result;
@@ -677,6 +705,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 转换小时平均值查询结果；非数值按零处理，耗时统一保留一位小数。
      */
     private Map<LocalDateTime, Double> mapDoubleResultsByHour(List<Map<String, Object>> maps) {
+        // 读取小时和平均耗时，数值缺失按零处理，并将均值保留一位小数。
         Map<LocalDateTime, Double> result = new HashMap<>();
         if (maps == null) {
             return result;
@@ -697,6 +726,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 逐日生成连续的整数指标趋势点，没有数据库记录的日期补零，并按指定时区转换时间戳。
      */
     private List<DashboardTrendPointVO> buildPoints(LocalDate start, LocalDate endExclusive, ZoneId zoneId, Map<LocalDate, Long> values) {
+        // 逐日补齐整个查询区间，缺失日期使用零值，避免趋势图因无记录而断开。
         List<DashboardTrendPointVO> points = new ArrayList<>();
         LocalDate cursor = start;
         while (cursor.isBefore(endExclusive)) {
@@ -714,6 +744,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 逐日生成小数指标趋势点，缺失日期补零，保证前端时间轴连续。
      */
     private List<DashboardTrendPointVO> buildPointsDouble(LocalDate start, LocalDate endExclusive, ZoneId zoneId, Map<LocalDate, Double> values) {
+        // 逐日生成浮点趋势值，缺失日期补零，时间戳按指定时区的零点转换。
         List<DashboardTrendPointVO> points = new ArrayList<>();
         LocalDate cursor = start;
         while (cursor.isBefore(endExclusive)) {
@@ -735,6 +766,7 @@ public class DashboardServiceImpl implements DashboardService {
             LocalDateTime endExclusive,
             ZoneId zoneId,
             Map<LocalDateTime, Long> values) {
+        // 按小时推进游标生成连续趋势点，没有统计记录的小时补零。
         List<DashboardTrendPointVO> points = new ArrayList<>();
         LocalDateTime cursor = start;
         while (cursor.isBefore(endExclusive)) {
@@ -756,6 +788,7 @@ public class DashboardServiceImpl implements DashboardService {
             LocalDateTime endExclusive,
             ZoneId zoneId,
             Map<LocalDateTime, Double> values) {
+        // 逐小时补齐浮点指标，按指定时区计算每个小时对应的时间戳。
         List<DashboardTrendPointVO> points = new ArrayList<>();
         LocalDateTime cursor = start;
         while (cursor.isBefore(endExclusive)) {
@@ -773,6 +806,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 计算耗时样本的平均值并四舍五入为整数，空样本返回零。
      */
     private long average(List<Long> values) {
+        // 空集合返回零，否则累加后计算平均值并四舍五入为整数。
         if (values == null || values.isEmpty()) {
             return 0L;
         }
@@ -803,6 +837,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按四舍五入规则将数值保留一位小数。
      */
     private double round1(double value) {
+        // 先放大十倍取整再缩小，将指标数值保留到一位小数。
         return Math.round(value * 10.0) / 10.0;
     }
 
@@ -810,6 +845,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 将 SQL 聚合结果中的日期文本转换为 LocalDate，null 保持为空。
      */
     private LocalDate parseLocalDate(Object value) {
+        // 空字段返回 null，其余字段按字符串解析为日期，格式错误由调用链处理。
         if (value == null) {
             return null;
         }
@@ -820,6 +856,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按小时桶的固定格式解析聚合时间，null 保持为空。
      */
     private LocalDateTime parseLocalDateTime(Object value) {
+        // 使用小时统计约定的格式解析时间字段，空值保持 null。
         if (value == null) {
             return null;
         }
@@ -830,6 +867,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 兼容数据库数值对象与数字文本；空值或无法解析的文本返回 null。
      */
     private Long toLongValue(Object value) {
+        // 数值直接转 long，字符串尝试解析；空值或非法数字返回 null 供上层跳过。
         if (value instanceof Number number) {
             return number.longValue();
         }
@@ -847,6 +885,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按指定时区将本地日期或时间转为 Date；日期重载使用当天零点。
      */
     private Date toDate(LocalDate date, ZoneId zoneId) {
+        // 按传入时区把本地日期或时间转换为 Date，统一查询参数和趋势时间戳的时区口径。
         return Date.from(date.atStartOfDay(zoneId).toInstant());
     }
 
@@ -854,6 +893,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 按指定时区将本地日期或时间转为 Date；日期重载使用当天零点。
      */
     private Date toDate(LocalDateTime time, ZoneId zoneId) {
+        // 按传入时区把本地日期或时间转换为 Date，统一查询参数和趋势时间戳的时区口径。
         return Date.from(time.atZone(zoneId).toInstant());
     }
 
@@ -861,6 +901,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 将 Date 按统计时区转换为本地日期，用于构造每日查询窗口。
      */
     private LocalDate toLocalDate(Date date, ZoneId zoneId) {
+        // 先把 Date 还原为时间点，再按指定时区提取当地日期。
         return date.toInstant().atZone(zoneId).toLocalDate();
     }
 
@@ -868,6 +909,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 将 Date 按统计时区转换为本地时间，用于构造小时查询窗口。
      */
     private LocalDateTime toLocalDateTime(Date date, ZoneId zoneId) {
+        // 按指定时区把时间点转换成本地日期时间，供小时窗口计算。
         return date.toInstant().atZone(zoneId).toLocalDateTime();
     }
 
@@ -890,6 +932,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 空值或未知后缀使用传入 fallback，数值部分交给 parseNumber 处理。
      */
     private Duration parseWindow(String window, Duration fallback) {
+        // 先规范窗口文本，识别小时 h 和天 d 后缀；缺省或不支持的表达式使用回落时长。
         // 只在这里转换窗口表达，不直接执行数据库统计。
         if (window == null || window.isBlank()) {
             return fallback;
@@ -925,6 +968,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 解析窗口参数中的整数，格式无效时返回调用方提供的默认值。
      */
     private long parseNumber(String value, long fallback) {
+        // 尝试解析整数，输入格式不合法时返回调用方提供的默认值。
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException ex) {
@@ -936,6 +980,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 将窗口时长转换为天或小时标签；完整天数优先使用 d，其余使用 h。
      */
     private String formatDuration(Duration duration) {
+        // 整天时长优先用 d 表示，其余按整小时用 h 表示，供窗口标签展示。
         long hours = duration.toHours();
         if (hours % 24 == 0) {
             return (hours / 24) + "d";
@@ -952,6 +997,7 @@ public class DashboardServiceImpl implements DashboardService {
         private final String compareLabel;
 
         WindowRange(Date start, Date end, Date prevStart, Date prevEnd, String windowLabel, String compareLabel) {
+            // 保存本期与上期的时间边界及展示标签，后续各指标复用同一统计窗口。
             this.start = start;
             this.end = end;
             this.prevStart = prevStart;

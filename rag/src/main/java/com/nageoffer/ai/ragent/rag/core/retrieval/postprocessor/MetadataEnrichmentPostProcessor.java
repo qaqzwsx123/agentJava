@@ -49,6 +49,7 @@ public class MetadataEnrichmentPostProcessor implements SearchResultPostProcesso
 
     @Override
     public String getName() {
+        // 返回元数据补充阶段名称，供处理链日志识别。
         return "MetadataEnrichment";
     }
 
@@ -62,6 +63,7 @@ public class MetadataEnrichmentPostProcessor implements SearchResultPostProcesso
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 上下文增强开关控制是否批量补齐证据元数据。
         return ragConfigProperties.getContextEnrichEnabled();
     }
 
@@ -98,6 +100,7 @@ public class MetadataEnrichmentPostProcessor implements SearchResultPostProcesso
      * 对上一步按 chunkId 未补到标题、但已带 docId 的证据（典型为图谱证据）按 docId 回表补真实文档标题
      */
     private void fillDocNamesByDocId(List<RetrievedChunk> chunks) {
+        // 只收集缺名称但有文档 ID 的块，批量查询文档名后回填，不覆盖已有有效名称。
         List<String> pendingDocIds = chunks.stream()
                 .filter(c -> StrUtil.isBlank(c.getDocName()) && StrUtil.isNotBlank(c.getDocId()))
                 .map(RetrievedChunk::getDocId)

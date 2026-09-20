@@ -66,6 +66,7 @@ public class ChatQueueLimiter {
      * 获准后的业务执行使用指定线程池，SSE 完成、超时或错误会取消等待；线程池拒绝也进入拒绝响应。
      */
     public void enqueue(String question, String conversationId, SseEmitter emitter, Runnable onAcquire) {
+        // 限流关闭时直接提交聊天入口，开启时进入公平队列并绑定 SSE 关闭、超时和错误的排队取消动作。
         if (!Boolean.TRUE.equals(rateLimitProperties.getGlobalEnabled())) {
             try {
                 chatEntryExecutor.execute(onAcquire);
@@ -76,6 +77,7 @@ public class ChatQueueLimiter {
             return;
         }
 
+        // 成功与超时回调都用 TTL 包装保留登录上下文，等待期间连接结束则取消排队。
         chatRateLimiter.acquire(AcquireRequest.builder()
                 .maxWaitMillis(TimeUnit.SECONDS.toMillis(rateLimitProperties.getGlobalMaxWaitSeconds()))
                 .onAcquired(TtlRunnable.get(onAcquire))
@@ -148,6 +150,7 @@ public class ChatQueueLimiter {
      * 从问题截取配置长度作为拒绝会话的备用标题，空问题返回空字符串。
      */
     private String buildFallbackTitle(String question) {
+        // 用用户问题去空白后按标题上限截断，作为排队拒绝场景的回落会话标题。
         if (StrUtil.isBlank(question)) {
             return Strings.EMPTY;
         }
@@ -160,6 +163,7 @@ public class ChatQueueLimiter {
      * 存在拒绝记录时依次发送 meta、reject、finish，最后始终发送 done 并关闭 SSE。
      */
     private void sendRejectEvents(SseEmitter emitter, RejectedContext rejectedContext) {
+        // 有拒绝上下文时发送元信息、拒绝正文和 REJECTED 完成载荷，随后无条件发送 done 并关闭连接。
         SseEmitterSender sender = new SseEmitterSender(emitter);
         if (rejectedContext != null) {
             sender.sendEvent(SSEEventType.META.value(), new MetaPayload(rejectedContext.conversationId, rejectedContext.taskId));
@@ -176,6 +180,7 @@ public class ChatQueueLimiter {
      * 优先读取传递到当前线程的用户上下文，缺失时尝试登录框架，均不可用时返回 null。
      */
     private String resolveUserId() {
+        // 优先读取已传播的用户上下文，没有时尝试登录组件，均无法取得时返回 null。
         String userId = UserContext.getUserId();
         if (StrUtil.isNotBlank(userId)) {
             return userId;

@@ -30,6 +30,7 @@ package com.nageoffer.ai.ragent.core.ingest;
 public record VectorTarget(String partition, String embeddingModel, int dimension) {
 
     public VectorTarget {
+        // 分区、嵌入模型和正数维度必须显式绑定，禁止缺少知识库约束时擅自回落到默认模型。
         if (partition == null || partition.isBlank()) {
             throw new IllegalArgumentException("partition 不能为空");
         }

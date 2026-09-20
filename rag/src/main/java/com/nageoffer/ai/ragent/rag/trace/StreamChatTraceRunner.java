@@ -89,11 +89,13 @@ public class StreamChatTraceRunner {
         StreamCallback traceAwareCallback = new ForwardingStreamCallback(callback) {
             @Override
             protected void onFirstContent() {
+                // 第一次实际内容到达时记录用户可感知的首包耗时，使用整个请求的开始时刻作为基准。
                 recordUserTtft(traceId, runStartTime, startMillis);
             }
 
             @Override
             protected void onFinish(boolean success, Throwable error) {
+                // 流回调结束时统一收尾运行记录，区分成功和失败并计算总耗时。
                 finishRun(traceId, success, error, startMillis);
             }
         };
@@ -122,6 +124,7 @@ public class StreamChatTraceRunner {
      * 反映完整链路前置开销（路由 / 改写 / 意图 / 检索 / LLM 首包等）
      */
     private void recordUserTtft(String traceId, Date runStartTime, long startMillis) {
+        // 创建独立首包指标节点并立即结束，以请求开始到首内容的非负时间差作为用户 TTFT。
         long now = System.currentTimeMillis();
         long durationMs = Math.max(0, now - startMillis);
         String nodeId = IdUtil.getSnowflakeNextIdStr();
@@ -145,6 +148,7 @@ public class StreamChatTraceRunner {
      * 记录追踪运行的结束状态、错误和总耗时；追踪写入失败只记日志，不阻断业务收尾。
      */
     private void finishRun(String traceId, boolean success, Throwable error, long startMillis) {
+        // 把成功或失败结果、结束时间及总耗时写回追踪，辅助记录失败只记日志。
         try {
             traceRecordService.finishRun(
                     traceId,
@@ -165,6 +169,7 @@ public class StreamChatTraceRunner {
                                  String taskId,
                                  StreamCallback callback,
                                  Consumer<StreamCallback> businessLogic) {
+        // 关闭追踪时仍执行同一业务回调，启动异常转给 onError 保持流结束行为一致。
         try {
             businessLogic.accept(callback);
         } catch (Throwable ex) {
@@ -177,6 +182,7 @@ public class StreamChatTraceRunner {
      * 将异常类型与消息拼接，并按追踪配置截断，避免错误字段超过存储预算。
      */
     private String truncateError(Throwable throwable) {
+        // 组合异常简名和原因并限长，供追踪运行错误字段保存。
         if (throwable == null) {
             return null;
         }

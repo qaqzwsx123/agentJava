@@ -47,6 +47,7 @@ public class NodeOutputExtractor {
      * 按节点类型提取运行产物用于执行日志，参数不全返回空映射，未知节点类型使用通用视图。
      */
     public Map<String, Object> extract(IngestionContext context, NodeConfig config) {
+        // 按节点类型选择对应的输出视图，空上下文或空配置不提取，未知节点使用通用视图。
         if (context == null || config == null) {
             return Map.of();
         }
@@ -68,6 +69,7 @@ public class NodeOutputExtractor {
      * 记录来源、媒体类型和原始字节长度，不把原文件字节写入节点日志。
      */
     private Map<String, Object> fetcherOutput(IngestionContext context) {
+        // 记录来源和 MIME，原始文件仅保存字节长度，不把大文件内容写进节点日志。
         Map<String, Object> output = new LinkedHashMap<>();
         DocumentSource source = context.getSource();
         if (source != null) {
@@ -93,6 +95,7 @@ public class NodeOutputExtractor {
      * 存两遍，稍大的文档就顶到 output_json 的 1MB 截断线
      */
     private Map<String, Object> parserOutput(IngestionContext context) {
+        // 输出原文及结构化块数量、类型分布，文档或块列表缺失时按空集合处理。
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("mimeType", context.getMimeType());
         output.put("rawText", context.getRawText());
@@ -108,6 +111,7 @@ public class NodeOutputExtractor {
      * 按 Block 具体类型计数，如 {@code {ParagraphBlock=12, TableBlock=1}}
      */
     private static Map<String, Long> countByType(List<Block> blocks) {
+        // 按块实现类名分组计数，供查看解析结果由哪些结构组成。
         return blocks.stream().collect(Collectors.groupingBy(
                 block -> block.getClass().getSimpleName(),
                 LinkedHashMap::new,
@@ -118,6 +122,7 @@ public class NodeOutputExtractor {
      * 汇总文档级增强正文、关键词、问题和元数据，供任务详情展示。
      */
     private Map<String, Object> enhancerOutput(IngestionContext context) {
+        // 提取增强正文、关键词、问题及元数据，展示文档级增强节点的产物。
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("enhancedText", context.getEnhancedText());
         output.put("keywords", context.getKeywords());
@@ -130,6 +135,7 @@ public class NodeOutputExtractor {
      * 生成分块数量等摘要，避免把完整分块产物无界写入节点日志。
      */
     private Map<String, Object> chunkerOutput(IngestionContext context) {
+        // 复用分块摘要，只记录数量、字符总量和向量维度等诊断信息。
         return chunkSummary(safeChunks(context));
     }
 
@@ -138,6 +144,7 @@ public class NodeOutputExtractor {
      * 不列出来的话这份输出与分块节点逐字相同，看不出加工到底跑没跑
      */
     private Map<String, Object> enricherOutput(IngestionContext context) {
+        // 在分块摘要外补充扩展元数据键，便于确认块级富化写入了哪些字段。
         List<EmbeddedChunk> chunks = safeChunks(context);
         Map<String, Object> output = chunkSummary(chunks);
         output.put("extraKeys", collectExtraKeys(chunks));
@@ -148,6 +155,7 @@ public class NodeOutputExtractor {
      * 组合索引配置与分块摘要，记录本次索引节点使用的参数及处理规模。
      */
     private Map<String, Object> indexerOutput(IngestionContext context, NodeConfig config) {
+        // 同时记录索引配置和已准备分块的摘要，便于回看索引阶段的输入规模。
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("settings", config.getSettings());
         output.putAll(chunkSummary(safeChunks(context)));
@@ -162,6 +170,7 @@ public class NodeOutputExtractor {
      * 混进两种语义空间的向量"这类事故的现场证据
      */
     private static Map<String, Object> chunkSummary(List<EmbeddedChunk> chunks) {
+        // 汇总分块数、正文字符数，并以首块向量长度展示嵌入维度，空集合使用零。
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("chunkCount", chunks.size());
         summary.put("totalChars", chunks.stream()
@@ -175,6 +184,7 @@ public class NodeOutputExtractor {
      * 按首次出现顺序汇总各分块扩展元数据的键，供产物摘要展示。
      */
     private static Set<String> collectExtraKeys(List<EmbeddedChunk> chunks) {
+        // 合并所有块的扩展字段名，按首次出现顺序去重，不重复输出相同键。
         return chunks.stream()
                 .flatMap(chunk -> chunk.metadata().extras().keySet().stream())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -184,6 +194,7 @@ public class NodeOutputExtractor {
      * 提取器在节点失败分支上也会被调用，且那次调用不在任何 try 里——这里宁可多一次判空
      */
     private static List<EmbeddedChunk> safeChunks(IngestionContext context) {
+        // 缺少块列表时返回空集合，已有列表过滤 null 元素，避免日志提取过程报空指针。
         if (context.getChunks() == null) {
             return List.of();
         }
@@ -194,6 +205,7 @@ public class NodeOutputExtractor {
      * 为未知类型节点提供媒体类型、正文、增强产物和分块摘要的通用输出。
      */
     private Map<String, Object> genericOutput(IngestionContext context) {
+        // 未知节点类型仍保留上下文主要文本、元数据与分块摘要，便于诊断自定义阶段。
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("mimeType", context.getMimeType());
         output.put("rawText", context.getRawText());
@@ -209,6 +221,7 @@ public class NodeOutputExtractor {
      * 将节点类型文本解析为枚举，空值或未知值返回 null，由调用方选择通用输出。
      */
     private IngestionNodeType resolveNodeType(String nodeType) {
+        // 空类型或无法识别的类型返回 null，由提取入口选择通用输出视图。
         if (nodeType == null || nodeType.isBlank()) {
             return null;
         }

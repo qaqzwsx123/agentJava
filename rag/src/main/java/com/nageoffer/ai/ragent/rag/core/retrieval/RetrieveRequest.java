@@ -77,6 +77,7 @@ public class RetrieveRequest {
      * 新的多 Collection 参数优先，旧的单 Collection 参数用于兼容已有调用方
      */
     public List<String> getEffectiveCollectionNames() {
+        // 清理并去重多集合参数，若没有有效项再回落旧单集合字段，兼容两种调用方式。
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         if (collectionNames != null) {
             collectionNames.stream()

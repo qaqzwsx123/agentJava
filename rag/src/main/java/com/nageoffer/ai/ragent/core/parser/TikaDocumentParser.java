@@ -58,6 +58,7 @@ public class TikaDocumentParser implements DocumentParser {
      */
     @Override
     public String getParserType() {
+        // 返回 Tika 解析器标识，供结果记录和路由诊断使用。
         return ParserType.TIKA.getType();
     }
 
@@ -66,6 +67,7 @@ public class TikaDocumentParser implements DocumentParser {
      */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
+        // 用 Tika 提取并清理文本，再按空行分段生成段落块；解析失败记录日志并转换为服务异常。
         if (content == null || content.length == 0) {
             return ParsedDocument.of(List.of());
         }
@@ -79,6 +81,7 @@ public class TikaDocumentParser implements DocumentParser {
             throw new ServiceException("文档解析失败: " + e.getMessage());
         }
 
+        // 纯文本提取完成后按连续空行分段，各段都保留同一文件溯源。
         Provenance prov = Provenance.ofFile(extractSourceFile(options));
         List<Block> blocks = new ArrayList<>();
         for (String segment : text.split("\\n{2,}")) {
@@ -95,6 +98,7 @@ public class TikaDocumentParser implements DocumentParser {
      * 从解析选项读取源文件名，缺失时为空，供块级溯源使用。
      */
     private String extractSourceFile(Map<String, Object> options) {
+        // 读取来源文件名选项，未提供时返回空字符串。
         if (options == null) {
             return "";
         }
@@ -108,6 +112,7 @@ public class TikaDocumentParser implements DocumentParser {
      */
     @Override
     public Map<ParseProfile, Set<String>> supportedMimeTypes() {
+        // 为快速档位登记文本通配及 HTML、JSON、XML、RTF 等格式，作为文本解析入口。
         return Map.of(ParseProfile.FAST, Set.of(
                 "text/*",
                 "text/html",

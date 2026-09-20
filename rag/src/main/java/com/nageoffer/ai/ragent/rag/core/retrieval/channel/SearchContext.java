@@ -76,6 +76,7 @@ public class SearchContext {
      * 获取主问题（优先使用重写后的问题）
      */
     public String getMainQuestion() {
+        // 优先采用已改写问题，未提供改写值时才回落原始问题。
         return rewrittenQuestion != null ? rewrittenQuestion : originalQuestion;
     }
 }

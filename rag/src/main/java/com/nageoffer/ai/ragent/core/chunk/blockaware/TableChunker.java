@@ -38,6 +38,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
 
     @Override
     public Class<TableBlock> blockType() {
+        // 声明处理结构化表格块，后续可以分别生成展示表格和适合检索的键值文本。
         return TableBlock.class;
     }
 
@@ -107,6 +108,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 逐行渲染表头与单元格的键值正文，跳过空行并用换行连接，供向量嵌入使用。
      */
     private String renderKeyValueRows(List<String> headers, List<List<String>> rows) {
+        // 逐行转换成表头与单元格的键值描述，忽略没有有效内容的行。
         StringBuilder sb = new StringBuilder();
         for (List<String> row : rows) {
             String line = renderKeyValueRow(headers, row);
@@ -125,6 +127,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 单行渲染成 {@code 列名: 值}，"; " 拼接、跳过空值、整行空返回空串；同时用作预算切分的行体量度量
      */
     private String renderKeyValueRow(List<String> headers, List<String> row) {
+        // 跳过空单元格，用对应表头作为键；缺少表头时保留值，并把单元格内部换行压成空格。
         StringBuilder line = new StringBuilder();
         for (int c = 0; c < row.size(); c++) {
             String value = row.get(c);
@@ -147,6 +150,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 把 cell 内换行压成空格：key 与 value 之间夹一个断行会影响检索
      */
     private static String oneLine(String text) {
+        // 统一把各种换行符替换为空格，避免键值描述被拆成多行。
         return text.replaceAll("\\r\\n|\\r|\\n", " ");
     }
 
@@ -154,6 +158,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 依次生成表头、分隔线和数据行，去掉末尾换行，供切片展示使用。
      */
     private String renderMarkdownTable(List<String> headers, List<List<String>> rows) {
+        // 先写表头和分隔行，再追加数据行，最后去掉多余尾部换行。
         StringBuilder sb = new StringBuilder();
         appendRow(sb, headers);
         appendSeparator(sb, headers.size());
@@ -170,6 +175,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 清理单元格后追加 Markdown 表格行，避免单元格特殊字符破坏行结构。
      */
     private void appendRow(StringBuilder sb, List<String> cells) {
+        // 为各单元格补齐竖线边界，并通过转义方法保证内容不会破坏表格列结构。
         sb.append('|');
         for (String cell : cells) {
             sb.append(' ').append(sanitizeCell(cell)).append(" |");
@@ -184,6 +190,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 竖线转义，cell 内的字面 {@code |} 会被误判为列分隔
      */
     private String sanitizeCell(String cell) {
+        // 空值转为空字符串，转义单元格中的竖线，并将内部换行转换为 HTML 换行标记。
         if (cell == null || cell.isEmpty()) {
             return "";
         }
@@ -194,6 +201,7 @@ public class TableChunker implements BlockChunker<TableBlock> {
      * 按列数生成 Markdown 表头分隔线。
      */
     private void appendSeparator(StringBuilder sb, int colCount) {
+        // 按列数生成 Markdown 表头分隔行，负数列数按零处理。
         sb.append('|');
         sb.append("---|".repeat(Math.max(0, colCount)));
         sb.append('\n');

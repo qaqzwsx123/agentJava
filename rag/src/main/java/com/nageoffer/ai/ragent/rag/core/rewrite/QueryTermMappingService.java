@@ -40,6 +40,7 @@ public class QueryTermMappingService {
      * 对用户问题做术语归一化
      */
     public String normalize(String text) {
+        // 按加载顺序应用已启用且支持的术语规则，跳过无效源词和目标词，每条替换后的结果继续传给下一条规则。
         if (text == null || text.isEmpty()) {
             return text;
         }
@@ -66,6 +67,7 @@ public class QueryTermMappingService {
             result = QueryTermMappingUtil.applyMapping(result, source, target);
         }
 
+        // 只有文本确实发生变化才记录归一化前后对照，便于排查术语规则的影响。
         if (!Objects.equals(text, result)) {
             log.info("查询归一化：original='{}', normalized='{}'", text, result);
         }

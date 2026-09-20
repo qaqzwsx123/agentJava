@@ -40,12 +40,14 @@ public final class CitationMarkup {
             Pattern.compile("\\[[1-9]\\d*]\\(#cite-[1-9]\\d*\\)");
 
     private CitationMarkup() {
+        // 引用标记清理由静态方法统一提供，私有构造器阻止实例化。
     }
 
     /**
      * 去除正文中的行内引用标记，供历史加载和摘要生成避免携带旧引用编号。
      */
     public static String strip(String content) {
+        // 移除回答中的行内引用标记，供历史消息和摘要复用正文，避免旧编号污染新一轮引用。
         if (StrUtil.isBlank(content)) {
             return "";
         }

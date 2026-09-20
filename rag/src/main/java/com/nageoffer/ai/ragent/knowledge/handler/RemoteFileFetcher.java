@@ -78,10 +78,12 @@ public class RemoteFileFetcher {
      */
     public RemoteFetchResult fetchIfChanged(String url, String lastEtag, String lastModified,
                                             String lastContentHash, String fallbackFileName) {
+        // 先用 HEAD 比较 ETag 或修改时间，不能确认未变化时再限量下载并计算哈希，确有变化才保留临时文件。
         long maxBytes = maxFileSize.toBytes();
         url = url.trim();
         HttpClientHelper.HttpHeadResponse headResponse = tryHead(url);
 
+        // 两个 ETag 都有效时优先比较 ETag，否则才回落最后修改时间；确认未变化可直接跳过正文下载。
         if (headResponse != null) {
             checkSizeLimit(maxBytes, headResponse.contentLength());
             String etag = trimOrNull(headResponse.etag());
@@ -96,6 +98,7 @@ public class RemoteFileFetcher {
             }
         }
 
+        // HEAD 不能确认未变化时限量流式下载，临时落盘的同时计算内容哈希。
         Path tempFile = null;
         try (HttpClientHelper.HttpFetchStream response = httpClientHelper.openStream(url, Map.of(), maxBytes)) {
             tempFile = Files.createTempFile("knowledge-schedule-", ".tmp");
@@ -109,6 +112,7 @@ public class RemoteFileFetcher {
             String etag = firstHasText(trimOrNull(response.etag()), headResponse == null ? null : trimOrNull(headResponse.etag()), null);
             String fetchLastModified = firstHasText(trimOrNull(response.lastModified()), headResponse == null ? null : trimOrNull(headResponse.lastModified()), null);
 
+            // 即使远端头信息变化，内容哈希相同仍可跳过，并及时删除本轮临时文件。
             if (StringUtils.hasText(hash) && hash.equals(trimOrNull(lastContentHash))) {
                 deleteTempFileQuietly(tempFile);
                 return RemoteFetchResult.skipped("内容哈希未变化", etag, fetchLastModified, hash);
@@ -129,6 +133,7 @@ public class RemoteFileFetcher {
      * 尝试预读远程元信息，服务器不支持 HEAD 或请求失败时返回 null，让主流程继续下载检查。
      */
     private HttpClientHelper.HttpHeadResponse tryHead(String url) {
+        // 尝试只读取远端元数据，接口不支持或请求失败时返回 null，允许后续直接下载比较内容。
         try {
             return httpClientHelper.head(url, Map.of());
         } catch (Exception e) {
@@ -141,6 +146,7 @@ public class RemoteFileFetcher {
      * 对已知文件长度执行下载前预检，未知长度不在此拒绝，仍需依靠实际读取限额。
      */
     private void checkSizeLimit(long maxBytes, Long contentLength) {
+        // 已知长度且设置上限时提前拒绝过大文件，未知长度仍由实际读取阶段检查。
         if (maxBytes > 0 && contentLength != null && contentLength > maxBytes) {
             throw new ClientException("远程文件大小超过限制: " + maxBytes + " bytes");
         }
@@ -152,6 +158,7 @@ public class RemoteFileFetcher {
      */
     private StoredFileDTO uploadViaTemp(String bucketName, InputStream remoteStream, String fileName,
                                         String contentType, long maxBytes) {
+        // 把远端内容限量写入临时文件，取得准确长度后上传，成功或异常都会清理临时文件。
         Path tempFile = null;
         try {
             // 临时落盘用于获得准确上传长度，复制过程仍按实际字节数限额。
@@ -180,6 +187,7 @@ public class RemoteFileFetcher {
      * 把输入流写入指定临时文件并累计字节数，超限立即停止，返回成功复制的总长度。
      */
     private long copyWithLimit(InputStream inputStream, Path tempFile, long maxBytes) throws IOException {
+        // 按缓冲区复制到临时文件，每次写入前累计实际大小并检查上限，返回最终字节数。
         long total = 0;
         try (var outputStream = Files.newOutputStream(tempFile)) {
             byte[] buffer = new byte[8192];
@@ -196,6 +204,7 @@ public class RemoteFileFetcher {
     }
 
     private CopyResult copyWithLimitAndDigest(InputStream inputStream, Path tempFile, long maxBytes) throws IOException {
+        // 限量落盘的同时逐段更新 SHA-256，最终同时返回字节数与内容哈希，避免再完整读一遍文件。
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             long total = 0;
@@ -221,6 +230,7 @@ public class RemoteFileFetcher {
     }
 
     private static String hexEncode(byte[] hash) {
+        // 将哈希的每个无符号字节转成两位十六进制文本，不足两位补零。
         StringBuilder hex = new StringBuilder(hash.length * 2);
         for (byte b : hash) {
             String value = Integer.toHexString(0xff & b);
@@ -233,6 +243,7 @@ public class RemoteFileFetcher {
     }
 
     private void deleteTempFileQuietly(Path tempFile) {
+        // 临时文件存在时尝试删除，清理失败只记日志，避免掩盖原始业务错误。
         if (tempFile != null) {
             try {
                 Files.deleteIfExists(tempFile);
@@ -246,6 +257,7 @@ public class RemoteFileFetcher {
      * 按优先顺序取首个非空白文本，用于合并远程响应与调用方提供的文件信息。
      */
     private String firstHasText(String... values) {
+        // 按优先级返回第一个非空白字符串，用于下载响应和 HEAD 元数据之间回落。
         for (String v : values) {
             if (StringUtils.hasText(v)) return v;
         }
@@ -253,6 +265,7 @@ public class RemoteFileFetcher {
     }
 
     private String trimOrNull(String value) {
+        // 有效文本去掉首尾空白，空白值统一转成 null 方便变化比较。
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
@@ -271,6 +284,7 @@ public class RemoteFileFetcher {
         private RemoteFetchResult(boolean changed, Path tempFile, long size, String contentType,
                                   String fileName, String contentHash, String etag,
                                   String lastModified, String message) {
+            // 保存本次是否变化、临时文件与远端元数据，供调度流程判断跳过或继续刷新。
             this.changed = changed;
             this.tempFile = tempFile;
             this.size = size;
@@ -283,23 +297,52 @@ public class RemoteFileFetcher {
         }
 
         public static RemoteFetchResult skipped(String message, String etag, String lastModified, String contentHash) {
+            // 构造未变化的结果，不持有临时文件，但保留新的元数据和跳过原因。
             return new RemoteFetchResult(false, null, 0, null, null, contentHash, etag, lastModified, message);
         }
 
         public static RemoteFetchResult changed(Path tempFile, long size, String contentType, String fileName,
                                                  String contentHash, String etag, String lastModified) {
+            // 构造确有变化的结果并交出临时文件，后续处理完成后由结果对象的关闭逻辑清理文件。
             return new RemoteFetchResult(true, tempFile, size, contentType, fileName, contentHash, etag, lastModified, null);
         }
 
-        public boolean changed() { return changed; }
-        public Path tempFile() { return tempFile; }
-        public long size() { return size; }
-        public String contentType() { return contentType; }
-        public String fileName() { return fileName; }
-        public String contentHash() { return contentHash; }
-        public String etag() { return etag; }
-        public String lastModified() { return lastModified; }
-        public String message() { return message; }
+        public boolean changed() {
+            // 返回本次远端内容是否发生变化，供调度入口选择跳过或处理。
+            return changed;
+        }
+        public Path tempFile() {
+            // 返回本次下载保留的临时文件路径，供上传和分块处理读取。
+            return tempFile;
+        }
+        public long size() {
+            // 返回实际下载字节数，供准确设置对象存储上传长度。
+            return size;
+        }
+        public String contentType() {
+            // 返回下载响应提供的内容类型，供上传和后续 MIME 处理使用。
+            return contentType;
+        }
+        public String fileName() {
+            // 返回本次解析出的文件名，供持久化文件元数据。
+            return fileName;
+        }
+        public String contentHash() {
+            // 返回实际内容的哈希，供下次刷新检测内容是否变化。
+            return contentHash;
+        }
+        public String etag() {
+            // 返回远端 ETag，供后续通过 HEAD 快速判断是否变化。
+            return etag;
+        }
+        public String lastModified() {
+            // 返回远端最后修改标识，供没有可比较 ETag 时使用。
+            return lastModified;
+        }
+        public String message() {
+            // 返回跳过原因等说明，供调度执行记录展示。
+            return message;
+        }
 
         @Override
         public void close() {

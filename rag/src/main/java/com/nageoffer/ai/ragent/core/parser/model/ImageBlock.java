@@ -34,6 +34,7 @@ public record ImageBlock(
      * 不产图生文的来源（MinerU / Excel 等）用此形态，description 置空
      */
     public ImageBlock(Provenance provenance, AssetRef asset, String caption, String altText) {
+        // 兼容不带图片描述的构造方式，将独立描述字段默认设为 null。
         this(provenance, asset, caption, altText, null);
     }
 }

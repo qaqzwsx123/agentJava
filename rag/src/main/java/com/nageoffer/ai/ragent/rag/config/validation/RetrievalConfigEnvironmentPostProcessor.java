@@ -40,6 +40,7 @@ public class RetrievalConfigEnvironmentPostProcessor implements EnvironmentPostP
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        // 环境准备后检查检索配置，存在矛盾就抛出携带全部问题的异常，阻止应用带错误开关启动。
         List<RetrievalChannelConfigValidator.Violation> violations = RetrievalChannelConfigValidator.validate(
                 environment::getProperty,
                 key -> environment.getProperty(key, Boolean.class, false));
@@ -50,6 +51,7 @@ public class RetrievalConfigEnvironmentPostProcessor implements EnvironmentPostP
 
     @Override
     public int getOrder() {
+        // 使用最低优先级，使校验尽量在其他环境配置处理完成后执行。
         return Ordered.LOWEST_PRECEDENCE;
     }
 }

@@ -52,6 +52,7 @@ public class DefaultContextFormatter implements ContextFormatter {
                                   Set<String> eligibleIntentIds,
                                   List<RetrievedChunk> rerankedChunks,
                                   int contextTopK) {
+        // 先限定真正获得证据准入的意图，再按零个、单个或多个有效意图选择上下文模板。
         if (CollUtil.isEmpty(rerankedChunks)) {
             return "";
         }
@@ -80,6 +81,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      */
     private List<NodeScore> eligibleIntents(List<NodeScore> kbIntents,
                                             Set<String> eligibleIntentIds) {
+        // 过滤空候选，只保留节点 ID 在证据准入集合中的意图，避免无证据意图注入专属规则。
         if (CollUtil.isEmpty(kbIntents) || CollUtil.isEmpty(eligibleIntentIds)) {
             return List.of();
         }
@@ -93,6 +95,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 格式化单意图上下文
      */
     private String formatSingleIntentContext(NodeScore nodeScore, List<RetrievedChunk> rerankedChunks, int topK) {
+        // 取该意图的提示片段，去重并按文档组织召回块，再一起渲染知识上下文。
         String snippet = StrUtil.emptyIfNull(nodeScore.getNode().getPromptSnippet()).trim();
         String docBlocks = renderChunksGroupedByDoc(distinctChunks(rerankedChunks), topK);
         return renderKbSection(renderSnippetRules(snippet), docBlocks);
@@ -135,6 +138,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 没有可用意图时仍可将去重后的召回切片按文档渲染，不附加意图规则。
      */
     private String formatChunksWithoutIntent(List<RetrievedChunk> rerankedChunks, int topK) {
+        // 没有有效意图时仍可展示去重后的召回证据，但不附加意图专属片段。
         List<RetrievedChunk> chunks = distinctChunks(rerankedChunks);
         if (chunks.isEmpty()) {
             return "";
@@ -148,6 +152,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 按稳定切片键去重，保留首次出现顺序，避免同一证据重复进入模型上下文。
      */
     private List<RetrievedChunk> distinctChunks(List<RetrievedChunk> chunks) {
+        // 按统一分块键去重，保留首次出现的块与顺序，避免不同通道的同一证据重复进入提示词。
         Map<String, RetrievedChunk> distinct = new LinkedHashMap<>();
         chunks.forEach(chunk -> distinct.putIfAbsent(RetrievedChunkKey.of(chunk), chunk));
         return new ArrayList<>(distinct.values());
@@ -157,6 +162,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 将规则片段和文档证据渲染为统一知识区段。
      */
     private String renderKbSection(String snippetSection, String docBlocks) {
+        // 把意图片段与文档块填入知识区段模板，模板结构集中在资源文件维护。
         return templateLoader.renderSection(CONTEXT_FORMAT_PATH, "kb-section", Map.of(
                 "snippet_section", snippetSection,
                 "doc_blocks", docBlocks
@@ -167,6 +173,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 把非空意图规则渲染为规则片段，空规则不生成额外模板文本。
      */
     private String renderSnippetRules(String snippet) {
+        // 片段为空时不渲染规则区段，否则把意图补充规则套入约定模板。
         if (StrUtil.isBlank(snippet)) {
             return "";
         }
@@ -180,6 +187,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 文档内部按 {@code chunkIndex} 升序还原原文顺序；docId 缺失的块各自单独成组、留在原位
      */
     private String renderChunksGroupedByDoc(List<RetrievedChunk> chunks, int topK) {
+        // 先按 Top-K 限制总块数，再按文档分组；无文档 ID 的块各自成组，避免错误合并。
         long limit = topK > 0 ? topK : Long.MAX_VALUE;
         List<RetrievedChunk> limited = chunks.stream().limit(limit).toList();
         if (limited.isEmpty()) {
@@ -206,11 +214,13 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 而提示词层面的禁令压不住。资料之间的区分交给 {@code ref} 编号，文档名只在前端来源列表展示
      */
     private String renderDocBlock(List<RetrievedChunk> group) {
+        // 同一文档内按块序号还原阅读顺序，存在有效文档 ID 时渲染可引用的文档块，否则用匿名模板。
         List<RetrievedChunk> ordered = group.stream()
                 .sorted(Comparator.comparing(RetrievedChunk::getChunkIndex,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
 
+        // 文档之间保留相关性顺序，文档内部恢复原块顺序，使模型阅读同文档证据时更连贯。
         String chunks = joinDocBody(ordered);
         String docId = sanitizeAttribute(resolveDocId(group));
         if (StrUtil.isNotBlank(docId)) {
@@ -228,6 +238,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 组内拼接文本：同文档的块按 index 排好后用换行顺次拼接
      */
     private String joinDocBody(List<RetrievedChunk> ordered) {
+        // 提取有效块正文并用换行连接，保留同一文档内已排好的顺序。
         return ordered.stream()
                 .map(RetrievedChunk::getText)
                 .map(StrUtil::emptyIfNull)
@@ -239,6 +250,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 清洗属性值里会破坏伪标签结构的字符（引号、尖括号）
      */
     private String sanitizeAttribute(String value) {
+        // 移除引号和尖括号再去空白，避免文档 ID 破坏提示词中的属性结构。
         if (StrUtil.isBlank(value)) {
             return "";
         }
@@ -249,6 +261,7 @@ public class DefaultContextFormatter implements ContextFormatter {
      * 从同组切片中取首个非空文档 ID，供证据分组和引用定位使用。
      */
     private String resolveDocId(List<RetrievedChunk> group) {
+        // 从当前文档分组找到首个有效文档 ID，没有时返回空字符串。
         return group.stream()
                 .map(RetrievedChunk::getDocId)
                 .filter(StrUtil::isNotBlank)

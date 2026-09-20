@@ -37,6 +37,7 @@ public class ParagraphChunker implements BlockChunker<ParagraphBlock> {
 
     @Override
     public Class<ParagraphBlock> blockType() {
+        // 声明处理普通段落块，交由文本切分器处理长段落。
         return ParagraphBlock.class;
     }
 
@@ -45,6 +46,7 @@ public class ParagraphChunker implements BlockChunker<ParagraphBlock> {
      */
     @Override
     public List<ChunkDraft> chunk(ParagraphBlock block, ChunkContext ctx) {
+        // 先按容忍上限尝试保留整段，确需拆分时再用标准块大小切分，并为各片段保留章节与溯源。
         if (block == null) {
             return List.of();
         }

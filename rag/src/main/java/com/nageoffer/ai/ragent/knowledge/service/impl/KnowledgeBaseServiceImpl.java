@@ -153,6 +153,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(KnowledgeBaseUpdateRequest requestParam) {
+        // 校验知识库有效，修改嵌入模型前确认没有已向量化文档，再更新允许字段与操作人并记录前后快照。
         // 读取原知识库并保存快照，再按请求字段判断是否需要修改模型。
         KnowledgeBaseDO kb = knowledgeBaseMapper.selectById(requestParam.getId());
         if (kb == null || kb.getDeleted() != null && kb.getDeleted() == 1) {

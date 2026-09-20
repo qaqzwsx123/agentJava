@@ -131,6 +131,7 @@ public class IntentNode {
      * - 叶子节点才会参与意图匹配打分
      */
     public boolean isLeaf() {
+        // 没有子节点列表或列表为空时视为叶节点，供分类目标与工具目录筛选。
         return children == null || children.isEmpty();
     }
 
@@ -138,6 +139,7 @@ public class IntentNode {
      * 是否为 KB 类型节点
      */
     public boolean isKB() {
+        // 类型为 KB 或旧数据未填写类型时按知识库意图处理，保持历史配置兼容。
         return kind == null || kind == IntentKind.KB;
     }
 
@@ -145,6 +147,7 @@ public class IntentNode {
      * 是否为 MCP 类型节点
      */
     public boolean isMCP() {
+        // 仅明确标记 MCP 的节点视为工具意图。
         return kind == IntentKind.MCP;
     }
 
@@ -152,6 +155,7 @@ public class IntentNode {
      * 是否为 SYSTEM 类型节点
      */
     public boolean isSystem() {
+        // 判断节点是否属于系统问答类型，供无需检索的流程分支使用。
         return kind == IntentKind.SYSTEM;
     }
 
@@ -161,6 +165,7 @@ public class IntentNode {
      */
     @JsonIgnore
     public List<String> getEffectiveCollectionNames() {
+        // 优先清理并去重新的多集合字段，没有有效项时回落旧单集合字段，最终保持首次出现顺序。
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         if (collectionNames != null) {
             collectionNames.stream()

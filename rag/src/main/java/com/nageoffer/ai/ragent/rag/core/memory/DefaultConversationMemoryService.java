@@ -40,6 +40,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
     public DefaultConversationMemoryService(ConversationMemoryStore memoryStore,
                                             ConversationMemorySummaryService summaryService,
                                             Executor memoryLoadExecutor) {
+        // 保存历史存储、摘要服务和加载执行器，使普通历史与摘要能够统一装配。
         this.memoryStore = memoryStore;
         this.summaryService = summaryService;
         this.memoryLoadExecutor = memoryLoadExecutor;
@@ -85,6 +86,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
      * 加载摘要，失败时返回 null
      */
     private ChatMessage loadSummaryWithFallback(String conversationId, String userId) {
+        // 按用户和会话读取最近摘要，异常时记录告警并跳过摘要，不阻止本轮聊天。
         try {
             return summaryService.loadLatestSummary(conversationId, userId);
         } catch (Exception e) {
@@ -97,6 +99,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
      * 加载历史记录，失败时返回空列表
      */
     private List<ChatMessage> loadHistoryWithFallback(String conversationId, String userId) {
+        // 读取会话历史，空结果或加载异常都返回空列表，确保后续消息装配有稳定输入。
         try {
             List<ChatMessage> history = memoryStore.loadHistory(conversationId, userId);
             return history != null ? history : List.of();
@@ -111,6 +114,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
      */
     @Override
     public String append(String conversationId, String userId, ChatMessage message) {
+        // 用户或会话标识缺失时不保存；有效消息先持久化，再交给摘要服务判断是否需要异步压缩。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             return null;
         }
@@ -123,6 +127,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
      * 历史存在时将装饰后的摘要前置；没有历史则返回空列表，没有摘要则直接复用历史。
      */
     private List<ChatMessage> attachSummary(ChatMessage summary, List<ChatMessage> messages) {
+        // 没有历史时不单独注入摘要；有历史且存在摘要时把包装后的系统摘要放到消息最前面。
         // 确保返回值不为 null
         if (CollUtil.isEmpty(messages)) {
             return List.of();

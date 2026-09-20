@@ -45,6 +45,7 @@ public class ConversationGroupServiceImpl implements ConversationGroupService {
      */
     @Override
     public List<ConversationMessageDO> listLatestUserOnlyMessages(String conversationId, String userId, int limit) {
+        // 参数有效时只取当前用户会话的未删除用户提问，按创建时间倒序限制数量，供摘要边界计算。
         // 该查询服务于用户提问统计或记忆处理，不混入助手消息。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId) || limit <= 0) {
             return List.of();
@@ -66,6 +67,7 @@ public class ConversationGroupServiceImpl implements ConversationGroupService {
      */
     @Override
     public List<ConversationMessageDO> listMessagesBetweenIds(String conversationId, String userId, String afterId, String beforeId) {
+        // 在同一用户和会话中读取有效 user、assistant 消息，ID 区间两端均不包含，并按 ID 升序返回。
         // 查询同时限定用户、会话、有效记录及 user/assistant 两种角色。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             return List.of();
@@ -92,6 +94,7 @@ public class ConversationGroupServiceImpl implements ConversationGroupService {
      */
     @Override
     public String findMaxMessageIdAtOrBefore(String conversationId, String userId, java.util.Date at) {
+        // 查找指定时刻之前或恰好该时刻的最大消息 ID，供旧摘要缺少覆盖边界时兼容回查。
         // 先按创建时间限定范围，再按消息 ID 倒序取一条。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId) || at == null) {
             return null;
@@ -114,6 +117,7 @@ public class ConversationGroupServiceImpl implements ConversationGroupService {
      */
     @Override
     public long countUserMessages(String conversationId, String userId) {
+        // 只统计当前用户会话的有效用户消息，用于按提问轮次判断是否触发摘要。
         // 统计口径固定为 user 角色及未删除消息。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             return 0;
@@ -133,6 +137,7 @@ public class ConversationGroupServiceImpl implements ConversationGroupService {
      */
     @Override
     public ConversationSummaryDO findLatestSummary(String conversationId, String userId) {
+        // 同时限定用户、会话和未删除状态，按摘要 ID 倒序取最新一条。
         // 摘要查询带用户和会话条件，供上下文构建复用。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             return null;

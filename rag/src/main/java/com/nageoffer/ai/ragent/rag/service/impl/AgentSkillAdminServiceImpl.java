@@ -74,6 +74,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      */
     @Override
     public IPage<AgentSkillVO> pageQuery(AgentSkillPageRequest requestParam) {
+        // 按编码、名称或场景说明的关键词分组匹配，按排序号与更新时间分页，列表不返回整份技能手册。
         // 使用管理视图查询全部有效技能，而非只读运行期启用清单。
         String keyword = StrUtil.trimToNull(requestParam.getKeyword());
         Page<AgentSkillDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
@@ -264,6 +265,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 工具到引用它的技能名，多技能共用时保留先遇到的那个
      */
     private Map<String, String> referencedToolOwners() {
+        // 按技能排序收集工具归属，同一个工具若已有归属只保留首次出现的技能名称。
         Map<String, String> owners = new HashMap<>();
         List<AgentSkillDO> skills = agentSkillMapper.selectList(
                 Wrappers.lambdaQuery(AgentSkillDO.class).orderByAsc(AgentSkillDO::getSortOrder));
@@ -282,6 +284,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 空白 ID 跳过，任何不在意图树 MCP 节点中的工具都会被拒绝。
      */
     private List<String> validateToolIds(List<String> toolIds) {
+        // 先从意图树读取可用 MCP 工具，再清理请求 ID 并逐个校验、稳定去重，不允许关联未登记工具。
         // 先建立业务允许的工具集合，再逐项核对请求中的关联关系。
         if (toolIds == null || toolIds.isEmpty()) {
             return List.of();
@@ -326,6 +329,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 规范技能名称并校验非空及长度上限，避免无效名称进入持久化。
      */
     private String requireName(String name) {
+        // 技能名称必须非空且不超过长度上限，校验通过后返回去空白结果。
         String trimmed = StrUtil.trimToNull(name);
         Assert.notBlank(trimmed, () -> new ClientException("技能名称不能为空"));
         if (trimmed.length() > NAME_MAX_LENGTH) {
@@ -338,6 +342,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 适用场景是模型判断要不要加载正文的唯一依据，留空等于这个技能永远轮不到
      */
     private String requireDescription(String description) {
+        // 适用场景必须填写并限长，这段说明用于模型判断何时选用技能。
         String trimmed = StrUtil.trimToNull(description);
         Assert.notBlank(trimmed, () -> new ClientException("适用场景不能为空，模型靠它判断何时该用这个技能"));
         if (trimmed.length() > DESCRIPTION_MAX_LENGTH) {
@@ -350,6 +355,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 去除技能正文首尾空白并校验必填，返回用于保存的正文。
      */
     private String requireContent(String content) {
+        // 技能手册正文不能为空，保存前清理首尾空白。
         String trimmed = StrUtil.trimToNull(content);
         Assert.notBlank(trimmed, () -> new ClientException("技能正文不能为空"));
         return trimmed;
@@ -359,6 +365,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 加载技能记录；不存在时抛出业务异常，避免修改或删除路径操作空对象。
      */
     private AgentSkillDO loadById(String id) {
+        // 按 ID 读取技能，不存在时转换为明确客户端错误。
         AgentSkillDO record = agentSkillMapper.selectById(id);
         Assert.notNull(record, () -> new ClientException("技能不存在"));
         return record;
@@ -368,6 +375,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
      * 转换技能响应，统一启用标志和空工具列表；仅详情等明确需要正文的场景返回 content。
      */
     private AgentSkillVO toVO(AgentSkillDO record, boolean withContent) {
+        // 转换基本信息、工具列表和启用状态，仅详情场景按 withContent 返回手册正文。
         return AgentSkillVO.builder()
                 .id(record.getId())
                 .skillCode(record.getSkillCode())

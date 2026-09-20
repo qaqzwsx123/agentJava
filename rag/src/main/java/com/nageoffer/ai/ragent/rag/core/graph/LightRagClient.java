@@ -66,6 +66,7 @@ public class LightRagClient {
                           ObjectMapper objectMapper,
                           GraphProperties properties,
                           SearchChannelProperties searchProperties) {
+        // 保存 HTTP、JSON、图谱和检索配置，图谱查询与同步共用这一客户端。
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.properties = properties;
@@ -85,6 +86,7 @@ public class LightRagClient {
      * @param collections 目标知识库 collection 名，空则全部归入命中份
      */
     public GraphEvidence retrieveByScope(String question, String mode, int topK, Collection<String> collections) {
+        // 请求图谱上下文与引用，不让远端生成最终回答；解析引用时再按集合范围过滤，失败降级为空证据。
         if (StrUtil.isBlank(question)) {
             return GraphEvidence.empty();
         }
@@ -117,6 +119,7 @@ public class LightRagClient {
      * @param maxNodes 最大节点数（服务端上限 1000）
      */
     public JsonNode fetchGraph(String label, int maxDepth, int maxNodes) {
+        // 规范标签与图规模参数后调用图谱接口，地址无效或远端异常时返回 null 供展示降级。
         try {
             HttpUrl base = HttpUrl.parse(url("/graphs"));
             if (base == null) {
@@ -143,6 +146,7 @@ public class LightRagClient {
      * @param limit   返回上限
      */
     public List<String> fetchLabels(String keyword, int limit) {
+        // 无关键词走热门标签接口，有关键词走搜索接口，分别限量并兼容文本或对象两种标签结果。
         try {
             boolean popular = StrUtil.isBlank(keyword);
             HttpUrl base = HttpUrl.parse(url(popular ? "/graph/label/popular" : "/graph/label/search"));
@@ -179,6 +183,7 @@ public class LightRagClient {
      * 取值兜底并封顶：非正值回退 fallback，超出 max 截到 max
      */
     private int clamp(int value, int fallback, int max) {
+        // 非正值使用默认数量，再限制不超过接口允许的最大值。
         int v = value > 0 ? value : fallback;
         return Math.min(v, max);
     }
@@ -192,6 +197,7 @@ public class LightRagClient {
      * @param fileSource 来源标识（建议传 docId）
      */
     public void insertText(String text, String fileSource) {
+        // 有效文本才提交图谱文档，附可选来源编码；同步失败仅记告警，不向量写入调用方继续抛出。
         if (StrUtil.isBlank(text)) {
             return;
         }
@@ -213,6 +219,7 @@ public class LightRagClient {
      * docId 全局唯一（雪花），作为 token 落在 file_path 中，不受服务端 basename 归一化影响，匹配稳
      */
     public void deleteByDoc(String docId) {
+        // 按文档 ID 在远端来源路径中匹配并删除，空 ID 不发起请求。
         if (StrUtil.isBlank(docId)) {
             return;
         }
@@ -226,6 +233,7 @@ public class LightRagClient {
      * 子串匹配会连带删光别库的图谱数据且不可逆
      */
     public void deleteByCollection(String collectionName) {
+        // 先解析远端来源编码，只删除集合名精确匹配的文档，避免按集合子串误删。
         if (StrUtil.isBlank(collectionName)) {
             return;
         }
@@ -242,6 +250,7 @@ public class LightRagClient {
      * 全量列举后在内存匹配，语料很大时可改用 /documents/paginated 过滤。best-effort，任一步异常只记 warn
      */
     private void deleteMatching(Predicate<String> filePathMatch, String logKey) {
+        // 读取远端按状态分组的文档，筛出匹配来源的远端 ID 后批量请求删除，异常沿用日志降级策略。
         try {
             JsonNode docs = get("/documents");
             if (docs == null) {
@@ -281,6 +290,7 @@ public class LightRagClient {
      * <=0 不另设；只有检索走此路，写入 / 删除 / 可视化沿用基础 client 默认超时，不受检索预算影响
      */
     private JsonNode postQuery(JsonNode body) throws Exception {
+        // 按检索通道超时派生查询客户端，仅查询请求采用该超时，再发送带鉴权的 JSON。
         long timeoutMs = searchProperties.getChannels().getTimeoutMs();
         OkHttpClient client = timeoutMs <= 0 ? httpClient : httpClient.newBuilder()
                 .callTimeout(Duration.ofMillis(timeoutMs))
@@ -294,6 +304,7 @@ public class LightRagClient {
      * 序列化请求正文、附加鉴权并发送 JSON POST，复用统一响应处理。
      */
     private JsonNode post(String path, JsonNode body) throws Exception {
+        // 构造 JSON POST 并交给统一响应处理，供图谱写入等接口复用。
         return execute(auth(new Request.Builder().url(url(path))
                 .post(RequestBody.create(objectMapper.writeValueAsString(body), JSON))), path);
     }
@@ -302,6 +313,7 @@ public class LightRagClient {
      * 为 GET 请求附加鉴权并交给统一执行方法。
      */
     private JsonNode get(String path) throws Exception {
+        // 构造带配置鉴权的 GET 请求，统一处理 HTTP 与 JSON 响应。
         return execute(auth(new Request.Builder().url(url(path)).get()), path);
     }
 
@@ -309,6 +321,7 @@ public class LightRagClient {
      * 携带 JSON 正文发起带鉴权的 DELETE，供图谱文档删除等操作使用。
      */
     private JsonNode delete(String path, JsonNode body) throws Exception {
+        // 用带 JSON 正文的 DELETE 提交批量删除目标，保持与远端接口协议一致。
         return execute(auth(new Request.Builder().url(url(path))
                 .delete(RequestBody.create(objectMapper.writeValueAsString(body), JSON))), path);
     }
@@ -317,6 +330,7 @@ public class LightRagClient {
      * 去除服务基地址末尾斜线后拼接接口路径，避免重复分隔符。
      */
     private String url(String path) {
+        // 去掉基础地址尾部斜线再追加接口路径，避免出现双斜线。
         return StrUtil.removeSuffix(properties.getLightrag().getBaseUrl(), "/") + path;
     }
 
@@ -324,6 +338,7 @@ public class LightRagClient {
      * 本地部署默认无 Key，仅在显式配置时附带鉴权头
      */
     private Request.Builder auth(Request.Builder builder) {
+        // 只有配置了 API Key 才增加 X-API-Key 请求头，未配置时保留原请求。
         String apiKey = properties.getLightrag().getApiKey();
         if (StrUtil.isNotBlank(apiKey)) {
             builder.header("X-API-Key", apiKey);
@@ -335,6 +350,7 @@ public class LightRagClient {
      * 统一执行：非 2xx / 空响应返回 null，异常向上抛由调用方降级
      */
     private JsonNode execute(Request.Builder builder, String path) throws Exception {
+        // 使用默认或指定客户端执行并自动关闭响应，HTTP 失败记录告警返回 null，有效正文才解析为 JSON。
         return execute(builder, path, httpClient);
     }
 
@@ -342,6 +358,7 @@ public class LightRagClient {
      * 执行 LightRAG HTTP 请求并关闭响应，成功时解析非空 JSON；非成功状态记录告警并返回 null。
      */
     private JsonNode execute(Request.Builder builder, String path, OkHttpClient client) throws Exception {
+        // 使用默认或指定客户端执行并自动关闭响应，HTTP 失败记录告警返回 null，有效正文才解析为 JSON。
         try (Response response = client.newCall(builder.build()).execute()) {
             if (!response.isSuccessful()) {
                 log.warn("LightRAG 请求失败 path={}, code={}", path, response.code());
@@ -435,6 +452,7 @@ public class LightRagClient {
      * 证据落入补充份而非主份，比误归属安全
      */
     private boolean matchesCollection(String filePath, Collection<String> collections) {
+        // 从图谱文件路径恢复集合名后检查是否在本轮允许集合中，格式不符不算命中。
         GraphFileSource source = GraphFileSource.parse(filePath);
         return source != null && collections.contains(source.collectionName());
     }

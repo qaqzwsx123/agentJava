@@ -42,6 +42,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
     private final LightRagClient lightRagClient;
 
     public GraphSyncingVectorStoreService(VectorStoreService delegate, LightRagClient lightRagClient) {
+        // 保存原向量服务和图谱客户端，使用装饰器在主操作之后执行辅助图谱同步。
         this.delegate = delegate;
         this.lightRagClient = lightRagClient;
     }
@@ -51,6 +52,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
+        // 先完成原向量写入，再合并本次正文同步到图谱，图谱失败不撤销已完成的向量操作。
         delegate.indexDocumentChunks(collectionName, docId, chunks);
         syncGraph(docId, () -> lightRagClient.insertText(concatContent(chunks), fileSource(collectionName, docId)));
     }
@@ -69,6 +71,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
+        // 先删除原向量，再按文档清理图谱，辅助同步使用统一日志容错。
         delegate.deleteDocumentVectors(collectionName, docId);
         syncGraph(docId, () -> lightRagClient.deleteByDoc(docId));
     }
@@ -95,6 +98,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
      * 图谱 file_source 编码，读取侧的归属判定与删除匹配依赖同一格式，见 {@link GraphFileSource}
      */
     private String fileSource(String collectionName, String docId) {
+        // 复用图谱来源编码，保证图谱写入后仍可恢复逻辑集合与文档归属。
         return GraphFileSource.encode(collectionName, docId);
     }
 
@@ -102,6 +106,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
      * 拼接分块正文为文档全文，空白分块跳过
      */
     private String concatContent(List<EmbeddedChunk> chunks) {
+        // 去掉空正文后按段落连接所有块，作为图谱服务的一份文档输入。
         if (chunks == null || chunks.isEmpty()) {
             return "";
         }
@@ -115,6 +120,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
      * best-effort 执行图谱同步，失败仅告警，不影响向量主链路
      */
     private void syncGraph(String docId, Runnable action) {
+        // 执行辅助同步，异常仅记录告警，避免图谱不可用阻断向量主链路。
         try {
             action.run();
         } catch (Exception e) {

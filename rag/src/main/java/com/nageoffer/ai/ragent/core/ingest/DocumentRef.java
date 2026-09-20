@@ -29,6 +29,7 @@ package com.nageoffer.ai.ragent.core.ingest;
 public record DocumentRef(String docId, String kbId, String filename) {
 
     public DocumentRef {
+        // 文档 ID 与知识库 ID 都必须有效，缺失时在进入解析或落库前明确拒绝。
         if (docId == null || docId.isBlank()) {
             throw new IllegalArgumentException("docId 不能为空");
         }
@@ -41,6 +42,7 @@ public record DocumentRef(String docId, String kbId, String filename) {
      * 删除路径用：不需要文件名
      */
     public static DocumentRef of(String docId, String kbId) {
+        // 创建只指定文档 ID 与知识库 ID 的引用，文件名留空供后续按需补充。
         return new DocumentRef(docId, kbId, null);
     }
 }

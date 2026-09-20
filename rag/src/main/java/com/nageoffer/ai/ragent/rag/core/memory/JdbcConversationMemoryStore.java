@@ -46,6 +46,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
     public JdbcConversationMemoryStore(ConversationService conversationService,
                                        ConversationMessageService conversationMessageService,
                                        MemoryProperties memoryProperties) {
+        // 保存会话、消息和记忆配置依赖，历史读取与追加统一通过现有业务服务完成。
         this.conversationService = conversationService;
         this.conversationMessageService = conversationMessageService;
         this.memoryProperties = memoryProperties;
@@ -56,6 +57,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
      */
     @Override
     public List<ChatMessage> loadHistory(String conversationId, String userId) {
+        // 按配置条数加载当前用户会话的最近消息，转换并过滤有效角色，再移除窗口开头孤立的助手消息。
         int maxMessages = resolveMaxHistoryMessages();
         List<ConversationMessageVO> dbMessages = conversationMessageService.listMessages(
                 conversationId,
@@ -81,6 +83,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
      */
     @Override
     public String append(String conversationId, String userId, ChatMessage message) {
+        // 保存正文、思考、来源和回复关联等字段，只有用户消息才触发会话创建或活跃时间更新。
         ConversationMessageBO conversationMessage = ConversationMessageBO.builder()
                 .conversationId(conversationId)
                 .userId(userId)
@@ -117,6 +120,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
      * 把持久化记录转为模型历史消息，助手正文去除内部引用标记，保留消息状态。
      */
     private ChatMessage toChatMessage(ConversationMessageVO record) {
+        // 无正文记录不进入历史，助手正文先移除历史引用标记，再还原角色与消息状态。
         if (record == null || StrUtil.isBlank(record.getContent())) {
             return null;
         }
@@ -135,6 +139,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
      * 移除列表开头孤立的助手消息，保证保留的历史从用户消息开始；全部为助手消息时返回空列表。
      */
     private List<ChatMessage> normalizeHistory(List<ChatMessage> messages) {
+        // 从第一个用户消息开始保留窗口，过滤开头没有对应提问的助手回复，全是助手消息时返回空列表。
         if (messages == null || messages.isEmpty()) {
             return List.of();
         }
@@ -152,6 +157,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
      * 仅保留有正文的用户和助手消息，排除空对象及其他角色。
      */
     private boolean isHistoryMessage(ChatMessage message) {
+        // 历史只保留非空的用户或助手消息，其他角色或空正文不会进入最近对话窗口。
         return message != null
                 && (message.getRole() == ChatMessage.Role.USER || message.getRole() == ChatMessage.Role.ASSISTANT)
                 && StrUtil.isNotBlank(message.getContent());
@@ -161,6 +167,7 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
      * 按每轮两条消息，将保留历史轮数转换为最大消息数。
      */
     private int resolveMaxHistoryMessages() {
+        // 每轮按用户和助手两条消息估算，将保留轮数换算成查询消息上限。
         int maxTurns = memoryProperties.getHistoryKeepTurns();
         return maxTurns * 2;
     }

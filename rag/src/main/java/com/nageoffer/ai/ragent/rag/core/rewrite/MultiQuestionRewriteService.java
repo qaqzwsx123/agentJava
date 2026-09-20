@@ -65,6 +65,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     @Override
     @RagTraceNode(name = "query-rewrite", type = "REWRITE")
     public String rewrite(String userQuestion) {
+        // 复用改写加拆分流程，只返回合并后的改写问题，兼容单问题调用接口。
         return rewriteWithSplit(userQuestion).rewrittenQuestion();
     }
 
@@ -73,6 +74,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
      */
     @Override
     public RewriteResult rewriteWithSplit(String userQuestion) {
+        // 先执行术语归一化，开关关闭时按规则拆分，开启时结合可选历史调用模型改写与拆分。
         return rewriteWithSplit(userQuestion, List.of());
     }
 
@@ -82,6 +84,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     @Override
     @RagTraceNode(name = "query-rewrite-and-split", type = "REWRITE")
     public RewriteResult rewriteWithSplit(String userQuestion, List<ChatMessage> history) {
+        // 先执行术语归一化，开关关闭时按规则拆分，开启时结合可选历史调用模型改写与拆分。
         if (!ragConfigProperties.getQueryRewriteEnabled()) {
             String normalized = queryTermMappingService.normalize(userQuestion);
             List<String> subs = ruleBasedSplit(normalized);
@@ -99,6 +102,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     private RewriteResult callLLMRewriteAndSplit(String normalizedQuestion,
                                                  String originalQuestion,
                                                  List<ChatMessage> history) {
+        // 加载改写模板并筛选历史，模型调用或 JSON 解析失败时统一保留归一化问题作为单个子问题。
         String systemPrompt = promptTemplateLoader.load(QUERY_REWRITE_AND_SPLIT_PROMPT_PATH);
         List<ChatMessage> rewriteHistory = selectRewriteHistory(history);
         ChatRequest req = buildRewriteRequest(systemPrompt, normalizedQuestion, rewriteHistory);
@@ -133,6 +137,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
      * 只丢不排，上游「以 USER 打头、按时间升序」的保证继续成立
      */
     private List<ChatMessage> selectRewriteHistory(List<ChatMessage> history) {
+        // 倒序挑选近期历史，助手只保留数量上限内的正常消息，最后恢复原有消息顺序。
         if (CollUtil.isEmpty(history)) {
             return List.of();
         }
@@ -157,6 +162,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
      * 状态缺失按正常对待，宁可多带一条也别把真答案误判掉
      */
     private boolean isUsableAssistant(ChatMessage message) {
+        // 助手状态为正常或历史数据未填状态时才允许参与改写，避免错误或取消回复成为改写依据。
         ChatMessage.MessageStatus status = message.getMessageStatus();
         return status == null || status == ChatMessage.MessageStatus.NORMAL;
     }
@@ -167,6 +173,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     private ChatRequest buildRewriteRequest(String systemPrompt,
                                             String question,
                                             List<ChatMessage> rewriteHistory) {
+        // 按系统提示、历史、当前问题的顺序构建请求，当前问题始终是最后一条，并关闭思考降低改写开销。
         List<ChatMessage> messages = new ArrayList<>();
         if (StrUtil.isNotBlank(systemPrompt)) {
             messages.add(ChatMessage.system(systemPrompt));
@@ -188,6 +195,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
      * 去除 Markdown 围栏后解析 rewrite 和 sub_questions，过滤空子问题；缺少有效改写时返回 null。
      */
     private RewriteResult parseRewriteAndSplit(String raw) {
+        // 清除代码围栏后读取 rewrite 和有效字符串子问题，缺改写正文返回 null，缺子问题则用改写问题兜底。
         try {
             // 移除可能存在的 Markdown 代码块标记
             String cleaned = LLMResponseCleaner.stripMarkdownCodeFence(raw);
@@ -227,6 +235,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
      * 按问号、句号、分号和换行切分问题，过滤空片段并补问号，无法拆分时保留原问题。
      */
     private List<String> ruleBasedSplit(String question) {
+        // 按问号、句号、分号和换行拆出非空片段，并为各段补问号；无法拆出有效项时保留原问题。
         // 兜底：按常见分隔符拆分
         List<String> parts = Arrays.stream(question.split("[?？。；;\\n]+"))
                 .map(String::trim)

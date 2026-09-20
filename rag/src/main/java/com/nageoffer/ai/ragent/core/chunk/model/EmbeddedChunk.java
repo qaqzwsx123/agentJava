@@ -28,6 +28,7 @@ package com.nageoffer.ai.ragent.core.chunk.model;
 public record EmbeddedChunk(Chunk chunk, float[] embedding) {
 
     public EmbeddedChunk {
+        // 必须同时具备原始分块和非空向量，否则在构造阶段立即报错，避免写入不完整索引。
         if (chunk == null) {
             throw new IllegalArgumentException("chunk 不能为 null");
         }
@@ -40,6 +41,7 @@ public record EmbeddedChunk(Chunk chunk, float[] embedding) {
      * 读取所包装切片的稳定 ID，作为各索引后端共享的主键。
      */
     public String chunkId() {
+        // 直接复用内部原始分块的标识，保证向量和正文关联到同一块。
         return chunk.chunkId();
     }
 
@@ -47,6 +49,7 @@ public record EmbeddedChunk(Chunk chunk, float[] embedding) {
      * 读取所包装切片在文档中的序号。
      */
     public int index() {
+        // 返回原始分块的文档内序号，不单独维护另一份顺序。
         return chunk.index();
     }
 
@@ -54,10 +57,12 @@ public record EmbeddedChunk(Chunk chunk, float[] embedding) {
      * 读取所包装切片的展示正文，不在这里重新生成嵌入文本。
      */
     public String content() {
+        // 返回原始分块的展示正文，供存储和回显复用。
         return chunk.content();
     }
 
     public String embeddingText() {
+        // 返回原始分块用于向量化的语义文本。
         return chunk.embeddingText();
     }
 
@@ -65,10 +70,12 @@ public record EmbeddedChunk(Chunk chunk, float[] embedding) {
      * 读取所包装切片的结构化元数据，供索引序列化和溯源使用。
      */
     public ChunkMetadata metadata() {
+        // 直接返回原始分块的元数据，保持向量结果与分块上下文一致。
         return chunk.metadata();
     }
 
     public int dimension() {
+        // 向量数组长度就是实际嵌入维度，供写入前校验目标空间。
         return embedding.length;
     }
 }

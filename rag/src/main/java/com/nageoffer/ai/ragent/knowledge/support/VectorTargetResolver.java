@@ -42,6 +42,7 @@ public class VectorTargetResolver {
      * 派生落点，缺配置直接失败而不是回落默认值
      */
     public VectorTarget resolve(KnowledgeBaseDO kbDO) {
+        // 验证知识库、其嵌入模型和部署向量维度均有效，再绑定集合名、模型和维度作为唯一写入落点。
         if (kbDO == null) {
             throw new ClientException("知识库不存在");
         }

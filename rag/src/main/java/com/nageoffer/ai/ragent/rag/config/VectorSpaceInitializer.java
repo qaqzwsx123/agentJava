@@ -53,12 +53,14 @@ public class VectorSpaceInitializer {
 
     @PostConstruct
     public void initVectorSpace() {
+        // 启动时确保默认逻辑集合对应的共享向量空间就绪，避免首个检索或写入请求才触发初始化。
         String collectionName = ragDefaultProperties.getCollectionName();
         ensureVectorSpace(collectionName);
         log.info("向量共享空间就绪 collection={}", collectionName);
     }
 
     private void ensureVectorSpace(String collectionName) {
+        // 双重检查加分布式锁保护建空间过程，中断和等待超时明确报错，结束时释放本线程持有的锁。
         VectorSpaceId spaceId = VectorSpaceId.builder().logicalName(collectionName).build();
         if (vectorStoreAdmin.vectorSpaceExists(spaceId)) {
             return;

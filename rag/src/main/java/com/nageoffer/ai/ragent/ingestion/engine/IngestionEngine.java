@@ -47,6 +47,7 @@ public class IngestionEngine {
             List<IngestionNode> nodes,
             ConditionEvaluator conditionEvaluator,
             NodeOutputExtractor outputExtractor) {
+        // 按节点类型建立实现映射，并保存条件判断与节点输出提取器，供流水线调度复用。
         this.nodeMap = nodes.stream()
                 .collect(Collectors.toMap(IngestionNode::getNodeType, n -> n));
         this.conditionEvaluator = conditionEvaluator;
@@ -96,6 +97,7 @@ public class IngestionEngine {
      * 构建节点配置映射
      */
     private Map<String, NodeConfig> buildNodeConfigMap(List<NodeConfig> nodes) {
+        // 将节点列表按节点 ID 建索引，空输入使用空映射，便于后续按连接关系跳转。
         if (nodes == null) {
             return Collections.emptyMap();
         }
@@ -149,6 +151,7 @@ public class IngestionEngine {
      * 找到起始节点（没有被任何节点引用的节点）
      */
     private List<String> findStartNodes(Map<String, NodeConfig> nodeConfigMap) {
+        // 收集所有被 nextNodeId 引用的节点，未被引用的节点作为入口，并排序保证入口遍历顺序稳定。
         Set<String> referencedNodes = nodeConfigMap.values().stream()
                 .map(NodeConfig::getNextNodeId)
                 .filter(StringUtils::hasText)

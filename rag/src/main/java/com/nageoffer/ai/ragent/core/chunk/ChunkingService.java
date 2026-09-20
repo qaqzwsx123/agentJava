@@ -48,6 +48,7 @@ public class ChunkingService {
      * @param budget 分块预算，整文档模式由 {@link ChunkBudget#isWholeDocument()} 表达
      */
     public List<Chunk> chunk(List<Block> blocks, ChunkBudget budget) {
+        // 整篇模式走全文渲染，其余模式按 Block 类型分派和预算打包。
         if (budget.isWholeDocument()) {
             return wholeDocument(blocks);
         }
@@ -58,6 +59,7 @@ public class ChunkingService {
      * 将全部结构化块渲染成一个切片，空文档不产出，溯源取首块，供整篇模式使用。
      */
     private List<Chunk> wholeDocument(List<Block> blocks) {
+        // 把全部块渲染成单段文本，空文档不产出分块；整篇块采用首块溯源并使用序号零。
         if (blocks == null || blocks.isEmpty()) {
             return List.of();
         }

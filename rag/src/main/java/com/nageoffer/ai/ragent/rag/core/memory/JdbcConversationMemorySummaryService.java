@@ -71,6 +71,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      */
     @Override
     public void compressIfNeeded(String conversationId, String userId, ChatMessage message) {
+        // 摘要关闭或本次不是助手回复时直接结束，只有回复落地后才提交异步压缩任务并记录异常。
         if (!memoryProperties.getSummaryEnabled()) {
             return;
         }
@@ -90,6 +91,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      */
     @Override
     public ChatMessage loadLatestSummary(String conversationId, String userId) {
+        // 按用户和会话查询最近摘要，再转换成模型可接收的系统消息。
         ConversationSummaryDO summary = conversationGroupService.findLatestSummary(conversationId, userId);
         return toChatMessage(summary);
     }
@@ -99,6 +101,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      */
     @Override
     public ChatMessage decorateIfNeeded(ChatMessage summary) {
+        // 有效摘要通过统一摘要包装模板渲染为系统消息，空摘要保持原值。
         if (summary == null || StrUtil.isBlank(summary.getContent())) {
             return summary;
         }
@@ -200,6 +203,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 模型调用失败返回旧摘要；长度约束由提示词提出，本方法没有再次截断模型结果。
      */
     private String summarizeMessages(List<ConversationMessageDO> messages, String existingSummary) {
+        // 把有效对话与已有摘要一起交给 FAST 模型合并，已有摘要只作去重素材，模型失败保留原摘要。
         List<ChatMessage> histories = toHistoryMessages(messages);
         if (CollUtil.isEmpty(histories)) {
             return existingSummary;
@@ -225,6 +229,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
                 "合并以上对话与历史摘要，去重后输出更新摘要。要求：严格≤" + summaryMaxChars + "字符；仅一行。"
         ));
 
+        // 摘要目标长度通过提示词约束，现有实现不在此处截断模型结果；失败时沿用已有摘要。
         ChatRequest request = ChatRequest.builder()
                 .messages(summaryMessages)
                 .temperature(0.3D)
@@ -246,6 +251,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 只保留非空的用户、助手正文，去除助手引用标记，作为摘要模型的素材。
      */
     private List<ChatMessage> toHistoryMessages(List<ConversationMessageDO> messages) {
+        // 只保留有正文和有效角色的用户、助手消息，助手引用标记先去除，其他角色跳过。
         if (CollUtil.isEmpty(messages)) {
             return List.of();
         }
@@ -270,6 +276,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 把非空摘要记录转换为系统消息，缺少有效摘要时返回 null。
      */
     private ChatMessage toChatMessage(ConversationSummaryDO record) {
+        // 有效摘要转换为 SYSTEM 角色消息，没有记录或没有正文时返回 null。
         if (record == null || StrUtil.isBlank(record.getContent())) {
             return null;
         }
@@ -280,6 +287,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 优先用摘要记录中的消息水位；兼容旧记录时按摘要更新时间或创建时间查询覆盖边界。
      */
     private String resolveSummaryStartId(String conversationId, String userId, ConversationSummaryDO summary) {
+        // 优先沿用摘要已经覆盖的最后消息 ID，历史摘要缺该字段时按更新时间回查边界。
         if (summary == null) {
             return null;
         }
@@ -311,6 +319,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 取用户轮次列表约中间位置的 ID，作为本轮摘要截止边界，保留与原文的重叠。
      */
     private String resolveSummaryCutoffId(List<ConversationMessageDO> latestUserTurns) {
+        // 从最近用户轮次列表的中间位置选取截止 ID，形成摘要与保留历史之间的重叠边界。
         if (CollUtil.isEmpty(latestUserTurns)) {
             return null;
         }
@@ -323,6 +332,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 从待摘要消息尾部向前寻找最后一个有效 ID，保存为新摘要的覆盖水位。
      */
     private String resolveLastMessageId(List<ConversationMessageDO> toSummarize) {
+        // 从待摘要消息尾部向前寻找有效 ID，作为这次摘要覆盖到的最后一条消息。
         for (int i = toSummarize.size() - 1; i >= 0; i--) {
             ConversationMessageDO item = toSummarize.get(i);
             if (item != null && item.getId() != null) {
@@ -339,6 +349,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
                                String userId,
                                String content,
                                String lastMessageId) {
+        // 将用户、会话、摘要正文和覆盖截止 ID 一起保存，便于下次增量压缩接续。
         ConversationSummaryBO summaryRecord = ConversationSummaryBO.builder()
                 .conversationId(conversationId)
                 .userId(userId)
@@ -352,6 +363,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
      * 由用户 ID 和会话 ID 共同构造摘要锁后缀，使不同用户、会话的摘要互不争用。
      */
     private String buildLockKey(String conversationId, String userId) {
+        // 将用户与会话标识去空白后组合，区分不同用户和会话的摘要锁。
         return userId.trim() + ":" + conversationId.trim();
     }
 }

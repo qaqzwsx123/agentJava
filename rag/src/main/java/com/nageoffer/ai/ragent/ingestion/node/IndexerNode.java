@@ -60,6 +60,7 @@ public class IndexerNode implements IngestionNode {
                        VectorStoreAdmin vectorStoreAdmin,
                        VectorStoreService vectorStoreService,
                        RAGDefaultProperties ragDefaultProperties) {
+        // 保存设置转换、向量空间管理、向量写入及默认配置依赖，供索引阶段使用。
         this.objectMapper = objectMapper;
         this.vectorStoreAdmin = vectorStoreAdmin;
         this.vectorStoreService = vectorStoreService;
@@ -68,6 +69,7 @@ public class IndexerNode implements IngestionNode {
 
     @Override
     public String getNodeType() {
+        // 返回索引节点类型，供引擎匹配流水线配置。
         return IngestionNodeType.INDEXER.getValue();
     }
 
@@ -77,6 +79,7 @@ public class IndexerNode implements IngestionNode {
      */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
+        // 确认有分块与目标分区后附加流水线元数据；调用方要求延迟写入时只准备数据，否则确保空间后写向量。
         List<EmbeddedChunk> chunks = context.getChunks();
         if (chunks == null || chunks.isEmpty()) {
             return NodeResult.fail(new ClientException("没有可索引的分块"));
@@ -105,6 +108,7 @@ public class IndexerNode implements IngestionNode {
      * 解析索引节点设置，未配置时使用默认对象。
      */
     private IndexerSettings parseSettings(JsonNode node) {
+        // 空设置采用默认索引配置，其余通过 JSON 转为类型化设置。
         if (node == null || node.isNull()) {
             return IndexerSettings.builder().build();
         }
@@ -115,6 +119,7 @@ public class IndexerNode implements IngestionNode {
      * 依次从向量目标、向量空间标识和系统默认配置中取得逻辑分区名。
      */
     private String resolvePartition(IngestionContext context) {
+        // 优先使用明确绑定的向量落点，其次取逻辑空间名，最后回落默认集合名称。
         if (context.getVectorTarget() != null) {
             return context.getVectorTarget().partition();
         }
@@ -132,6 +137,7 @@ public class IndexerNode implements IngestionNode {
     private List<EmbeddedChunk> attachPipelineMetadata(IngestionContext context,
                                                        List<EmbeddedChunk> chunks,
                                                        List<String> metadataFields) {
+        // 收集任务、来源和上下文元数据，按配置字段过滤后合并进各块扩展信息，保持原有向量不变。
         Map<String, Object> pipelineMetadata = new LinkedHashMap<>();
         putIfPresent(pipelineMetadata, "task_id", context.getTaskId());
         putIfPresent(pipelineMetadata, "pipeline_id", context.getPipelineId());
@@ -145,6 +151,7 @@ public class IndexerNode implements IngestionNode {
         if (context.getMetadata() != null) {
             pipelineMetadata.putAll(context.getMetadata());
         }
+        // 配置了白名单时只保留列出的键，避免把全部上下文元数据无条件传播到每个块。
         if (metadataFields != null && !metadataFields.isEmpty()) {
             pipelineMetadata.keySet().retainAll(metadataFields);
         }
@@ -152,6 +159,7 @@ public class IndexerNode implements IngestionNode {
             return chunks;
         }
 
+        // 创建新的分块元数据对象并复用原向量数组，附加业务标签不重新请求嵌入模型。
         List<EmbeddedChunk> result = new ArrayList<>(chunks.size());
         for (EmbeddedChunk chunk : chunks) {
             result.add(new EmbeddedChunk(
@@ -165,6 +173,7 @@ public class IndexerNode implements IngestionNode {
      * 仅将非空白字段加入索引元数据，避免保存无效标识。
      */
     private static void putIfPresent(Map<String, Object> map, String key, String value) {
+        // 只有非空白字符串才写入元数据，减少空字段干扰索引。
         if (StringUtils.hasText(value)) {
             map.put(key, value);
         }
@@ -174,6 +183,7 @@ public class IndexerNode implements IngestionNode {
      * 按逻辑分区检查向量空间，不存在时使用默认规格创建，具体后端由 VectorStoreAdmin 处理。
      */
     private void ensureVectorSpace(String partition) {
+        // 先检查目标逻辑空间是否存在，不存在时通过管理接口创建，避免每次索引都重复建空间。
         VectorSpaceId spaceId = VectorSpaceId.builder().logicalName(partition).build();
         if (vectorStoreAdmin.vectorSpaceExists(spaceId)) {
             return;

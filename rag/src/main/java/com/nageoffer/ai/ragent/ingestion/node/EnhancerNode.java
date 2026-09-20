@@ -50,12 +50,14 @@ public class EnhancerNode implements IngestionNode {
     private final LLMService llmService;
 
     public EnhancerNode(ObjectMapper objectMapper, LLMService llmService) {
+        // 保存配置转换器与模型服务，供文档级增强任务使用。
         this.objectMapper = objectMapper;
         this.llmService = llmService;
     }
 
     @Override
     public String getNodeType() {
+        // 返回文档增强节点类型，供引擎按配置选择实现。
         return IngestionNodeType.ENHANCER.getValue();
     }
 
@@ -106,6 +108,7 @@ public class EnhancerNode implements IngestionNode {
      * 解析增强节点配置，缺失配置时返回空任务列表。
      */
     private EnhancerSettings parseSettings(JsonNode node) {
+        // 空配置表示没有增强任务，其余 JSON 按增强设置转换。
         if (node == null || node.isNull()) {
             return EnhancerSettings.builder().tasks(List.of()).build();
         }
@@ -116,6 +119,7 @@ public class EnhancerNode implements IngestionNode {
      * 正文增强始终以原始正文为输入，其他增强优先使用已有增强正文，缺失时使用原文。
      */
     private String resolveInputText(IngestionContext context, EnhanceType type) {
+        // 上下文增强任务始终取原文，其他任务优先使用已有增强正文，没有时回落原文。
         if (type == EnhanceType.CONTEXT_ENHANCE) {
             return context.getRawText();
         }
@@ -129,6 +133,7 @@ public class EnhancerNode implements IngestionNode {
      * 以正文、媒体类型及任务标识填充自定义模板；没有模板时直接把正文作为用户输入。
      */
     private String buildUserPrompt(String template, String input, IngestionContext context) {
+        // 无模板直接使用正文，有模板时填入正文、MIME、任务和流水线标识等变量。
         if (!StringUtils.hasText(template)) {
             return input;
         }
@@ -145,6 +150,7 @@ public class EnhancerNode implements IngestionNode {
      * 通过 FAST 档路由调用模型，并传入可选的优先模型 ID。
      */
     private String chat(ChatRequest request, String modelId) {
+        // 通过 FAST 档调用模型，同时保留配置指定模型 ID 的能力。
         return llmService.chat(request, Tier.FAST, modelId);
     }
 
@@ -152,6 +158,7 @@ public class EnhancerNode implements IngestionNode {
      * 按增强类型回填正文、关键词、问题或元数据，结构化产物交给 JSON 响应解析器处理。
      */
     private void applyTaskResult(IngestionContext context, EnhanceType type, String response) {
+        // 按任务类型把模型输出写回增强正文、关键词、问题或元数据，结构化结果通过统一 JSON 解析器转换。
         switch (type) {
             case CONTEXT_ENHANCE -> context.setEnhancedText(StringUtils.hasText(response) ? response.trim() : response);
             case KEYWORDS -> context.setKeywords(JsonResponseParser.parseStringList(response));

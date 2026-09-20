@@ -55,6 +55,7 @@ public class EsKeywordRetrieverService implements KeywordRetrieverService {
 
     @Override
     public List<RetrievedChunk> search(String query, List<String> collectionNames, int topK) {
+        // 按正文匹配查询，传入集合列表时增加精确过滤，空列表表示全局范围；查询异常降级为空结果。
         String index = keywordProperties.sharedIndex();
         List<FieldValue> collectionFilter = CollUtil.isEmpty(collectionNames)
                 ? List.of()
@@ -92,6 +93,7 @@ public class EsKeywordRetrieverService implements KeywordRetrieverService {
     }
 
     private RetrievedChunk toChunk(Hit<KeywordHitDocument> hit) {
+        // 把 ES 主键、正文、集合和相关性分数转换为统一召回块，缺失正文和分数分别回落空串与零。
         KeywordHitDocument source = hit.source();
         String content = source == null || source.getContent() == null ? "" : source.getContent();
         float score = hit.score() == null ? 0f : hit.score().floatValue();

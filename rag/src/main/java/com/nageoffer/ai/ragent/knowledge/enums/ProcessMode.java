@@ -50,6 +50,7 @@ public enum ProcessMode {
      * @return 对应的枚举，如果未找到返回 null
      */
     public static ProcessMode fromValue(String value) {
+        // 去空白并忽略大小写匹配处理模式，空值或未知值返回 null。
         if (value == null) {
             return null;
         }
@@ -66,6 +67,7 @@ public enum ProcessMode {
      * 解析处理模式，空值或非法值抛出异常
      */
     public static ProcessMode normalize(String value) {
+        // 严格校验处理模式，空白或无法识别时明确抛错，其余返回对应枚举。
         if (StrUtil.isBlank(value)) {
             throw new IllegalArgumentException("处理模式不能为空");
         }

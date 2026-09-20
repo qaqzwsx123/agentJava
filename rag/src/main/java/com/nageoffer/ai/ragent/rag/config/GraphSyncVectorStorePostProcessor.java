@@ -48,6 +48,7 @@ public class GraphSyncVectorStorePostProcessor implements BeanPostProcessor {
 
     @Override
     public Object postProcessAfterInitialization(@NonNull Object bean, @NonNull String beanName) {
+        // 发现尚未包装的向量服务且图谱客户端已装配时，增加图谱同步装饰器；其他 Bean 保持原样。
         if (bean instanceof VectorStoreService vectorStore
                 && !(bean instanceof GraphSyncingVectorStoreService)) {
             LightRagClient lightRagClient = lightRagClientProvider.getIfAvailable();

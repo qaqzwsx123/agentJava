@@ -77,6 +77,7 @@ public class ParserRegistry {
     private final Map<ParseProfile, Map<String, DocumentParser>> wildcard = new EnumMap<>(ParseProfile.class);
 
     public ParserRegistry(List<DocumentParser> parsers) {
+        // 逐个读取解析器声明的档位与 MIME 认领，未声明能力时拒绝注册，再建立对应路由表。
         for (DocumentParser parser : parsers) {
             Map<ParseProfile, Set<String>> claims = parser.supportedMimeTypes();
             if (claims == null || claims.isEmpty()) {
@@ -87,6 +88,7 @@ public class ParserRegistry {
     }
 
     private void register(DocumentParser parser, ParseProfile profile, Set<String> mimeTypes) {
+        // 校验档位和 MIME，区分精确类型与通配前缀，同一路由键被不同解析器认领时立即报错。
         if (profile == null || mimeTypes == null || mimeTypes.isEmpty()) {
             throw new ServiceException("解析器认领清单存在空档位或空 MIME 集合：" + parser.getParserType());
         }
@@ -110,6 +112,7 @@ public class ParserRegistry {
 
     @PostConstruct
     public void selfCheck() {
+        // 验证支持的扩展名在快速档都有精确路由，并禁止非默认档使用无法枚举的通配认领。
         MimeTypes mimeTypes = MimeTypes.getDefaultMimeTypes();
         Tika tika = new Tika(mimeTypes);
         Map<String, DocumentParser> exactFallback = exact.getOrDefault(ParseProfile.FAST, Map.of());
@@ -146,6 +149,7 @@ public class ParserRegistry {
      * @param profile  请求档位，为空按默认档
      */
     public Optional<DocumentParser> find(String mimeType, ParseProfile profile) {
+        // 规范化 MIME 后先查请求档位，没有命中时回落快速档，最终使用 Optional 表示是否找到。
         String mime = normalize(mimeType);
         if (mime == null) {
             return Optional.empty();
@@ -162,6 +166,7 @@ public class ParserRegistry {
      * 按 (MIME × 档位) 查找解析器，认不出来就报错，不塞给某个通用解析器产出垃圾文本
      */
     public DocumentParser require(String mimeType, ParseProfile profile) {
+        // 复用查找逻辑，找不到时抛出包含 MIME 和档位的客户端异常。
         return find(mimeType, profile).orElseThrow(() -> new ClientException(
                 "未找到 MIME [" + mimeType + "] 在档位 ["
                         + (profile == null ? ParseProfile.defaultProfile() : profile).getCode() + "] 下对应的解析器"));
@@ -174,6 +179,7 @@ public class ParserRegistry {
      * 因此算出来而不写死一份格式清单
      */
     public Set<String> profileSensitiveMimeTypes() {
+        // 比较各非默认档与快速档的实际处理器，只返回切换档位确实会改变解析器的 MIME。
         Set<String> sensitive = new TreeSet<>();
         for (ParseProfile profile : ParseProfile.values()) {
             if (profile == ParseProfile.FAST) {
@@ -192,6 +198,7 @@ public class ParserRegistry {
      * 该 MIME 是否有任何档位可解析，供上传前置拦截使用
      */
     public boolean canParse(String mimeType) {
+        // 规范化 MIME 后遍历全部档位，任一档位可路由即表示支持该格式。
         String mime = normalize(mimeType);
         if (mime == null) {
             return false;
@@ -208,6 +215,7 @@ public class ParserRegistry {
      * 单档位查找：精确键优先于通配键
      */
     private DocumentParser lookup(String mime, ParseProfile profile) {
+        // 先查指定档位的精确 MIME，未命中再按主类型前缀查通配映射。
         DocumentParser hit = exact.getOrDefault(profile, Map.of()).get(mime);
         if (hit != null) {
             return hit;
@@ -223,6 +231,7 @@ public class ParserRegistry {
      * 规范 MIME 大小写并去除 charset 等参数，得到注册表匹配键，空类型返回 null。
      */
     private static String normalize(String mimeType) {
+        // 去空白、统一大小写并移除分号后的 MIME 参数，得到用于路由的纯类型。
         if (!StringUtils.hasText(mimeType)) {
             return null;
         }
@@ -235,6 +244,7 @@ public class ParserRegistry {
     }
 
     private static int countKeys(Map<ParseProfile, Map<String, DocumentParser>> table) {
+        // 汇总各档位路由表的键数，供启动自检日志展示。
         return table.values().stream().mapToInt(Map::size).sum();
     }
 }

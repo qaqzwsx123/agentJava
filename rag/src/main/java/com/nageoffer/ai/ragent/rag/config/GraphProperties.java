@@ -56,6 +56,7 @@ public class GraphProperties {
      * 是否启用 lightrag 后端
      */
     public boolean isLightrag() {
+        // 忽略大小写判断当前图谱后端是否选择 LightRAG。
         return "lightrag".equalsIgnoreCase(type);
     }
 

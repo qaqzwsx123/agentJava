@@ -31,6 +31,7 @@ import org.apache.poi.ss.usermodel.Hyperlink;
 public final class ExcelHyperlinkResolver {
 
     private ExcelHyperlinkResolver() {
+        // 链接转换通过静态方法使用，禁止实例化工具类。
     }
 
     /**
@@ -41,6 +42,7 @@ public final class ExcelHyperlinkResolver {
      * @return 如果 cell 有非空超链接：{@code [cellText](url)};否则原样返回 cellText
      */
     public static String wrap(String cellText, Cell cell) {
+        // 有效超链接转为 Markdown 链接，显示文字依次采用单元格文本、链接标签和 URL；无链接时保留原文本。
         if (cell == null) {
             return cellText == null ? "" : cellText;
         }

@@ -62,16 +62,19 @@ public class GraphSearchChannel implements SearchChannel {
      */
     @Override
     public String getName() {
+        // 返回图谱通道展示名称，供追踪和日志区分各检索来源。
         return "GraphSearch";
     }
 
     @Override
     public SearchChannelType getType() {
+        // 声明当前通道属于 GRAPH，供融合权重与来源统计使用。
         return SearchChannelType.GRAPH;
     }
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 读取图谱通道开关，后端是否装配已由条件配置与启动校验处理。
         return properties.getChannels().getGraph().isEnabled();
     }
 

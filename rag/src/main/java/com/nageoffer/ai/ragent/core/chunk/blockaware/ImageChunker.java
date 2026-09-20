@@ -36,6 +36,7 @@ public class ImageChunker implements BlockChunker<ImageBlock> {
 
     @Override
     public Class<ImageBlock> blockType() {
+        // 声明处理图片块，供分派器选择图片专用的分块策略。
         return ImageBlock.class;
     }
 
@@ -44,6 +45,7 @@ public class ImageChunker implements BlockChunker<ImageBlock> {
      */
     @Override
     public List<ChunkDraft> chunk(ImageBlock block, ChunkContext ctx) {
+        // 生成图片 Markdown 并记录资产链接，有图片描述时把描述作为嵌入正文，避免仅用 URL 表达语义。
         if (block == null || block.asset() == null) {
             return List.of();
         }
@@ -68,6 +70,7 @@ public class ImageChunker implements BlockChunker<ImageBlock> {
      * 图片说明优先使用 caption，其次使用 altText，两者缺失则为空。
      */
     private String pickCaption(ImageBlock block) {
+        // 图片说明优先使用 caption，其次使用替代文本，两者缺失时返回空字符串。
         if (block.caption() != null && !block.caption().isEmpty()) {
             return block.caption();
         }

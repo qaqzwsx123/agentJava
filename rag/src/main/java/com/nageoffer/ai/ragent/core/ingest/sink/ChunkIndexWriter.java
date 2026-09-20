@@ -44,6 +44,7 @@ public class ChunkIndexWriter {
      * 整体替换该文档的块：全部落点在同一个事务里
      */
     public void replaceDocument(VectorTarget target, DocumentRef doc, List<EmbeddedChunk> chunks) {
+        // 在事务回调内依次通知所有落点替换文档分块；各落点是否具备事务能力取决于具体实现。
         transactionOperations.executeWithoutResult(status ->
                 sinks.forEach(sink -> sink.replaceDocument(target, doc, chunks)));
         log.info("块索引写入完成 docId={} 分区={} 块数={} 落点数={}",
@@ -54,6 +55,7 @@ public class ChunkIndexWriter {
      * 在事务回调中依次要求各索引写入端删除文档；外部索引是否参与同一事务取决于具体实现。
      */
     public void deleteDocument(VectorTarget target, DocumentRef doc) {
+        // 通过同一事务回调通知全部落点删除文档索引，保持删除入口与替换入口一致。
         transactionOperations.executeWithoutResult(status ->
                 sinks.forEach(sink -> sink.deleteDocument(target, doc)));
     }

@@ -41,6 +41,7 @@ public class AgentSkillRegistry {
      * @return 已启用技能，按 sortOrder 升序；正文一并带出，加载时不必再查库
      */
     public List<AgentSkill> listEnabled() {
+        // 先查缓存，未命中只加载启用技能，按排序号与 ID 稳定排序后回填缓存。
         List<AgentSkill> cached = cacheManager.getFromCache();
         if (cached != null) {
             return cached;
@@ -61,6 +62,7 @@ public class AgentSkillRegistry {
      * @return 指定技能，停用或不存在都返回 null
      */
     public AgentSkill findByCode(String skillCode) {
+        // 清理技能编码后从启用列表精确匹配，空编码或没有匹配项时返回 null。
         if (StrUtil.isBlank(skillCode)) {
             return null;
         }
@@ -75,6 +77,7 @@ public class AgentSkillRegistry {
      * 把数据库技能记录转换为运行时技能，包含编码、摘要、完整说明及关联工具 ID。
      */
     private static AgentSkill toSkill(AgentSkillDO record) {
+        // 把数据库技能记录转换为运行时只需的编码、名称、描述、手册和工具 ID 列表。
         return new AgentSkill(record.getSkillCode(), record.getName(), record.getDescription(),
                 record.getContent(), record.getToolIds());
     }

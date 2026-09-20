@@ -36,12 +36,14 @@ public final class ChunkAssembler {
     private static final String OUTLINE_SEPARATOR = " / ";
 
     private ChunkAssembler() {
+        // 统一使用静态装配方法，私有构造器阻止实例化工具类。
     }
 
     /**
      * 批量装配：草稿须已完成切分与合并，序号按列表顺序从 0 起分配
      */
     public static List<Chunk> assembleAll(List<ChunkDraft> drafts) {
+        // 保持草稿顺序分配连续序号，逐个装配为正式分块，空输入返回空列表。
         if (drafts == null || drafts.isEmpty()) {
             return List.of();
         }
@@ -56,6 +58,7 @@ public final class ChunkAssembler {
      * 单块装配：分配新的块 ID
      */
     public static Chunk assemble(int index, ChunkDraft draft) {
+        // 根据草稿正文与章节元数据生成嵌入文本，再组装正式分块；未显式传入 ID 的重载先生成新 ID。
         return assemble(nextChunkId(), index, draft);
     }
 
@@ -63,6 +66,7 @@ public final class ChunkAssembler {
      * 用既有块 ID 装配：人工编辑单块后重新入库时用，换一个 ID 会让关系库与向量库的主键对不上
      */
     public static Chunk assemble(String chunkId, int index, ChunkDraft draft) {
+        // 根据草稿正文与章节元数据生成嵌入文本，再组装正式分块；未显式传入 ID 的重载先生成新 ID。
         ChunkMetadata metadata = draft.metadata();
         return new Chunk(chunkId, index, draft.content(),
                 composeEmbeddingText(metadata, draft.effectiveBody(), draft.content()), metadata);
@@ -75,6 +79,7 @@ public final class ChunkAssembler {
      * 关系库那边只剩展示文本，重走一遍装配拿到的是裸正文；该列为空时回落展示文本，人工建的块向量文本本就等于正文
      */
     public static Chunk restore(String chunkId, int index, String content, String embeddingText) {
+        // 按存储字段还原分块，旧数据缺少嵌入文本时回落到展示正文，元数据先使用空值。
         return new Chunk(chunkId, index, content,
                 StringUtils.hasText(embeddingText) ? embeddingText : content, ChunkMetadata.empty());
     }
@@ -83,6 +88,7 @@ public final class ChunkAssembler {
      * 块 ID 生成：全系统单点
      */
     public static String nextChunkId() {
+        // 使用雪花 ID 生成字符串分块标识，避免依赖列表序号作为全局标识。
         return IdUtil.getSnowflakeNextIdStr();
     }
 
@@ -93,6 +99,7 @@ public final class ChunkAssembler {
      * 再拼一遍只是把章节名连写两次，白占向量里的位置
      */
     private static String composeEmbeddingText(ChunkMetadata metadata, String body, String content) {
+        // 先补正文中缺失的章节前缀，再拼接有效嵌入正文，形成供模型向量化的文本。
         StringBuilder sb = new StringBuilder();
         appendIfPresent(sb, missingOutlinePrefix(metadata, content));
         appendIfPresent(sb, body);
@@ -106,6 +113,7 @@ public final class ChunkAssembler {
      * 所以按级判断而不是「含标题就不拼」
      */
     private static String missingOutlinePrefix(ChunkMetadata metadata, String content) {
+        // 从章节路径起点寻找正文尚未包含的前缀，只返回需要补入嵌入文本的那部分。
         List<String> path = metadata.outlinePath();
         int keep = 0;
         while (keep < path.size() && !content.contains(path.get(keep))) {
@@ -118,6 +126,7 @@ public final class ChunkAssembler {
      * 追加去除首尾空白后的有效片段，非首段补上下文分隔符，避免空片段占用嵌入正文。
      */
     private static void appendIfPresent(StringBuilder sb, String part) {
+        // 跳过空白片段，片段之间添加统一上下文分隔符，并去除首尾空白。
         if (!StringUtils.hasText(part)) {
             return;
         }

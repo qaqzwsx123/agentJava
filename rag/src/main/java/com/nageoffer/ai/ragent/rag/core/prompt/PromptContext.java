@@ -52,6 +52,7 @@ public class PromptContext {
      * 是否包含知识库上下文
      */
     public boolean hasKb() {
+        // 判断知识上下文是否非空白，作为构建知识回答提示词的前置条件。
         return StrUtil.isNotBlank(kbContext);
     }
 }

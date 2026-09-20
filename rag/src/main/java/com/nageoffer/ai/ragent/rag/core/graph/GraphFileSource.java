@@ -40,6 +40,7 @@ public record GraphFileSource(String collectionName, String docId) {
      * 写入侧编码，与 parse 互为逆运算
      */
     public static String encode(String collectionName, String docId) {
+        // 把逻辑集合名与文档 ID 编码成图谱文件来源，供写入、引用还原和按库清理共用。
         return collectionName + "_" + docId;
     }
 
@@ -47,6 +48,7 @@ public record GraphFileSource(String collectionName, String docId) {
      * 从 LightRAG 回传的 file_path 还原来源，先取 basename 以跳过可能的目录前缀；不符合编码返回 null
      */
     public static GraphFileSource parse(String filePath) {
+        // 先取路径最后一段，再按约定格式拆集合名与文档 ID，空值或格式不符返回 null。
         if (StrUtil.isBlank(filePath)) {
             return null;
         }

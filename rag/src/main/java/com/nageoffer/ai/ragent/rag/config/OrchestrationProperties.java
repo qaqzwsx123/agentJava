@@ -39,6 +39,7 @@ public class OrchestrationProperties {
      * 把编排类型配置转换为模式枚举，供执行入口选择对应编排实现。
      */
     public OrchestrationMode getMode() {
+        // 把配置中的模式文本转换为受支持枚举，具体默认策略由 OrchestrationMode.of 统一处理。
         return OrchestrationMode.of(type);
     }
 }

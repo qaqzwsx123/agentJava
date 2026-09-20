@@ -163,6 +163,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      */
     @Override
     public IPage<IngestionTaskVO> page(Page<IngestionTaskVO> page, String status) {
+        // 按可选的规范化状态查询未删除任务，按创建时间倒序分页，再转换为任务展示结构。
         // 任务主列表不加载全部节点输出，节点详情另行读取。
         Page<IngestionTaskDO> mpPage = new Page<>(page.getCurrent(), page.getSize());
         String normalizedStatus = normalizeStatus(status);
@@ -246,6 +247,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 把运行完成后的任务记录放入变更日志上下文；结果或任务 ID 缺失时跳过本次日志。
      */
     private void putTaskSnapshot(IngestionResult result) {
+        // 只有结果包含任务 ID 才记录数据库快照，否则明确跳过本次变更日志。
         if (result == null || !StringUtils.hasText(result.getTaskId())) {
             bizChangeLogContext.skip();
             return;
@@ -274,6 +276,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 节点状态区分成功、失败和跳过，过大的输出在写入前截断。
      */
     private void saveNodeLogs(IngestionTaskDO task, PipelineDefinition pipeline, List<NodeLog> logs) {
+        // 按配置节点顺序逐条保存执行状态、耗时和错误，对详细输出先限长再落库。
         // 先建立配置节点的执行排序映射，便于查询时还原流水线顺序。
         if (logs == null || logs.isEmpty()) {
             return;
@@ -303,6 +306,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 优先从未被引用的入口顺序展开，再补入未覆盖节点，visited 防止重复排序。
      */
     private Map<String, Integer> buildNodeOrderMap(PipelineDefinition pipeline) {
+        // 先沿各入口的后继链分配顺序，用 visited 避免重复遍历，剩余孤立或成环节点最后补入展示顺序。
         // 排序用于展示日志，不在这里决定引擎真正执行或条件分支选择。
         Map<String, Integer> orderMap = new HashMap<>();
         if (pipeline == null || pipeline.getNodes() == null || pipeline.getNodes().isEmpty()) {
@@ -318,6 +322,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         if (nodeMap.isEmpty()) {
             return orderMap;
         }
+        // 先找出被后继引用的节点，剩余节点作为展示顺序的链路入口。
         Set<String> referenced = new HashSet<>();
         for (NodeConfig node : nodeMap.values()) {
             if (StringUtils.hasText(node.getNextNodeId())) {
@@ -341,6 +346,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 current = config.getNextNodeId();
             }
         }
+        // 无法从入口遍历到的节点仍补上顺序，避免成环或孤立配置在日志页中消失。
         for (String nodeId : nodeMap.keySet()) {
             if (!visited.contains(nodeId)) {
                 orderMap.put(nodeId, order++);
@@ -353,6 +359,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 从节点执行日志判定 failed、skipped 或 success；成功但带 Skipped 前缀的节点归为跳过。
      */
     private String resolveNodeStatus(NodeLog log) {
+        // 失败优先判定，成功结果再按 Skipped 前缀识别跳过状态，其余记为成功。
         if (log == null) {
             return "failed";
         }
@@ -370,6 +377,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 汇总上下文元数据和增强节点生成的关键词、问题，保存为任务级产物。
      */
     private Map<String, Object> buildTaskMetadata(IngestionContext context) {
+        // 复制上下文元数据，并在关键词或问题非空时补入同一结果映射。
         Map<String, Object> data = new HashMap<>();
         if (context.getMetadata() != null) {
             data.putAll(context.getMetadata());
@@ -387,6 +395,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 校验必须显式提供流水线 ID，缺失时返回业务异常，不隐式选择默认流水线。
      */
     private String resolvePipelineId(String pipelineId) {
+        // 必须明确指定流水线 ID，缺失时抛出客户端异常而不擅自选默认流水线。
         if (StringUtils.hasText(pipelineId)) {
             return pipelineId;
         }
@@ -397,6 +406,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 将可识别的任务状态转换为标准枚举值，未知历史状态保留原文。
      */
     private String normalizeStatus(String status) {
+        // 可识别状态转换为统一配置值，未知历史值保持原样供展示或查询。
         if (!StringUtils.hasText(status)) {
             return status;
         }
@@ -412,6 +422,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 来源对象和来源类型必填，地址、文件名及凭据沿请求传入。
      */
     private DocumentSource toSource(DocumentSourceRequest request) {
+        // 校验来源请求并复制位置、文件名和凭证，来源类型缺失时提前拒绝执行。
         // 来源配置统一后，后续执行可以复用相同上下文结构。
         Assert.notNull(request, () -> new ClientException("文档来源不能为空"));
         DocumentSource source = DocumentSource.builder()
@@ -430,6 +441,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 组装任务详情，转换状态、来源类型并解析日志和元数据 JSON，保留运行耗时相关时间字段。
      */
     private IngestionTaskVO toVO(IngestionTaskDO task) {
+        // 组装任务基础信息、状态、耗时相关时间、日志摘要和元数据，JSON 字段在转换时恢复。
         return IngestionTaskVO.builder()
                 .id(String.valueOf(task.getId()))
                 .pipelineId(String.valueOf(task.getPipelineId()))
@@ -453,6 +465,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 组装节点执行详情，统一类型和状态，并解析节点输出 JSON 供前端查看。
      */
     private IngestionTaskNodeVO toNodeVO(IngestionTaskNodeDO node) {
+        // 把节点记录转成页面详情，规范化类型和状态，并反序列化详细输出字段。
         return IngestionTaskNodeVO.builder()
                 .id(String.valueOf(node.getId()))
                 .taskId(String.valueOf(node.getTaskId()))
@@ -474,6 +487,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 序列化任务日志或元数据；输入为空或序列化失败时返回 null。
      */
     private String writeJson(Object value) {
+        // 非空对象序列化为 JSON，失败时回落 null，避免辅助日志序列化打断主流程。
         if (value == null) {
             return null;
         }
@@ -488,6 +502,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 解析任务元数据或节点输出为映射，空值、JSON null 和格式错误均降级为空映射。
      */
     private Map<String, Object> readMap(String raw) {
+        // 空文本、JSON null 或反序列化失败都回落空映射，保证详情展示可继续。
         if (!StringUtils.hasText(raw)) {
             return Map.of();
         }
@@ -504,6 +519,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 保留节点状态、耗时与错误等日志摘要，移除体积较大的 output，完整输出由节点记录保存。
      */
     private List<NodeLog> buildLogSummary(List<NodeLog> logs) {
+        // 复制节点日志的状态、消息与耗时，但去掉详细 output，避免主任务记录重复保存大输出。
         if (logs == null) {
             return List.of();
         }
@@ -524,6 +540,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 解析数据库中的节点日志数组，缺失或格式错误时返回空列表。
      */
     private List<NodeLog> readLogs(String raw) {
+        // 把存储的日志 JSON 还原为节点日志列表，空值或无效内容返回空列表。
         if (!StringUtils.hasText(raw)) {
             return List.of();
         }
@@ -539,6 +556,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 统一可识别的文件来源类型；未知历史值原样返回。
      */
     private String normalizeSourceType(String sourceType) {
+        // 将兼容的来源类型归一为稳定值，未知值原样保留，避免读取历史数据时报错。
         if (!StringUtils.hasText(sourceType)) {
             return sourceType;
         }
@@ -553,6 +571,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 统一可识别的流水线节点类型；未知历史值原样返回。
      */
     private String normalizeNodeType(String nodeType) {
+        // 将节点类型别名归一为稳定值，未知历史值保持原样。
         if (!StringUtils.hasText(nodeType)) {
             return nodeType;
         }
@@ -567,6 +586,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
      * 去除状态首尾空白、转小写并统一连字符，供节点状态展示使用。
      */
     private String normalizeNodeStatus(String status) {
+        // 去首尾空白并转小写，将短横线替换为下划线，统一节点状态输出格式。
         if (!StringUtils.hasText(status)) {
             return status;
         }
