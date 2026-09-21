@@ -32,7 +32,8 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")
+@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg") //当rag.vector.type=pg时才会创建这个bean
+// pg 代表了 PostgreSQL + pgvector”这套向量存储方案。
 public class PgVectorStoreService implements VectorStoreService {
 
     private final JdbcTemplate jdbcTemplate;
@@ -50,6 +51,9 @@ public class PgVectorStoreService implements VectorStoreService {
 
         // noinspection SqlDialectInspection,SqlNoDataSourceInspection
         jdbcTemplate.batchUpdate(
+
+                 // ?::jsonb表示把传入的 JSON 文本转换为 PostgreSQL 的 jsonb 类型。
+                //?::vector  表示把类似[0.12,-0.35,0.78,...]的向量文本转换为 pgvector 的 vector 类型：
                 "INSERT INTO t_knowledge_vector (id, collection_name, content, metadata, embedding) VALUES (?, ?, ?, ?::jsonb, ?::vector)",
                 chunks, chunks.size(), (ps, chunk) -> {
                     ps.setString(1, chunk.chunkId());

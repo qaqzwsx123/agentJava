@@ -30,7 +30,7 @@ import org.springframework.validation.annotation.Validated;
  */
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "agent.trace")
+@ConfigurationProperties(prefix = "agent.trace") //@ConfigurationProperties(prefix = "agent.trace") 会把 Spring 配置环境中以 agent.trace 开头的配置，绑定到这个 Java 对象的对应
 @Validated
 public class AgentTraceProperties {
 
@@ -46,7 +46,7 @@ public class AgentTraceProperties {
     private boolean captureContent = true;
 
     /**
-     * LangFuse 的 OTLP 入口，只支持 HTTP，写到 /v1/traces 这一层
+     * LangFuse 的 OTLP 入口，只支持 HTTP，写到 /v1/traces 这一层，从配置文件读的时候会覆盖掉这个 本类里面写的这个 localhost:3000
      */
     private String endpoint = "http://localhost:3000/api/public/otel/v1/traces";
 

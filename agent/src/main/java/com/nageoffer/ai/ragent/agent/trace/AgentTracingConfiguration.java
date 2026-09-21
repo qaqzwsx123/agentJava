@@ -50,8 +50,9 @@ import java.util.UUID;
  */
 @Slf4j
 @Configuration
-@ConditionalOnAgentEngine
-@ConditionalOnProperty(prefix = "agent.trace", name = "enabled", havingValue = "true")
+@ConditionalOnAgentEngine //检查配置文件里有没有 ragent.engine.type 这个属性，并且它的值是不是 agent。
+//      是 → 条件成立，装配这个 Bean。
+@ConditionalOnProperty(prefix = "agent.trace", name = "enabled", havingValue = "true")//只有 agent.trace.enabled=true 时，这个配置类才会生效，其中声明的 @Bean 才会被创建。
 @RequiredArgsConstructor
 public class AgentTracingConfiguration {
 
