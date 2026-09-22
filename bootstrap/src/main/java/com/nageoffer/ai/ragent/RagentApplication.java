@@ -28,7 +28,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableScheduling
-@EnableLogRecord(tenant = "ragent", proxyTargetClass = true)
+@EnableLogRecord(tenant = "ragent", proxyTargetClass = true) //请为 ragent 这个应用开启 @LogRecord 日志记录功能，并强制使用 CGLIB 代理来确保所有被注解的方法都能被稳定拦截
 @MapperScan(basePackages = {
         "com.nageoffer.ai.ragent.rag.dao.mapper",
         "com.nageoffer.ai.ragent.ingestion.dao.mapper",

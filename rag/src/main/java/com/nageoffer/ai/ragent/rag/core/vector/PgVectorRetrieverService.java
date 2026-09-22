@@ -31,7 +31,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")
+@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")//根据查询向量检索相似分块
 public class PgVectorRetrieverService implements VectorRetrieverService {
 
     private final JdbcTemplate jdbcTemplate;

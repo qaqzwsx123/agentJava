@@ -110,30 +110,47 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
      * 文档必须启用且不在分块处理中；未传 index 时追加到当前最大序号之后。
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    @LogRecord(
+    @Transactional(rollbackFor = Exception.class) // 开启事务，任何异常都回滚数据库操作
+    @LogRecord(  //{{#...}} 都是 SpEL 表达式，由 AOP 切面在方法执行后解析，#_ret 代表返回值
+            // 成功日志：记录返回对象 KnowledgeChunkVO 的 id
             success = "新增 Chunk：{{#_ret.id}}",
+            // 失败日志：记录错误信息
             fail = "新增 Chunk 失败：{{#_errorMsg}}",
+            // 业务变更类型：知识库 Chunk
             type = BizChangeBizType.KNOWLEDGE_CHUNK,
+            // 业务变更操作类型：创建
             subType = BizChangeOperationType.CREATE,
+            // 业务编号：优先使用 bizChangeBizId，否则使用 docId
             bizNo = "{{#bizChangeBizId != null ? #bizChangeBizId : #docId}}",
+            // 记录业务变更快照
             extra = BizChangeLogContext.SNAPSHOT_EXPRESSION,
+            // 满足条件时才记录日志
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public KnowledgeChunkVO create(String docId, KnowledgeChunkCreateRequest requestParam) {
+        // 1. 查询文档，确认文档存在
         // 先检查文档状态和分块正文，避免人工编辑与自动分块互相覆盖。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
+
+        // 2. 文档正在自动分块处理中时，禁止人工新增 Chunk，避免并发覆盖
         if (DocumentStatus.RUNNING.getCode().equals(documentDO.getStatus())) {
             throw new ClientException("文档正在分块处理中，暂不支持新增 Chunk");
         }
+
+        // 3. 文档未启用时，禁止新增 Chunk
         if (!Integer.valueOf(1).equals(documentDO.getEnabled())) {
             throw new ClientException("文档未启用，暂不支持新增 Chunk");
         }
 
+        // 4. 校验 Chunk 正文不能为空
         String content = requestParam.getContent();
         Assert.notBlank(content, () -> new ClientException("Chunk 内容不能为空"));
 
+        // 5. 确定 chunkIndex：
+        //    - 如果请求指定了 index，则使用指定值；
+        //    - 否则查询当前文档下最大的 chunkIndex，并追加到其后；
+        //    - 如果当前没有任何 Chunk，则从 0 开始。
         // 未指定序号时追加到最后，人工块的 embeddingText 明确保存为正文。
         KnowledgeChunkDO latest = chunkMapper.selectOne(
                 Wrappers.lambdaQuery(KnowledgeChunkDO.class)
@@ -145,40 +162,67 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
                 ? requestParam.getIndex()
                 : (latest != null ? latest.getChunkIndex() + 1 : 0);
 
+        // 6. 计算内容 SHA-256 摘要和字符长度
         String contentHash = SecureUtil.sha256(content);
         int charCount = content.length();
+
+        // 7. 查询知识库，获取向量集合名和 embedding 模型信息
         KnowledgeBaseDO kbDO = knowledgeBaseMapper.selectById(documentDO.getKbId());
         String embeddingModel = kbDO.getEmbeddingModel();
         String collectionName = kbDO.getCollectionName();
+
+        // 8. 解析 token 数量，供检索、统计或模型限制使用
         Integer tokenCount = resolveTokenCount(content);
 
+        // 9. 构造 Chunk 实体
         KnowledgeChunkDO chunkDO = KnowledgeChunkDO.builder()
+                // Chunk 主键，允许调用方传入 chunkId
                 .id(requestParam.getChunkId())
+                // 所属知识库
                 .kbId(documentDO.getKbId())
+                // 所属文档
                 .docId(docId)
+                // Chunk 顺序号
                 .chunkIndex(chunkIndex)
+                // 原始正文
                 .content(content)
+                // 正文摘要，用于判断内容是否变化
                 .contentHash(contentHash)
+                // 字符数
                 .charCount(charCount)
+                // token 数
                 .tokenCount(tokenCount)
-                // 人工块没有结构信息，向量文本等于正文；显式写下而不是留空，重建时才不必猜
+                // 人工块没有结构信息，向量文本等于正文；
+                // 显式写下而不是留空，重建向量索引时才不必猜。
                 .embeddingText(content)
+                // 启用状态
                 .enabled(1)
+                // 创建人、更新人来自当前登录上下文
                 .createdBy(UserContext.getUsername())
                 .updatedBy(UserContext.getUsername())
                 .build();
 
+        // 10. 插入数据库
         chunkMapper.insert(chunkDO);
-        log.info("新增 Chunk 成功, kbId={}, docId={}, chunkId={}, chunkIndex={}", documentDO.getKbId(), docId, chunkDO.getId(), chunkIndex);
+        log.info("新增 Chunk 成功, kbId={}, docId={}, chunkId={}, chunkIndex={}",
+                documentDO.getKbId(), docId, chunkDO.getId(), chunkIndex);
 
+        // 11. 文档的 Chunk 数量加 1
         documentMapper.update(Wrappers.lambdaUpdate(KnowledgeDocumentDO.class)
                 .eq(KnowledgeDocumentDO::getId, docId)
                 .setSql("chunk_count = chunk_count + 1"));
 
-        // 同步写入向量库
+        // 12. 同步写入向量库：
+        //     collectionName 为知识库对应向量集合；  docId 用于向量检索过滤； chunkDO 包含正文和 embeddingText；
+        //     vectorTargetResolver.resolve(kbDO) 解析目标向量库配置。
+        // 组合出三个参数： 集合名称：知识库记录中的 collectionName 嵌入模型：知识库记录中的 embeddingModel
+        //向量维度：YAML 中的 rag.default.dimension
         syncChunkToVector(collectionName, docId, chunkDO, vectorTargetResolver.resolve(kbDO));
 
+        // 13. 写入业务变更日志上下文，保存新增 Chunk 的快照
         bizChangeLogContext.put(String.valueOf(chunkDO.getId()), null, chunkDO);
+
+        // 14. 转换为 VO 返回
         return BeanUtil.toBean(chunkDO, KnowledgeChunkVO.class);
     }
 
@@ -514,7 +558,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     private void syncChunkToVector(String collectionName, String docId, KnowledgeChunkDO chunkDO,
                                    VectorTarget target) {
         // 关系库记录与检索侧向量写入是两个步骤，这里只处理向量落点。
+        // 把一条已保存的知识分块 chunkDO 进行向量化，取得带有向量的 EmbeddedChunk 对象。
         EmbeddedChunk chunk = embedPersisted(List.of(chunkDO), target).get(0);
+        // 这个地方由于当rag.vector.type=pg ，所以进入 PgVectorStoreService.indexDocumentChunks()
         vectorStoreService.indexDocumentChunks(collectionName, docId, List.of(chunk));
 
         log.debug("同步 Chunk 到向量库成功, collectionName={}, docId={}, chunkId={}", collectionName, docId, chunkDO.getId());

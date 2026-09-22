@@ -33,7 +33,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg") //当rag.vector.type=pg时才会创建这个bean
-// pg 代表了 PostgreSQL + pgvector”这套向量存储方案。
+// pg 代表了 PostgreSQL + pgvector”这套向量存储方案。 向量记录的写入、修改、删除
 public class PgVectorStoreService implements VectorStoreService {
 
     private final JdbcTemplate jdbcTemplate;

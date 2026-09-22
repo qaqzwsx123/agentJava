@@ -54,6 +54,7 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
         // 先完成原向量写入，再合并本次正文同步到图谱，图谱失败不撤销已完成的向量操作。
         delegate.indexDocumentChunks(collectionName, docId, chunks);
+        // 同步到 图谱里面
         syncGraph(docId, () -> lightRagClient.insertText(concatContent(chunks), fileSource(collectionName, docId)));
     }
 
