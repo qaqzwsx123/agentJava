@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LightRagClientTest {
@@ -66,11 +67,11 @@ class LightRagClientTest {
     void deleteByCollectionMatchesExactCollectionOnly() throws Exception {
         // 回归：旧 contains("kb_") 谓词会把 kb_hr 的两篇文档一并选中，删 kb 连带删光 kb_hr 的图谱数据且不可逆
         server.enqueue(json("""
-                {"statuses":{"processed":[
+                {"documents":[
                   {"id":"doc-kb","file_path":"kb_1954071234567890100"},
                   {"id":"doc-kb-hr-1","file_path":"kb_hr_1954071234567890200"},
                   {"id":"doc-kb-hr-2","file_path":"kb_hr_1954071234567890300"}
-                ]}}
+                ],"pagination":{"has_next":false}}
                 """));
         server.enqueue(json("{}"));
 
@@ -78,12 +79,91 @@ class LightRagClientTest {
 
         RecordedRequest listRequest = server.takeRequest(2, TimeUnit.SECONDS);
         assertNotNull(listRequest);
-        assertEquals("/documents", listRequest.getTarget());
+        assertEquals("POST", listRequest.getMethod());
+        assertEquals("/documents/paginated", listRequest.getTarget());
 
         RecordedRequest deleteRequest = server.takeRequest(2, TimeUnit.SECONDS);
         assertNotNull(deleteRequest, "kb 名下有文档，应发起删除请求");
+        assertEquals("DELETE", deleteRequest.getMethod());
         assertEquals("/documents/delete_document", deleteRequest.getTarget());
         assertEquals(List.of("doc-kb"), docIdsOf(deleteRequest));
+    }
+
+    @Test
+    @DisplayName("文档删除收集全部分页后才提交，覆盖后续页且不误删其他文档")
+    void deleteByDocCollectsAllPagesBeforeDeleting() throws Exception {
+        String docId = "2111486515191300096";
+        server.enqueue(json("""
+                {"documents":[
+                  {"id":"graph-1","file_path":"kb_2111486515191300096"},
+                  {"id":"other","file_path":"kb_2111486515191300097"}
+                ],"pagination":{"has_next":true}}
+                """));
+        server.enqueue(json("""
+                {"documents":[
+                  {"id":"graph-2","file_path":"kb_2111486515191300096"}
+                ],"pagination":{"has_next":false}}
+                """));
+        server.enqueue(json("{}"));
+
+        client.deleteByDoc(docId);
+
+        for (int page = 1; page <= 2; page++) {
+            RecordedRequest request = server.takeRequest(2, TimeUnit.SECONDS);
+            assertNotNull(request);
+            assertEquals("POST", request.getMethod());
+            assertEquals("/documents/paginated", request.getTarget());
+            JsonNode body = objectMapper.readTree(request.getBody().utf8());
+            assertEquals(page, body.path("page").asInt());
+            assertEquals(200, body.path("page_size").asInt());
+            assertEquals("id", body.path("sort_field").asText());
+            assertEquals("asc", body.path("sort_direction").asText());
+        }
+        RecordedRequest deletion = server.takeRequest(2, TimeUnit.SECONDS);
+        assertNotNull(deletion);
+        assertEquals("DELETE", deletion.getMethod());
+        assertEquals("/documents/delete_document", deletion.getTarget());
+        assertEquals(List.of("graph-1", "graph-2"), docIdsOf(deletion));
+    }
+
+    @Test
+    @DisplayName("后续页请求失败时不提交部分删除")
+    void pageFailureSkipsDeletion() throws Exception {
+        server.enqueue(json("""
+                {"documents":[{"id":"graph-1","file_path":"kb_2111486515191300096"}],
+                 "pagination":{"has_next":true}}
+                """));
+        server.enqueue(new MockResponse.Builder().code(503).build());
+
+        client.deleteByDoc("2111486515191300096");
+
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    @DisplayName("空列表不发起删除")
+    void emptyPageSkipsDeletion() throws Exception {
+        server.enqueue(json("{\"documents\":[],\"pagination\":{\"has_next\":false}}"));
+
+        client.deleteByDoc("2111486515191300096");
+
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    @DisplayName("分页信息缺失时跳过删除")
+    void invalidPaginationSkipsDeletion() throws Exception {
+        server.enqueue(json("""
+                {"documents":[{"id":"graph-1","file_path":"kb_2111486515191300096"}]}
+                """));
+
+        client.deleteByDoc("2111486515191300096");
+
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -122,9 +202,9 @@ class LightRagClientTest {
         // 回归：检索预算若污染删除链路，大库文档枚举超预算会中断删除，静默留下图谱残留
         searchProperties.getChannels().setTimeoutMs(200);
         server.enqueue(json("""
-                {"statuses":{"processed":[
+                {"documents":[
                   {"id":"doc-kb","file_path":"kb_1954071234567890100"}
-                ]}}
+                ],"pagination":{"has_next":false}}
                 """).newBuilder().bodyDelay(1, TimeUnit.SECONDS).build());
         server.enqueue(json("{}"));
 

@@ -38,7 +38,9 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -248,34 +250,40 @@ public class LightRagClient {
     /**
      * 列举文档、按 file_path 谓词匹配出 LightRAG doc_id 后批量删除
      * <p>
-     * LightRAG 删除按其内部 doc_id（内容派生），故先 GET /documents 反查、再 DELETE /documents/delete_document；
-     * 全量列举后在内存匹配，语料很大时可改用 /documents/paginated 过滤。best-effort，任一步异常只记 warn
+     * 先 POST /documents/paginated 反查内部 doc_id，再 DELETE /documents/delete_document。
+     * 收集完全部分页后再删除，避免边删边翻页漏掉文档；任一页失败则跳过本次删除。
      */
     private void deleteMatching(Predicate<String> filePathMatch, String logKey) {
-        // 读取远端按状态分组的文档，筛出匹配来源的远端 ID 后批量请求删除，异常沿用日志降级策略。
+        // /documents 仅支持清空文档的 DELETE，列表查询使用分页接口。
         try {
-            JsonNode docs = get("/documents");
-            if (docs == null) {
-                return;
-            }
-            // 先读取远端文档状态分组，通过来源路径匹配出远端 ID，再提交删除请求。
-            List<String> docIds = new ArrayList<>();
-            JsonNode statuses = docs.path("statuses");
-            if (statuses.isObject()) {
-                statuses.forEach(group -> {
-                    if (group.isArray()) {
-                        for (JsonNode d : group) {
-                            String filePath = d.path("file_path").asText("");
-                            if (StrUtil.isNotBlank(filePath) && filePathMatch.test(filePath)) {
-                                String id = d.path("id").asText("");
-                                if (StrUtil.isNotBlank(id)) {
-                                    docIds.add(id);
-                                }
-                            }
-                        }
+            Set<String> docIds = new LinkedHashSet<>();
+            int page = 1;
+            boolean hasNext;
+            do {
+                ObjectNode query = objectMapper.createObjectNode();
+                query.put("page", page++);
+                query.put("page_size", 200);
+                query.put("sort_field", "id");
+                query.put("sort_direction", "asc");
+                JsonNode docs = post("/documents/paginated", query);
+                if (docs == null) {
+                    return;
+                }
+                JsonNode documents = docs.path("documents");
+                JsonNode next = docs.path("pagination").path("has_next");
+                if (!documents.isArray() || !next.isBoolean() || (next.asBoolean() && documents.isEmpty())) {
+                    log.warn("LightRAG 文档列表响应无效，跳过删除 {}", logKey);
+                    return;
+                }
+                for (JsonNode document : documents) {
+                    String filePath = document.path("file_path").asText("");
+                    String id = document.path("id").asText("");
+                    if (StrUtil.isNotBlank(id) && StrUtil.isNotBlank(filePath) && filePathMatch.test(filePath)) {
+                        docIds.add(id);
                     }
-                });
-            }
+                }
+                hasNext = next.asBoolean();
+            } while (hasNext);
             if (docIds.isEmpty()) {
                 return;
             }
@@ -309,14 +317,6 @@ public class LightRagClient {
         // 构造 JSON POST 并交给统一响应处理，供图谱写入等接口复用。
         return execute(auth(new Request.Builder().url(url(path))
                 .post(RequestBody.create(objectMapper.writeValueAsString(body), JSON))), path);
-    }
-
-    /**
-     * 为 GET 请求附加鉴权并交给统一执行方法。
-     */
-    private JsonNode get(String path) throws Exception {
-        // 构造带配置鉴权的 GET 请求，统一处理 HTTP 与 JSON 响应。
-        return execute(auth(new Request.Builder().url(url(path)).get()), path);
     }
 
     /**

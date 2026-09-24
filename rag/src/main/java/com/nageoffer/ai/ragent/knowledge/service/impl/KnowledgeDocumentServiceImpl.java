@@ -318,6 +318,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             long totalDuration = System.currentTimeMillis() - totalStartTime;
             updateChunkLog(chunkLog.getId(), DocumentStatus.SUCCESS.getCode(), savedCount,
                     extractDuration, chunkDuration, embedDuration, persistDuration, totalDuration, null);
+            log.info("文档分块任务执行成功：docId={}, chunkCount={}, totalDuration={}ms", docId, savedCount, totalDuration);
         } catch (Exception e) {
             log.error("文档分块任务执行失败：docId={}", docId, e);
             // 失败也要结算文档和处理日志，避免状态一直残留为 RUNNING。
