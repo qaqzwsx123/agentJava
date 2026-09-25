@@ -34,6 +34,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class MessageWrapper<T> implements Serializable {
+    // 统一消息包装对象，包含业务内容、业务 Key、UUID 和时间戳
 
     @Serial
     private static final long serialVersionUID = 1L;

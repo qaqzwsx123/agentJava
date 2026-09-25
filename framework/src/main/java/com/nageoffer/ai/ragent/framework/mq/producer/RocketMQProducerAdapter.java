@@ -38,6 +38,7 @@ import java.util.function.Consumer;
 @Slf4j
 @RequiredArgsConstructor
 public class RocketMQProducerAdapter implements MessageQueueProducer {
+    //接口的具体实现，调用 RocketMQTemplate 发送消息，补充消息头、记录发送结果
 
     private final RocketMQTemplate rocketMQTemplate;
     private final DelegatingTransactionListener transactionListener;

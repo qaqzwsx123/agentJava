@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LoginUser {
+public class LoginUser { //保存当前用户信息的数据对象，包含用户 ID、用户名、角色、头像
 
     /**
      * 用户 ID

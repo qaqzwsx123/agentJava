@@ -25,7 +25,7 @@ import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-
+// 解决 Java 中的普通 String 类型与 PostgreSQL 数据库中的特殊类型 jsonb（二进制 JSON）之间的互相转换问题
 public class JsonbTypeHandler extends BaseTypeHandler<String> {
 
     @Override
