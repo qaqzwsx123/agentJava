@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class SseEmitterSender {
+    //封装 Spring 的 SseEmitter，发送事件、维护连接关闭状态、处理发送失败
 
     /**
      * Spring SSE 发送器实例

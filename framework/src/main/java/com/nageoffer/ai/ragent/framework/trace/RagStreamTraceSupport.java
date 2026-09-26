@@ -25,7 +25,7 @@ package com.nageoffer.ai.ragent.framework.trace;
  * worker 线程执行。本接口允许调用线程开启一个跨线程节点，由 SSE 的
  * onComplete / onError 在另一线程上 finish
  */
-public interface RagStreamTraceSupport {
+public interface RagStreamTraceSupport { //流式任务追踪接口。允许在一个线程开始计时，在异步线程真正完成、失败或取消时结束计时
 
     /**
      * 在调用线程开启一个 stream 节点：插入 RUNNING 行，把 nodeId push 进当前
