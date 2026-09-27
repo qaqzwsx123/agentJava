@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class DeepSeekChatClient extends AbstractOpenAIStyleChatClient {
+    // DeepSeek 聊天适配器。使用 thinking.type 表达思考开关，覆盖父类的参数扩展方法，同步和流式通信仍复用公共模板。
 
     @Override
     public String provider() {

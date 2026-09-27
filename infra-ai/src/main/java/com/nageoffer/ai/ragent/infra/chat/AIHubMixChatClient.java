@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class AIHubMixChatClient extends AbstractOpenAIStyleChatClient {
+    // AIHubMix 聊天适配器。提供供应商标识，同步和流式调用主要复用父类。
 
     @Override
     public String provider() {

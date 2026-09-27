@@ -29,6 +29,7 @@ import java.util.Map;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public class ModelUrlResolver {
+    // 决定模型请求的完整地址：优先使用候选模型的独立 URL，否则拼接供应商基础地址和对应能力端点。
 
     /**
      * 解析模型URL地址

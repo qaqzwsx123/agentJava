@@ -36,6 +36,7 @@ import java.util.function.Function;
 @Component
 @RequiredArgsConstructor
 public class ModelRoutingExecutor {
+    // 依次取得候选客户端和健康许可，调用成功就返回，普通失败记录状态并尝试后续候选；任务取消直接向上传播，不计模型故障。
 
     private final ModelHealthStore healthStore;
 

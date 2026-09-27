@@ -25,6 +25,7 @@ import org.springframework.util.StringUtils;
  */
 @Service
 public class HeuristicTokenCounterService implements TokenCounterService {
+    // 启发式 Token 估算器：ASCII 约 4 字符一个 Token、中日韩字符约一个字符一个 Token、其他约 2 字符一个 Token，跳过空白，不是模型精确分词。
 
     /**
      * 按 ASCII 约四字符一 token、CJK 每字符一 token、其他约两字符一 token 估算，空白不计。

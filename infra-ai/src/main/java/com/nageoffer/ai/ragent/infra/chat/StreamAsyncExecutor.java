@@ -34,6 +34,7 @@ import java.util.function.Consumer;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class StreamAsyncExecutor {
+    // 将模型流读取任务提交到线程池并构造取消句柄；线程池拒绝任务时取消 HTTP 请求并通知错误。
 
     private static final String STREAM_BUSY_MESSAGE = "流式线程池繁忙";
 

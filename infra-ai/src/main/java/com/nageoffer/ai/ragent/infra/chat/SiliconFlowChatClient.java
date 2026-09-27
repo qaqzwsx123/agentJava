@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class SiliconFlowChatClient extends AbstractOpenAIStyleChatClient {
+    // 硅基流动聊天适配器。复用公共聊天模板，并声明支持 enable_thinking 思考参数。
 
     @Override
     public String provider() {

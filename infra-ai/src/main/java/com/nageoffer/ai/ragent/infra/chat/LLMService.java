@@ -44,7 +44,7 @@ import com.nageoffer.ai.ragent.infra.enums.Tier;
  * - 流式模式下需正确处理 cancel()，并确保资源释放
  */
 public interface LLMService {
-
+//业务层使用的聊天接口。提供同步聊天、指定档位聊天、优先模型聊天和流式聊天等入口。
     /**
      * 同步调用（默认档位）
      * <p>

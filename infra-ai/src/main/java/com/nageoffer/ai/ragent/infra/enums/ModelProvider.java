@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ModelProvider {
+    // 统一供应商标识，如 bailian、ollama、siliconflow、aihubmix、deepseek 和 noop，使配置中的供应商能够匹配对应客户端。
 
     /**
      * Ollama 本地模型服务

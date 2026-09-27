@@ -28,6 +28,7 @@ import lombok.Getter;
  */
 @Getter
 public enum Tier {
+    // 定义 FAST、STANDARD、DEEP 三个聊天档位，对应配置中的 fast、standard、deep，由档位映射到候选模型列表和超时预算。
 
     /**
      * 快速档：低延迟优先，用于高频或低风险任务（标题、歧义、改写、摘要、入库富化/增强）

@@ -50,6 +50,7 @@ import java.util.Set;
 @Slf4j
 @RequiredArgsConstructor
 public class BaiLianRerankClient implements RerankClient {
+    // 请求百炼重排接口，发送问题和候选正文，按响应索引关联原片段，保留元数据并写入真实精排分数。
 
     @Qualifier("syncHttpClient")
     private final OkHttpClient httpClient;

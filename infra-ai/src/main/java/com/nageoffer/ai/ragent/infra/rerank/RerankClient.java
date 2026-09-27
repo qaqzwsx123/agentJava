@@ -27,6 +27,7 @@ import java.util.List;
  * 用于对检索到的文档片段进行重新排序，以提高检索结果的相关性
  */
 public interface RerankClient {
+    // 具体供应商重排客户端的统一接口，根据问题、候选片段、topN 和明确的模型目标执行重排。
 
     /**
      * 获取Rerank服务提供商名称

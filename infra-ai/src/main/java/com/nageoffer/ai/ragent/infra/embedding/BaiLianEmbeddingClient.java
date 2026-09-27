@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class BaiLianEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
+    // 百炼向量适配器。当前代码将单批请求限制为 10 条，更多文本由父类依次拆批并合并结果。
 
     public BaiLianEmbeddingClient(OkHttpClient syncHttpClient) {
         // 通过父类复用同步客户端与 OpenAI 兼容向量协议，避免重复维护网络逻辑。

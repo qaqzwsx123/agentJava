@@ -29,6 +29,7 @@ package com.nageoffer.ai.ragent.infra.model;
  */
 @FunctionalInterface
 public interface ModelCaller<C, T> {
+    // 通用模型调用的函数式接口，让执行器通过 Lambda 接收具体客户端的调用逻辑，并支持不同客户端及返回值类型。
 
     /**
      * 执行模型调用

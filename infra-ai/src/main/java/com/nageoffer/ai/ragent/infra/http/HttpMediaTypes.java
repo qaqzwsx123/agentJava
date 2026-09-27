@@ -27,6 +27,7 @@ import okhttp3.MediaType;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class HttpMediaTypes {
+    // 定义 HTTP 内容类型常量，提供 UTF-8 JSON 类型，供模型客户端构造 OkHttp 请求体时复用。
 
     /**
      * JSON 媒体类型，使用 UTF-8 字符集

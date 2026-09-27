@@ -25,6 +25,7 @@ package com.nageoffer.ai.ragent.infra.vlm;
  * 下游问答仍为纯文本模型，VLM 只在写入侧调用，不进入 chat 热路径
  */
 public interface VlmService {
+    // 入库阶段的图生文接口，输入图片字节、类型、提示词和可选输出 Token 上限，返回图片描述或图中文字，供后续文本摄取使用。
 
     /**
      * 图生文：输入图片字节，返回模型生成的文本（中文描述 + 图中文字）

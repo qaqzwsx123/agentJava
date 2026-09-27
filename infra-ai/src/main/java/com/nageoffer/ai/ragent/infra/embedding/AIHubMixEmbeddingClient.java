@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AIHubMixEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
+    // AIHubMix 向量适配器。复用公共向量请求模板，当前代码设置单批最多 32 条文本。
 
     public AIHubMixEmbeddingClient(OkHttpClient syncHttpClient) {
         // 将共享同步客户端交给父类，批量协议、鉴权和响应解析全部沿用模板。

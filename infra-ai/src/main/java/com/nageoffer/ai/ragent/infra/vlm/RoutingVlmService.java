@@ -53,6 +53,7 @@ import java.util.List;
 @Service
 @Primary
 public class RoutingVlmService implements VlmService {
+    // 选择首个可用视觉模型，将图片以 Base64 和提示词组成多模态请求，发送 HTTP 并提取描述文本；当前不遍历候选进行失败回退。
 
     private static final String LABEL = "vlm";
 

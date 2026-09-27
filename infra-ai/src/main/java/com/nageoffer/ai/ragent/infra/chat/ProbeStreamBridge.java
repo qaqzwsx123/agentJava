@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
  * 流式首包探测桥接器
  */
 public final class ProbeStreamBridge implements StreamCallback {
+    // 候选模型的首包探测缓冲层。正文或思考增量到达才确认候选可用并转发缓冲，避免失败候选的事件影响最终回答。
 
     private final StreamCallback downstream;
     private final CompletableFuture<ProbeResult> probe = new CompletableFuture<>();
@@ -138,8 +139,12 @@ public final class ProbeStreamBridge implements StreamCallback {
      */
     @Getter
     public static class ProbeResult {
+        // 保存首包探测结果及可选异常，供路由层区分成功、错误、超时和无内容结束。
 
-        enum Type {SUCCESS, ERROR, TIMEOUT, NO_CONTENT}
+        enum Type {
+            // 首包探测的四种结果类型：成功、错误、超时，以及未输出正文或思考就结束。
+            SUCCESS, ERROR, TIMEOUT, NO_CONTENT
+        }
 
         private final Type type;
         private final Throwable error;

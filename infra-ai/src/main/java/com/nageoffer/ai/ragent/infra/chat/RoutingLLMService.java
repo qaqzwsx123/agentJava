@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 @Service
 @Primary
 public class RoutingLLMService implements LLMService {
+    // LLMService 的主要实现。根据档位、思考开关和健康状态选择候选；同步调用通过执行器处理切换，流式调用还要等待首包探测。
 
     private static final String STREAM_INTERRUPTED_MESSAGE = "流式请求被中断";
     private static final String STREAM_NO_PROVIDER_MESSAGE = "无可用大模型提供者";

@@ -34,6 +34,7 @@ import java.util.Map;
 @Configuration
 @ConfigurationProperties(prefix = "ai")
 public class AIModelProperties {
+    // 将 application.yaml 中 ai 开头的配置绑定为 Java 对象，统一提供供应商、模型列表、聊天档位、超时、熔断和流式输出配置。
 
     /**
      * AI 提供商配置映射
@@ -77,6 +78,7 @@ public class AIModelProperties {
      */
     @Data
     public static class ModelGroup {
+        // 保存某种 AI 能力的模型组配置，包括候选列表、默认模型，以及聊天使用的默认档位和深度思考档位。
         /**
          * 默认使用的模型标识（embedding/rerank/vlm 使用；chat 已改用 tier）
          */
@@ -114,6 +116,7 @@ public class AIModelProperties {
      */
     @Data
     public static class TierConfig {
+        // 保存一个聊天档位的候选模型顺序和调用超时预算，供模型选择器构造调用目标。
 
         /**
          * 有序候选模型 id 列表
@@ -133,6 +136,7 @@ public class AIModelProperties {
      */
     @Data
     public static class ModelCandidate {
+        // 描述单个候选模型，保存 ID、供应商、模型名、独立地址、向量维度、优先级、启用状态和思考支持标志。
 
         /**
          * 模型唯一标识符
@@ -181,6 +185,7 @@ public class AIModelProperties {
      */
     @Data
     public static class ProviderConfig {
+        // 保存供应商的基础地址、API Key 和各能力端点路径，供具体客户端构造模型请求。
 
         /**
          * 提供商基础 URL
@@ -205,6 +210,7 @@ public class AIModelProperties {
      */
     @Data
     public static class Selection {
+        // 保存模型选择的容错参数，包括连续失败阈值和熔断持续时间。
 
         /**
          * 失败阈值，超过该值将触发熔断
@@ -223,6 +229,7 @@ public class AIModelProperties {
      */
     @Data
     public static class Stream {
+        // 保存流式输出参数，messageChunkSize 被业务流处理器用于控制增量内容的合并推送。
 
         /**
          * 消息分块大小

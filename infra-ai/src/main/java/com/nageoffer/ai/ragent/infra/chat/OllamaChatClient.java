@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class OllamaChatClient extends AbstractOpenAIStyleChatClient {
+    // Ollama 聊天适配器。通过兼容协议访问本地模型，不要求 API Key，也不添加 Bearer 鉴权头。
 
     @Override
     public String provider() {

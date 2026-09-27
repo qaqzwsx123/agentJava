@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class LLMResponseCleaner {
+    // 清理模型输出外层的 Markdown 代码围栏，便于后续解析 JSON 等正文；本身不验证 JSON 是否正确。
 
     private static final String FENCE = "```";
 

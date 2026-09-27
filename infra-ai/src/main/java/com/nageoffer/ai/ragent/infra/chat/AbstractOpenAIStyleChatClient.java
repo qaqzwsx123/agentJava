@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public abstract class AbstractOpenAIStyleChatClient implements ChatClient {
+    // 兼容协议的公共实现模板。负责构造消息和请求参数、发送 HTTP、校验响应、读取 SSE、建立取消句柄，子类只补供应商差异。
 
     @Autowired
     private OkHttpClient syncHttpClient;

@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class NoopRerankClient implements RerankClient {
+    // 不调用模型的重排实现。保留原顺序和原分数，必要时只截取前 topN 条，可作为配置中的回退候选，但不产生真实精排分数。
 
     @Override
     public String provider() {

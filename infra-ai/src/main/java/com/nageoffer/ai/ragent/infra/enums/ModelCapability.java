@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ModelCapability {
+    // 统一标识聊天 CHAT、向量化 EMBEDDING 和重排 RERANK 三类调用能力，供端点解析、调用执行和日志使用。
 
     /**
      * 聊天对话能力

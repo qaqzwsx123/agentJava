@@ -26,6 +26,7 @@ import lombok.NoArgsConstructor;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class LogSafe {
+    // 将过长文本截断后用于日志，默认预览前 500 个字符并附原始长度；只截断，不做字段级脱敏。
 
     /**
      * 默认预览长度

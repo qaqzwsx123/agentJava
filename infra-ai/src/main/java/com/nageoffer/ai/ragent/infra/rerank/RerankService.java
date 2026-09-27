@@ -26,6 +26,7 @@ import java.util.List;
  * 按“和 query 的相关度”重新排序，并只返回前 topN 条
  */
 public interface RerankService {
+    // 业务层重排接口，接收用户问题、候选片段和 topN，返回精排处理后保留的候选列表。
 
     /**
      * 对向量检索出来的一批候选文档进行精排，按“和 query 的相关度”重新排序，并只返回前 topN 条

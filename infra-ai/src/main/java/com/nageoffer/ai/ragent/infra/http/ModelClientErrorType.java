@@ -24,6 +24,7 @@ package com.nageoffer.ai.ragent.infra.http;
  * 用于统一错误分类和处理策略
  */
 public enum ModelClientErrorType {
+    // 统一分类模型调用错误，包括鉴权、限流、服务端、客户端、网络、无效响应和供应商错误；是否切换模型由外层调用逻辑决定。
 
     /**
      * 未授权错误 - 认证失败或令牌无效

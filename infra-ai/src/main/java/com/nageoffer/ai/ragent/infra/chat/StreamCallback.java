@@ -41,6 +41,7 @@ import java.util.List;
  * - onError() 应当捕获所有异常，避免影响客户端体验
  */
 public interface StreamCallback {
+    // 接收流式结果的回调接口。传递正文、思考、完成、错误，以及回答来源和推荐问题证据等信息。
 
     /**
      * 记录当前回答对应的用户消息 ID

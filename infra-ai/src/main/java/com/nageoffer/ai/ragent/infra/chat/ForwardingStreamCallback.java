@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 触发 {@link #onFinish(boolean, Throwable)}，便于 trace、计量等场景在流式终态做收尾
  */
 public abstract class ForwardingStreamCallback implements StreamCallback {
+    // 回调装饰器基类。将事件转发给下游，同时提供第一次正文和最终收尾钩子，方便附加追踪、计量逻辑。
 
     private final StreamCallback delegate;
     private final AtomicBoolean finished = new AtomicBoolean(false);

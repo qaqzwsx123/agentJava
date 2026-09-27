@@ -37,6 +37,7 @@ import java.util.List;
  * - 文本需在向量化前进行清洗（trim、空过滤、控制符处理等）
  */
 public interface EmbeddingService {
+    // 业务层向量化接口。提供单条、批量文本向量化，以及指定模型 ID 的调用方式，屏蔽具体供应商差异。
 
     /**
      * 对单个文本进行向量化（Embedding）

@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class SiliconFlowEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
+    // 硅基流动向量适配器。复用公共向量请求模板，当前代码设置单批最多 32 条文本。
 
     public SiliconFlowEmbeddingClient(OkHttpClient syncHttpClient) {
         // 把共享同步客户端传给向量协议模板，保留连接池与超时等公共配置。

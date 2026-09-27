@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 @Service
 @Primary
 public class RoutingRerankService implements RerankService {
+    // 选择重排模型和供应商客户端，通过公共路由执行器组织调用，并在普通失败时尝试后续配置候选。
 
     private final ModelSelector selector;
     private final ModelRoutingExecutor executor;
