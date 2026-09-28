@@ -280,7 +280,7 @@ ai:
     tiers:      # 档位定义
       fast:
         candidates: [ qwen3-local ]
-        timeout-ms: 120000
+        timeout-ms: 30000  # 改写等辅助任务超时后按原问题继续检索，避免等待两分钟
       standard:
         candidates: [ qwen3-local ]
         timeout-ms: 120000

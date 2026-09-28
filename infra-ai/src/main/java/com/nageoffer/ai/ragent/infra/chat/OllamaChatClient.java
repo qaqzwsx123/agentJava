@@ -17,6 +17,7 @@
 
 package com.nageoffer.ai.ragent.infra.chat;
 
+import com.google.gson.JsonObject;
 import com.nageoffer.ai.ragent.framework.convention.ChatRequest;
 import com.nageoffer.ai.ragent.framework.trace.RagTraceNode;
 import com.nageoffer.ai.ragent.infra.enums.ModelProvider;
@@ -39,6 +40,12 @@ public class OllamaChatClient extends AbstractOpenAIStyleChatClient {
     protected boolean requiresApiKey() {
         // 关闭 API Key 必填检查与 Bearer 请求头添加，供本地无鉴权的 Ollama 端点使用。
         return false;
+    }
+
+    @Override
+    protected void customizeRequestBody(JsonObject body, ChatRequest request) {
+        // Ollama 兼容接口通过 reasoning_effort 控制思考；仅不解析思考内容并不能停止模型在服务端生成思考。
+        body.addProperty("reasoning_effort", Boolean.TRUE.equals(request.getThinking()) ? "medium" : "none");
     }
 
     @Override

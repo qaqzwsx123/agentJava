@@ -18,6 +18,8 @@
 package com.nageoffer.ai.ragent.rag.service;
 
 import com.nageoffer.ai.ragent.framework.convention.ChatMessage;
+import com.nageoffer.ai.ragent.framework.errorcode.BaseErrorCode;
+import com.nageoffer.ai.ragent.framework.exception.RemoteException;
 import com.nageoffer.ai.ragent.infra.chat.LLMService;
 import com.nageoffer.ai.ragent.rag.config.RAGConfigProperties;
 import com.nageoffer.ai.ragent.rag.core.guidance.GuidanceDecision;
@@ -37,9 +39,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -170,6 +174,39 @@ class KnowledgeSearchFacadeTest {
         verify(promptService, never()).buildStructuredMessages(
                 any(PromptContext.class), anyList(), anyString(), anyList(), anyBoolean());
         verify(llmService, never()).chat(any());
+    }
+
+    @Test
+    void returnsRetrievedEvidenceWhenSynthesisModelIsUnavailable() {
+        KnowledgeSearchFacade facade = facade(true);
+        stubRetrievalHit();
+        when(llmService.chat(any())).thenThrow(new RemoteException("No Chat model candidates available"));
+
+        String result = facade.search(QUESTION);
+
+        assertTrue(result.contains("差旅报销上限 800 元"));
+        assertFalse(result.contains("data-ragent-doc-id"));
+        assertFalse(result.contains("doc-a"));
+        assertFalse(result.contains("No Chat model candidates available"));
+    }
+
+    @Test
+    void returnsRetrievedEvidenceWhenSynthesisIsBlank() {
+        KnowledgeSearchFacade facade = facade(false);
+        stubRetrievalHit();
+        when(llmService.chat(any())).thenReturn("  ");
+
+        assertTrue(facade.search(QUESTION).contains("差旅报销上限 800 元"));
+    }
+
+    @Test
+    void doesNotConvertCancellationIntoSuccessfulEvidence() {
+        KnowledgeSearchFacade facade = facade(false);
+        stubRetrievalHit();
+        when(llmService.chat(any())).thenThrow(new RemoteException("cancelled",
+                new CancellationException("user stopped"), BaseErrorCode.REMOTE_ERROR));
+
+        assertThrows(CancellationException.class, () -> facade.search(QUESTION));
     }
 
     private KnowledgeSearchFacade facade(boolean citationEnabled) {

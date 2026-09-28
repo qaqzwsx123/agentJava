@@ -19,6 +19,8 @@ package com.nageoffer.ai.ragent.rag.service;
 
 import com.nageoffer.ai.ragent.framework.convention.ChatMessage;
 import com.nageoffer.ai.ragent.framework.convention.ChatRequest;
+import com.nageoffer.ai.ragent.framework.cancellation.TaskCancellation;
+import com.nageoffer.ai.ragent.framework.exception.RemoteException;
 import com.nageoffer.ai.ragent.infra.chat.LLMService;
 import com.nageoffer.ai.ragent.rag.core.guidance.GuidanceDecision;
 import com.nageoffer.ai.ragent.rag.core.guidance.IntentGuidanceService;
@@ -34,6 +36,7 @@ import com.nageoffer.ai.ragent.rag.dto.SubQuestionIntent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -90,11 +93,24 @@ public class KnowledgeSearchFacade {
         List<ChatMessage> messages = promptService.buildStructuredMessages(
                 promptContext, List.of(), rewriteResult.rewrittenQuestion(), rewriteResult.subQuestions(), false);
 
-        return llmService.chat(ChatRequest.builder()
-                .messages(messages)
-                .temperature(0D)
-                .topP(1D)
-                .thinking(false)
-                .build());
+        try {
+            String answer = llmService.chat(ChatRequest.builder()
+                    .messages(messages)
+                    .temperature(0D)
+                    .topP(1D)
+                    .thinking(false)
+                    .build());
+            if (StringUtils.hasText(answer)) {
+                return answer;
+            }
+            log.warn("知识库答案合成为空，返回已检索资料供主 Agent 回答");
+        } catch (RemoteException e) {
+            // 合成模型熔断或超时不应丢弃已经检索成功的证据；取消必须继续向上传播。
+            if (TaskCancellation.isCancellation(e)) {
+                throw TaskCancellation.asCancellation(e);
+            }
+            log.warn("知识库答案合成不可用，返回已检索资料供主 Agent 回答: {}", e.getMessage());
+        }
+        return kbContext;
     }
 }
