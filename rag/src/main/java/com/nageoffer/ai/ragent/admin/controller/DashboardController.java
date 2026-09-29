@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 //@ConditionalOnProperty(prefix = "ragent.engine", name = "type", havingValue = "workflow", matchIfMissing = true)
 @RequiredArgsConstructor
 @RequestMapping("/admin/dashboard")
-@SaCheckRole("admin")
+@SaCheckRole("admin") //Sa-Token 框架（一个轻量级的 Java 权限认证框架）提供的核心注解，它的作用是：进行角色权限校验（也就是做“权限控制”）
 public class DashboardController {
 
     private final DashboardService dashboardService;
@@ -45,6 +45,8 @@ public class DashboardController {
      * window 指定统计时间窗口，缺省窗口由服务层解析。
      */
     @GetMapping("/overview")
+    //window 参数指的是 “时间窗口”（Time Window）。
+    //简单来说，它就是前端告诉后端：“我要查看最近多长时间内的统计数据
     public Result<DashboardOverviewVO> overview(@RequestParam(required = false) String window) {
         // 让看板服务统一计算统计口径，控制器仅封装 JSON 响应。
         return Results.success(dashboardService.loadOverview(window));

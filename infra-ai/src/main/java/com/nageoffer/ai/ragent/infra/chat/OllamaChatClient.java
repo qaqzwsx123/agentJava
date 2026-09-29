@@ -26,7 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Slf4j
-@Service
+@Service  //只要你的 Spring Boot 启动类上带有 @SpringBootApplication，Spring 默认就会扫描启动类所在包及其子包。
+//结果： Spring 扫到了 @Service，就会自动把 OllamaChatClient 实例化，并注册到 Spring 的 IoC 容器（Bean 池）里。
 public class OllamaChatClient extends AbstractOpenAIStyleChatClient {
     // Ollama 聊天适配器。通过兼容协议访问本地模型，不要求 API Key，也不添加 Bearer 鉴权头。
 

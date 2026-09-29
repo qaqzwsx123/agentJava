@@ -46,7 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 独立于 Agent 执行链路的统计适配器，最多缓存 3 个窗口 × 2 个粒度，无后台任务
  */
 @Service
-@ConditionalOnAgentEngine
+@ConditionalOnAgentEngine//ragent.engine.type=agent
 public class AgentDashboardService implements DashboardService {
 
     private static final long CACHE_TTL_MS = 30_000;
@@ -98,20 +98,50 @@ public class AgentDashboardService implements DashboardService {
 
     /**
      * 按窗口和粒度缓存统计快照，缓存有效时复用；过期或时钟回拨时重新查询并统一组装。
-     * 同一个缓存键通过 compute 串行刷新，概览、性能和趋势采用同一份窗口参数。
      */
     private Snapshot snapshot(String window, String granularity, String fallback) {
+        // 【函数 1】AgentDashboardWindow.normalize(window, fallback)
+        // 作用：归一化时间窗口。如果 window 传了 "1h" 就用 "1h"；如果是 null，就使用 fallback 也就是 "24h"。
         String label = AgentDashboardWindow.normalize(window, fallback);
+
+        // 【函数 2】AgentDashboardWindow.granularity(granularity, label)
+        // 作用：决定时间粒度。因为我们在 loadOverview 里传的是 null，它内部会自动推导：
+        // 比如 "24h" 可能会推导出 "hour"（按小时），"7d" 可能会推导出 "day"（按天）。
         String grain = AgentDashboardWindow.granularity(granularity, label);
+
+        // 【函数 3】cache.compute(key, BiFunction)
+        // 作用：ConcurrentHashMap 的原子操作。用 "24h:hour" 作为缓存键（key）。
+        // 无论是多少个线程同时请求，底层都会排队串行执行，保证只有一个线程去查库，防止缓存击穿。
         return cache.compute(label + ":" + grain, (key, cached) -> {
+            // 【函数 4】clock.millis()
+            // 作用：获取当前系统时间的毫秒数（用于判断缓存是否过期）。
             long now = clock.millis();
+
+            // 【缓存命中判断】：如果缓存存在(cached!=null)，且当前时间没回退，且距离上次更新没超过 30 秒(CACHE_TTL_MS)
             if (cached != null && now >= cached.updatedAt() && now - cached.updatedAt() < CACHE_TTL_MS) {
+                // 直接返回内存中的快照，【不查数据库】
                 return cached;
             }
+
+            // ---------- 下面是缓存未命中（或已过期）的查库逻辑 ----------
+
+            // 【函数 5】AgentDashboardWindow.at(label, grain, clock)
+            // 作用：根据 "24h" 和 "hour"，结合当前时间，计算出具体的开始时间、结束时间以及上一周期的时间范围（range 对象）。
             AgentDashboardWindow range = AgentDashboardWindow.at(label, grain, clock);
+
+            // 【函数 6】reader.read(range)
+            // 作用：真正去数据库执行 SQL。一次性把概览、性能、趋势要用到的底层数据全部查出来，封装在 rows 里。
             AgentDashboardReader.Rows rows = reader.read(range);
-            return new Snapshot(range.updatedAt(), overview(range, rows.overview()), performance(range, rows),
-                    trends(range, rows));
+
+            // 【函数 7、8、9】overview(...), performance(...), trends(...)
+            // 作用：把查出来的底层 rows 数据，分别加工成前端需要的 VO 结构。
+            // 最后通过 new Snapshot(...) 把这三块加工好的数据打包在一起。
+            return new Snapshot(
+                    range.updatedAt(),
+                    overview(range, rows.overview()),      // 加工概览数据
+                    performance(range, rows),              // 加工性能数据
+                    trends(range, rows)                    // 加工趋势数据
+            );
         });
     }
 
@@ -325,5 +355,7 @@ public class AgentDashboardService implements DashboardService {
 
     private record Snapshot(long updatedAt, DashboardOverviewVO overview, AgentDashboardPerformance performance,
                             Map<String, DashboardTrendsVO> trends) {
+        // 这里不需要写代码。
+        // 当你调用 snapshot.overview() 时，实际上就是调用了编译器自动生成的 public DashboardOverviewVO overview() { return this.overview; } 方法
     }
 }
