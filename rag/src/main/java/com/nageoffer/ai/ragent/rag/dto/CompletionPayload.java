@@ -33,6 +33,7 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CompletionPayload(String messageId, String title, List<SourceRef> sources, MessageStatus messageStatus) {
+    // 模型回答完成事件：携带最终消息 ID、会话标题和可选来源等完成信息，供前端结束本轮流式状态并更新会话。
 
     /**
      * 无来源场景的便捷构造 sources 置空（NON_NULL 序列化时自动省略该字段）

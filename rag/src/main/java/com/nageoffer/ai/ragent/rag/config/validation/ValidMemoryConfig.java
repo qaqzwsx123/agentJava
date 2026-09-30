@@ -35,6 +35,7 @@ import java.lang.annotation.Target;
 @Constraint(validatedBy = MemoryConfigValidator.class)
 @Documented
 public @interface ValidMemoryConfig {
+    // 会话记忆配置校验注解：将配置对象交给 MemoryConfigValidator 检查，并提供 Bean Validation 所需的消息、分组与负载属性。
 
     /**
      * 验证失败时的默认错误消息

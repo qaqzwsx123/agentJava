@@ -46,6 +46,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class RemoteFileFetcher {
+    // 远程文件拉取服务 封装远程文件的 HEAD 预检、流式下载、变更检测等逻辑。
 
     private final HttpClientHelper httpClientHelper;
     private final FileStorageService fileStorageService;
@@ -227,6 +228,7 @@ public class RemoteFileFetcher {
     }
 
     private record CopyResult(long size, String sha256Hex) {
+        // 流式复制结果：记录写入临时文件的实际字节数和 SHA-256 内容哈希，供体积校验和远程文件变更检测使用。
     }
 
     private static String hexEncode(byte[] hash) {
@@ -270,6 +272,7 @@ public class RemoteFileFetcher {
     }
 
     public static final class RemoteFetchResult implements AutoCloseable {
+        // 远程拉取结果及资源句柄：保存是否变化、临时文件、大小、类型、文件名、ETag、修改时间和内容哈希，使用完毕通过关闭操作清理临时资源。
 
         private final boolean changed;
         private Path tempFile;

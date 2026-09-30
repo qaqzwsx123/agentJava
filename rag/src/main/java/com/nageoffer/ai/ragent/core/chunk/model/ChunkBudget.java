@@ -28,6 +28,7 @@ package com.nageoffer.ai.ragent.core.chunk.model;
  * @param toleranceFactor  为保完整性允许超出 maxChars 的倍数，详见 {@link #toleranceChars()}
  */
 public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int toleranceFactor) {
+    // 分块预算：保存目标字符数、重叠字符数、表格每块行数和容忍倍数，统一校验参数并支持整篇不切分；长度单位是字符而非 Token，目标大小允许为结构完整性适度放宽。
 
     /**
      * 整文档单块的哨兵值：由 {@link #wholeDocument()} 构造、{@link #isWholeDocument()} 判定，调用方不需要知道它本身

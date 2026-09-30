@@ -46,6 +46,7 @@ import java.util.Date;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 @RequiredArgsConstructor
 public class RagTraceAspect {
+    // RAG 节点追踪切面：拦截 RagTraceNode 标记的方法，维护父子节点关系，采集输入输出、耗时及异常并写入追踪记录。
 
     private static final String STATUS_RUNNING = "RUNNING";
     private static final String STATUS_SUCCESS = "SUCCESS";

@@ -43,6 +43,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusConfig {
+    // Milvus 客户端配置类 通过 Spring 容器统一创建并管理 MilvusClientV2 实例，用于向量数据的增删改查、索引管理等操作 支持通过配置文件设置连接地址与可选的访问令牌。
 
     /**
      * 构建 Milvus 客户端 Bean

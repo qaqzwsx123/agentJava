@@ -30,6 +30,7 @@ import java.util.Set;
  * 在启动期建表，键冲突即启动失败
  */
 public interface DocumentParser {
+    // 文档解析统一接口：声明解析器类型、各解析档位支持的 MIME，以及将文件字节转换为 ParsedDocument 的能力，供注册表路由和摄取内核调用。
 
     /**
      * 解析器类型标识，取值见 {@link ParserType}

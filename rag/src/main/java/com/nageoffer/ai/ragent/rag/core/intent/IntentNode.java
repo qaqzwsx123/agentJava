@@ -31,6 +31,7 @@ import java.util.List;
 @Data
 @Builder
 public class IntentNode {
+    // 运行期意图节点：保存节点身份、层级、描述、知识库或工具绑定及子节点等信息，供分类、工具目录和检索作用域读取。
 
     /**
      * 唯一标识，如：

@@ -37,6 +37,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequiredArgsConstructor
 public class RAGChatController {
+    // Workflow 模式 RAG 问答入口：接收问题、会话和思考选项，建立 SSE 通道交给 RAGChatService 执行，并提供按任务停止接口。
 
     private final RAGChatService ragChatService;
     private final RAGDefaultProperties ragDefaultProperties;

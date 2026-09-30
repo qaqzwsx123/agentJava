@@ -48,6 +48,7 @@ import java.util.Date;
 @Component
 @RequiredArgsConstructor
 public class ScheduleRefreshProcessor {
+    // 定时文档刷新处理器：在锁租约保护下拉取远程变更、占用文档处理状态、重新分块入库并切换文件引用，按阶段处理失败和资源清理。
 
     private static final String SYSTEM_USER = "system";
 
@@ -380,6 +381,7 @@ public class ScheduleRefreshProcessor {
     }
 
     private enum Phase {
+        // 定时刷新执行阶段：标识初始化、文档占用、分块开始、分块完成及文件切换，供异常收尾判断哪些操作已经发生。
         INIT,
         DOC_OCCUPIED,
         CHUNK_STARTED,
@@ -388,6 +390,7 @@ public class ScheduleRefreshProcessor {
     }
 
     private static final class RefreshRunState {
+        // 单次刷新运行状态：暂存文档、执行上下文、旧新文件、锁丢失标记、阶段和拉取快照，供正常完成及异常恢复共享。
 
         private KnowledgeDocumentDO document;
         private ScheduleStateContext ctx;
@@ -404,6 +407,7 @@ public class ScheduleRefreshProcessor {
     }
 
     private record FetchSnapshot(String contentHash, String etag, String lastModified) {
+        // 远程文件变更快照：保存本次下载的内容哈希、ETag 和最后修改时间，避免后续继续依赖已关闭的临时文件结果。
 
         private static FetchSnapshot from(RemoteFileFetcher.RemoteFetchResult fetchResult) {
             // 从抓取结果复制哈希、ETag 和修改时间，不保留即将被关闭的临时文件对象。

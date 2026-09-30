@@ -23,6 +23,7 @@ import java.util.Map;
  * 提示词模板渲染器
  */
 public final class PromptTemplateRenderer {
+    // 摄取提示词模板渲染工具：根据变量映射替换模板中的占位符，为文档增强和分块富集等模型调用构造具体提示词。
 
     private PromptTemplateRenderer() {
         // 模板替换通过静态方法使用，私有构造器阻止实例化工具类。

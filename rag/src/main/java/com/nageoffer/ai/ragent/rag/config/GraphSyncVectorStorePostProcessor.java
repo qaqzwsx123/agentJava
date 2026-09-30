@@ -43,6 +43,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class GraphSyncVectorStorePostProcessor implements BeanPostProcessor {
+    // 图谱同步装饰器装配器：启用 LightRAG 时把向量服务 Bean 包装为 GraphSyncingVectorStoreService，使文档写入和删除自动关联图谱同步。
 
     private final ObjectProvider<LightRagClient> lightRagClientProvider;
 

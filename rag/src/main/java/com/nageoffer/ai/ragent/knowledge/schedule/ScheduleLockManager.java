@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Component
 @RequiredArgsConstructor
 public class ScheduleLockManager {
+    // 刷新任务分布式锁管理器：通过数据库锁令牌和到期时间抢占计划，启动心跳续租并按令牌释放，避免多个实例重复刷新同一计划。
 
     private final KnowledgeDocumentScheduleMapper scheduleMapper;
     private final KnowledgeScheduleProperties scheduleProperties;
@@ -180,6 +181,7 @@ public class ScheduleLockManager {
     }
 
     public static final class ScheduleLockHeartbeat implements AutoCloseable {
+        // 刷新锁心跳句柄：周期续租并记录最近确认时间，检测租约丢失，关闭时取消续租，供刷新处理在关键阶段确认所有权。
 
         private final ScheduleLockLease lease;
         private final long lockTtlMillis;

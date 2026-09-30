@@ -20,5 +20,6 @@ package com.nageoffer.ai.ragent.rag.core.rewrite;
 import java.util.List;
 
 public record RewriteResult(String rewrittenQuestion, List<String> subQuestions) {
+    // 问题改写结果：保存检索用的完整改写问题及拆分后的子问题列表，供后续并行意图识别和检索使用。
 
 }

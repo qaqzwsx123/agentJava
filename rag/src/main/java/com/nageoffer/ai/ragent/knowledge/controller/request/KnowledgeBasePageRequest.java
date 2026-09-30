@@ -25,6 +25,7 @@ import lombok.Data;
  */
 @Data
 public class KnowledgeBasePageRequest extends Page {
+    // 知识库分页筛选参数：携带名称筛选条件并复用公共分页参数，用于后台知识库列表查询。
 
     /**
      * 知识库名称（支持模糊匹配）

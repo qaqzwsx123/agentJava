@@ -25,6 +25,7 @@ import cn.hutool.core.util.StrUtil;
  * 属部署级决策（切换需重启，且 AGENT 依赖外部 ReAct 服务存活），因此不开放后台切换
  */
 public enum OrchestrationMode {
+    // 执行架构枚举：将 ragent.engine.type 解析为 WORKFLOW 或 AGENT，供条件装配和提示词生效范围判断；属于部署配置，切换后需重启生效。
 
     /**
      * v1 编排管线：意图分类 → 检索 → 合成，链路确定、延迟低

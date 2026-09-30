@@ -21,4 +21,5 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.nageoffer.ai.ragent.ingestion.dao.entity.IngestionPipelineDO;
 
 public interface IngestionPipelineMapper extends BaseMapper<IngestionPipelineDO> {
+    // 摄取流水线数据库访问接口：通过 MyBatis-Plus 映射对应实体，供服务层执行基础增删改查及接口中声明的业务查询。
 }

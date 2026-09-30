@@ -33,6 +33,7 @@ public record Chunk(
         String embeddingText,
         ChunkMetadata metadata
 ) {
+    // 正式分块数据：保存稳定 ID、文档内序号、展示正文 content、向量化输入 embeddingText 和元数据；本身不含向量，两种正文分别服务于展示和语义检索。
 
     public Chunk {
         // 校验块标识、非负序号与两种正文，缺少元数据时补空对象，保证正式块具备完整语义。

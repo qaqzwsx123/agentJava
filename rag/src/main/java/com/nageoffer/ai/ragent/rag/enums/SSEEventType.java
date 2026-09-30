@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 public enum SSEEventType {
+    // RAG SSE 事件名称枚举：统一元信息、消息增量、来源、完成、错误和提示等事件编码，保证发送端与前端解析使用一致名称。
 
     /**
      * 会话与任务的元信息事件

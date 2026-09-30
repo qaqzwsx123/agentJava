@@ -33,6 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")//根据查询向量检索相似分块
 public class PgVectorRetrieverService implements VectorRetrieverService {
+    // PostgreSQL 向量检索实现：调用嵌入服务生成归一化查询向量，通过 pgvector 在指定逻辑集合范围按余弦距离排序并返回文档块。
 
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingService embeddingService;

@@ -72,6 +72,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class IngestionTaskServiceImpl implements IngestionTaskService {
+    // 摄取任务业务实现：校验来源和流水线，创建任务与执行上下文，调用 IngestionEngine 执行并持久化任务状态、各节点日志及结果摘要。
 
     private final IngestionEngine engine;
     private final IngestionPipelineService pipelineService;

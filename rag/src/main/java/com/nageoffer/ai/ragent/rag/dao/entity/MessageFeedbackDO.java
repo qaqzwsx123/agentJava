@@ -40,6 +40,7 @@ import java.util.Date;
 @Builder
 @TableName("t_message_feedback")
 public class MessageFeedbackDO {
+    // 消息反馈持久化实体：承载记录 ID、消息 ID、会话 ID、用户 ID、点赞或点踩等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * 主键 ID，采用雪花算法生成

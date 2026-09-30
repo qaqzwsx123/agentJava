@@ -33,6 +33,7 @@ import java.util.Map;
 @Data
 @Builder
 public class SearchChannelResult {
+    // 单个检索通道结果：保存通道类型和名称、命中文档块、延迟及元信息，供多通道引擎统一融合和观测。
 
     /**
      * 通道类型

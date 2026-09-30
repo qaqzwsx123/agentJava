@@ -31,6 +31,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class SemaphoreInitializer {
+    // 上传并发许可初始化器：启动时按配置初始化 Redisson 可过期信号量，供上传过滤器限制集群中的同时上传数量。
 
     private final RedissonClient redissonClient;
     private final RagSemaphoreProperties semaphoreProperties;

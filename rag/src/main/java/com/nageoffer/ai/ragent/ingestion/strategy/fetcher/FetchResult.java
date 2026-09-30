@@ -25,4 +25,5 @@ package com.nageoffer.ai.ragent.ingestion.strategy.fetcher;
  * @param fileName 文件名称
  */
 public record FetchResult(byte[] content, String mimeType, String fileName) {
+    // 文档抓取结果：以文件字节、MIME 和文件名统一不同来源的输出，供 FetcherNode 写入摄取上下文并继续解析。
 }

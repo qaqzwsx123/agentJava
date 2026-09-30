@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class MessageFeedbackController {
+    // 消息反馈 HTTP 入口：接收用户对指定消息的点赞点踩或撤销，交给反馈服务校验并异步处理。
 
     private final MessageFeedbackService feedbackService;
 

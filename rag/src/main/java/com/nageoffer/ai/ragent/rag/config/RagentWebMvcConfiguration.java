@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 @RequiredArgsConstructor
 public class RagentWebMvcConfiguration implements WebMvcConfigurer {
+    // Web MVC 配置：注册演示只读拦截器，配置跨域规则和 UTF-8 消息转换，供接口响应与前端访问使用统一规则。
 
     /**
      * 体验环境只读模式拦截器，属 rag 域概念，注册点收在本配置而非登录配置

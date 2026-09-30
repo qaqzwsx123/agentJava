@@ -30,6 +30,7 @@ import java.util.List;
  */
 @Component
 public class HeadingHandler {
+    // 章节路径维护器：遇到新标题时按原始标题级别移除同级及更深的旧标题，再追加新标题，使后续段落、表格等内容知道自己属于哪个章节。
 
     /**
      * 章节路径连同各级的原始 heading 级别
@@ -37,6 +38,7 @@ public class HeadingHandler {
      * 级别必须一起留着：只看路径深度无法判断新标题该挂在哪一级下，不以 H1 开头的文档会把同级章节层层嵌套
      */
     public record Outline(List<String> path, List<Integer> levels) {
+        // 不可变章节大纲：同时保存标题路径及各标题的原始级别，避免把路径深度误当成标题级别；更新大纲时返回新对象。
 
         public static final Outline EMPTY = new Outline(List.of(), List.of());
 

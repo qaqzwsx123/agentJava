@@ -39,6 +39,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class EvidenceGatePostProcessor implements SearchResultPostProcessor, InitializingBean {
+    // 证据相关性闸门 检索只保证返回最像的 N 条，库里没答案时照样满额返回，下游又只看证据文本非空，噪声必然进提示词 闸门按整批最高精排分判定，不合格整批丢弃；只管批级去留，过线后弱证据一并保留。
 
     private final SearchChannelProperties searchChannelProperties;
     private final RAGConfigProperties ragConfigProperties;

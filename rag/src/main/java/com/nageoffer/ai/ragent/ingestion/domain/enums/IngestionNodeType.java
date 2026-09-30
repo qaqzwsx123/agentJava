@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum IngestionNodeType {
+    // 摄取节点类型枚举 定义文档摄取流水线中支持的节点类型 类型值使用小写 snake_case，如 fetcher、parser、chunker。
 
     /**
      * 文档获取节点 - 从各种数据源获取文档

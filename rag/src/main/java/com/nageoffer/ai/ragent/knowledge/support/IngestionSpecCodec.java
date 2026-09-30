@@ -41,6 +41,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class IngestionSpecCodec {
+    // 文档摄取配置编解码器：统一读取、校验、补默认值和规范化解析分块配置，转换对外整篇哨兵与内部预算，确保存储和接口形状一致。
 
     /**
      * 预算字段在线路上的键名：本类按它读入，{@link IngestionSpecSchemaProvider} 按它下发表单，
@@ -192,6 +193,7 @@ public class IngestionSpecCodec {
      * @param budget       分块预算
      */
     private record SpecWire(int version, ParseProfile parseProfile, BudgetWire budget) {
+        // 摄取配置 JSON 传输结构：保存版本、解析档位和预算，使用对外约定的整篇哨兵值，与内部领域配置互相转换。
 
         static SpecWire of(IngestionSpec spec) {
             // 将领域规格转换成可序列化结构，整篇模式显式编码为约定哨兵值。
@@ -218,5 +220,6 @@ public class IngestionSpecCodec {
      * 分块预算的线路形状：字段允许缺失，缺失一律由 {@link #toBudget} 回落默认
      */
     private record BudgetWire(Integer maxChars, Integer overlapChars, Integer rowsPerChunk, Integer toleranceFactor) {
+        // 分块预算 JSON 传输结构：允许各数值字段缺失，读取时统一补默认值并转为 ChunkBudget，同时处理整篇不切分的特殊取值。
     }
 }

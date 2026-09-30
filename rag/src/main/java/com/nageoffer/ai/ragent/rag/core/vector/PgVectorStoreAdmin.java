@@ -29,6 +29,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")//检查向量表、创建所需索引、清理集合数据
 public class PgVectorStoreAdmin implements VectorStoreAdmin {
+    // PostgreSQL 向量空间管理实现：校验迁移脚本创建的共享表与部署规格，并通过逻辑集合条件清理指定知识库的向量数据。
 
 
     private final JdbcTemplate jdbcTemplate;

@@ -36,6 +36,7 @@ import java.util.Objects;
  */
 @Component
 public class ChunkPacker {
+    // 草稿打包器：按标题组织章节并根据长度合并相邻草稿，尽量保留整节、减少过小碎块；超长章节再分组，并尝试让表格、代码与前导说明放在一起。
 
     /**
      * 合并时块间分隔符，保留段落 / 列表边界

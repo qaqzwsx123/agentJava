@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class QueryTermMappingController {
+    // 术语映射管理 HTTP 入口：提供规则分页、详情、新增、更新、删除和启停，供后台维护问题归一化词表。
 
     private final QueryTermMappingAdminService queryTermMappingAdminService;
 

@@ -28,6 +28,7 @@ import java.util.List;
 @Data
 @Builder
 public class EvalResponse {
+    // 检索评测结果：返回命中文档 ID、分块 ID、上下文和证据归属等信息，不执行答案生成，供离线评估召回效果。
 
     /**
      * 召回的业务文档 ID 列表（已去重；从 t_knowledge_document.doc_name 剥文件后缀得到，对齐评测集 reference_doc_ids）

@@ -39,6 +39,7 @@ import java.util.Date;
 @Builder
 @TableName("t_knowledge_base")
 public class KnowledgeBaseDO {
+    // 知识库持久化实体：承载记录 ID、名称、嵌入模型、逻辑集合名称等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

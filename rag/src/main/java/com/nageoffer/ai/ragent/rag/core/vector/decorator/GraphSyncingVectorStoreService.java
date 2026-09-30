@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class GraphSyncingVectorStoreService implements VectorStoreService {
+    // 图谱同步装饰器：包装向量服务，在文档级写入或删除后同步 LightRAG；全文由本次分块合并，单块修改等无法恢复全文的路径按实现限制处理。
 
     private final VectorStoreService delegate;
     private final LightRagClient lightRagClient;

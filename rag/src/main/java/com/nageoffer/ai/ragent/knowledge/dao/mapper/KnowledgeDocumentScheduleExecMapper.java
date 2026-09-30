@@ -21,4 +21,5 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.nageoffer.ai.ragent.knowledge.dao.entity.KnowledgeDocumentScheduleExecDO;
 
 public interface KnowledgeDocumentScheduleExecMapper extends BaseMapper<KnowledgeDocumentScheduleExecDO> {
+    // 文档定时刷新执行记录数据库访问接口：通过 MyBatis-Plus 映射对应实体，供服务层执行基础增删改查及接口中声明的业务查询。
 }

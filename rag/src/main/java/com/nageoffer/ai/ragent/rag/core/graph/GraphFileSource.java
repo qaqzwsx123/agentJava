@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
  * 归属判定必须走这里的解析 + 全名等值
  */
 public record GraphFileSource(String collectionName, String docId) {
+    // 图谱文档来源标识编解码：将逻辑集合和文档 ID 组合为 file_path，并从末尾数字 ID 解析归属，避免含下划线或前缀相似的集合串库。
 
     /**
      * 右锚定格式：主体严格为 {collectionName}_{docId}，容忍服务端追加的扩展名修饰

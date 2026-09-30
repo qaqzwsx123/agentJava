@@ -26,6 +26,7 @@ import java.util.Date;
  */
 @Data
 public class KnowledgeBaseVO {
+    // 知识库前端返回对象；组织记录 ID、名称、嵌入模型、逻辑集合名称、文档数量等返回字段，供前端查询和展示。
 
     /**
      * 知识库ID

@@ -41,6 +41,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.CONTEXT_FORMAT_PA
 @Service
 @RequiredArgsConstructor
 public class DefaultContextFormatter implements ContextFormatter {
+    // 知识证据上下文格式化器：依据真正准入的意图选择零、单或多意图模板，按文档聚合片段并保留内部来源锚点，供后续引用编号与提示词组装。
 
     private final PromptTemplateLoader templateLoader;
 

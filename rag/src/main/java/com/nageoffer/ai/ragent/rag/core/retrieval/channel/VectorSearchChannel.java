@@ -44,6 +44,7 @@ import java.util.concurrent.Executor;
 @Slf4j
 @Component
 public class VectorSearchChannel implements SearchChannel {
+    // 向量召回通道：按共享检索作用域生成一次查询向量，在定向或全局集合内召回；定向时可并行保留未命中库补充名额。
 
     private final SearchChannelProperties properties;
     private final VectorRetrieverService retrieverService;

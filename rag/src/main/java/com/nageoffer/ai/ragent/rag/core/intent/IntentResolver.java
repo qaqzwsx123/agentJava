@@ -42,6 +42,7 @@ import static com.nageoffer.ai.ragent.rag.enums.IntentKind.SYSTEM;
 @Service
 @RequiredArgsConstructor
 public class IntentResolver {
+    // 子问题意图解析器：并行分类各子问题，过滤低分并限制整轮候选规模，再为检索和提示词合并知识库意图。
 
     @Qualifier("defaultIntentClassifier")
     private final IntentClassifier intentClassifier;

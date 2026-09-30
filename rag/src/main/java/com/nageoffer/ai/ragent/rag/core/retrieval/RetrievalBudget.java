@@ -32,6 +32,7 @@ package com.nageoffer.ai.ragent.rag.core.retrieval;
  * 由配置侧启动校验兜底（见 {@code SearchChannelProperties}）
  */
 public record RetrievalBudget(int recallBudget, int candidateLimit, int contextTopK) {
+    // 检索漏斗三段预算：分别限制各通道召回规模、融合后的重排候选池和最终上下文条数，供各阶段读取自己的成本上限。
 
     /**
      * 三段同值构造：用于测试或无需区分预算的平凡场景

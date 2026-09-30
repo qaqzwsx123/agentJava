@@ -34,6 +34,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class DocumentSource {
+    // 文档源实体类 描述文档的来源信息，包括源类型、访问位置、文件名称以及访问凭证等。
 
     /**
      * 文档源类型

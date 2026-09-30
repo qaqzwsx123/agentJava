@@ -43,6 +43,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class MetadataEnrichmentPostProcessor implements SearchResultPostProcessor {
+    // 元数据富化后置处理器 处于处理链末端（Rerank 之后），对最终 Top-K 结果按 chunkId 回表补齐文档归属信息 （文档ID、文档内序号、文档标题），供上下文组装时按文档聚合与标注来源 只富化、不重排：保持进入时的相关性顺序不变。
 
     private final ChunkMetadataResolver chunkMetadataResolver;
     private final RAGConfigProperties ragConfigProperties;

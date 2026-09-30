@@ -45,6 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Validated
 public class KnowledgeChunkController {
+    // 知识库分块管理 HTTP 入口：按文档查询、创建、修改、删除及启停分块，接收批量块 ID 并交给分块服务处理。
 
     private final KnowledgeChunkService knowledgeChunkService;
 

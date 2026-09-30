@@ -46,6 +46,7 @@ import java.util.Map;
  */
 @Component
 public class EnricherNode implements IngestionNode {
+    // 文本增强节点 该节点通过调用大模型对文档分片进行信息提取或补充，如提取关键词、生成摘要、补充元数据等。
 
     private final ObjectMapper objectMapper;
     private final LLMService llmService;

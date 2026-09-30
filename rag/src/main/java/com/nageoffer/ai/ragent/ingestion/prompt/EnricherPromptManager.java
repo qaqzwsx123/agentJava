@@ -23,6 +23,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 public final class EnricherPromptManager {
+    // 分块富集提示词管理器：根据关键词、摘要等 ChunkEnrichType 提供对应系统提示词，供 EnricherNode 对已分块内容提取附加信息。
 
     private static final Map<ChunkEnrichType, String> DEFAULT_SYSTEM_PROMPTS = new EnumMap<>(ChunkEnrichType.class);
 

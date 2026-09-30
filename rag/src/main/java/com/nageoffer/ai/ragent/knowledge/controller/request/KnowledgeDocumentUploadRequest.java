@@ -21,6 +21,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeDocumentUploadRequest {
+    // 文档上传请求参数：携带来源类型与位置、定时刷新配置、处理模式及解析分块或流水线配置，供上传入口校验并创建文档。
 
     /**
      * 来源类型：file / url

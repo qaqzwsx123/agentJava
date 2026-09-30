@@ -33,4 +33,5 @@ import java.util.Set;
 public record KbResult(String groupedContext,
                        Map<String, List<RetrievedChunk>> intentChunks,
                        Set<String> eligibleIntentIds) {
+    // 单个子问题的知识检索结果：保存格式化资料、意图对应的片段及准入意图集合，供 RetrievalEngine 合并整轮上下文。
 }

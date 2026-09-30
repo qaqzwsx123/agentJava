@@ -39,6 +39,7 @@ import java.util.Arrays;
 @ConditionalOnClass(ElasticsearchClient.class)
 @ConditionalOnProperty(name = "rag.keyword.type", havingValue = "es")
 public class EsClientConfig {
+    // Elasticsearch 客户端装配：在启用关键词后端时读取连接配置并创建客户端，供关键词索引写入和检索共同使用。
 
     @Bean
     public ElasticsearchClient elasticsearchClient(KeywordProperties keywordProperties) {

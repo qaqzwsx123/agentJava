@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
+    // 知识库分块管理实现：校验文档与知识库归属，维护分块内容及启停状态，人工创建或编辑时按知识库指定模型计算向量并同步索引。
 
     private final KnowledgeChunkMapper chunkMapper;
     private final KnowledgeDocumentMapper documentMapper;

@@ -33,6 +33,7 @@ import java.util.List;
 @Getter
 @Builder
 public class StreamChatContext {
+    // 单轮 RAG 流水线上下文：承载问题、会话、用户、思考开关及改写、意图、检索、来源和消息等中间结果，避免各阶段散传参数。
 
     // ==================== 不可变输入参数 ====================
 

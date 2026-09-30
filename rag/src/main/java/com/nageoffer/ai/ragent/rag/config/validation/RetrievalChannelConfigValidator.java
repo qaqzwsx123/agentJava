@@ -37,6 +37,7 @@ import java.util.function.Predicate;
  * 单向性刻意为之：反过来的 {@code type=lightrag 但 enabled=false} 是合法的（后端仅供可视化 / 只读，不参与召回），不报
  */
 public final class RetrievalChannelConfigValidator {
+    // 检索通道「后端装配 vs 通道启用」一致性校验（纯逻辑，不依赖 Spring，便于单测） 两层完全正交： 后端装配 rag.{keyword,graph.type}：决定实现 bean 是否被。
 
     private RetrievalChannelConfigValidator() {
         // 校验器通过静态方法复用，私有构造器阻止实例化。
@@ -58,6 +59,7 @@ public final class RetrievalChannelConfigValidator {
                             String requiredType,
                             String enabledKey,
                             String enableHint) {
+        // 检索配置违规详情：记录通道名称、后端类型键、当前值、所需类型及启用键，供启动错误诊断给出具体修正提示。
     }
 
     /**
@@ -68,6 +70,7 @@ public final class RetrievalChannelConfigValidator {
                                String requiredType,
                                String enabledKey,
                                String enableHint) {
+        // 待校验检索通道规格：描述后端类型与通道启用开关之间的依赖关系，供一致性校验器逐项检查。
     }
 
     private static final List<ChannelSpec> SPECS = List.of(

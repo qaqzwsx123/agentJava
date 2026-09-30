@@ -25,8 +25,10 @@ import lombok.Getter;
  */
 @Getter
 public class GuidanceDecision {
+    // 引导式问答决策结果类 用于表示是否需要向用户输出引导式问答提示。
 
     public enum Action {
+        // 意图澄清动作枚举：指示继续检索或先返回澄清提示，供知识检索和聊天流水线决定是否提前结束当前处理。
         NONE,
         PROMPT
     }

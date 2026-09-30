@@ -38,6 +38,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class KnowledgeBaseCleanupTransactionChecker implements TransactionChecker<KnowledgeBaseCleanupEvent> {
+    // 知识库删除清理事务消息回查器 按 topic 注册，Broker 回查时可路由到任意实例，通过查询 DB 中知识库是否已逻辑删除判断本地事务是否已提交。
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final DelegatingTransactionListener transactionListener;

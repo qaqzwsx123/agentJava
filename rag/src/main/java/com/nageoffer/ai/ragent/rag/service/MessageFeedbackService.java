@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 public interface MessageFeedbackService {
+    // 消息反馈服务接口：校验并提交或取消用户的点赞点踩，并定义反馈事件消费后的持久化操作。
 
     /**
      * 提交会话消息反馈（同步，供内部直接调用）

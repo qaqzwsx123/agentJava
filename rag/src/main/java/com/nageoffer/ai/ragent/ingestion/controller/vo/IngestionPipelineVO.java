@@ -27,6 +27,7 @@ import java.util.List;
  */
 @Data
 public class IngestionPipelineVO {
+    // 数据摄取管道视图对象；组织记录 ID、名称、说明、节点配置等返回字段，供前端查询和展示。
 
     /**
      * 管道ID

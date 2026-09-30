@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "rag.default") //读取默认 配置 rag.default.collection-name
 public class RAGDefaultProperties {
+    // RAG 系统默认配置 用于管理 RAG 系统的默认向量数据库配置，包括集合名称、向量维度和度量类型等。
 
     /**
      * 默认向量集合名称

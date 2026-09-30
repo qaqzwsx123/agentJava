@@ -29,6 +29,7 @@ public record ImageBlock(
         String altText,
         String description
 ) implements Block {
+    // 图片结构单元：保存来源、资产引用、说明、替代文本和可选视觉描述，供 ImageChunker 生成展示内容及向量正文；没有视觉描述的来源可使用简化构造。
 
     /**
      * 不产图生文的来源（MinerU / Excel 等）用此形态，description 置空

@@ -40,6 +40,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class KnowledgeDocumentChunkTransactionChecker implements TransactionChecker<KnowledgeDocumentChunkEvent> {
+    // 文档分块事务消息回查器 按 topic 注册，Broker 回查时可路由到任意实例，通过查询 DB 中文档状态判断本地事务是否已提交。
 
     private final KnowledgeDocumentMapper documentMapper;
     private final DelegatingTransactionListener transactionListener;

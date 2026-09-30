@@ -46,6 +46,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "rag.graph", name = "type", havingValue = "lightrag")
 public class GraphSearchChannel implements SearchChannel {
+    // 知识图谱召回通道：调用 LightRAG 查找关系证据，按共享知识库范围划分主路及补充路并限制名额，随后交给统一融合流程。
 
     /**
      * 定向过滤时向 LightRAG 的请求量上浮倍数

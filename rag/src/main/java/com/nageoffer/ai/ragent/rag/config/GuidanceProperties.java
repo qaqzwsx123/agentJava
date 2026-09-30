@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "rag.guidance")
 public class GuidanceProperties {
+    // 意图澄清配置：绑定澄清开关、候选分数比例及差值阈值和最多选项数，供意图歧义检测判断是否向用户追问。
 
     /**
      * 是否启用引导式问答

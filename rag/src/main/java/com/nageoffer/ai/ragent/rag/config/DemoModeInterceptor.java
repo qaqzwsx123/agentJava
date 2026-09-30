@@ -37,6 +37,7 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class DemoModeInterceptor implements HandlerInterceptor {
+    // 演示模式请求拦截器：根据只读开关限制修改操作，并按普通 JSON 或 SSE 请求格式返回对应的拒绝提示。
 
     private final DemoModeProperties demoModeProperties;
     private final ObjectMapper objectMapper;

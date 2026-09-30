@@ -34,6 +34,7 @@ import java.util.Map;
 @Data
 @Builder
 public class SearchContext {
+    // 单个子问题的检索上下文：携带问题文本、意图、检索作用域及预算，各通道共用此对象，保持查询与范围一致。
 
     /**
      * 原始问题

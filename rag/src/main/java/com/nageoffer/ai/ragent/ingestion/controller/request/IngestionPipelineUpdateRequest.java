@@ -27,6 +27,7 @@ import java.util.List;
  */
 @Data
 public class IngestionPipelineUpdateRequest {
+    // 摄取管道更新请求对象 用于接收更新现有摄取管道的请求参数，包括管道名称、描述及节点配置列表；携带名称、说明、节点配置等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 管道名称

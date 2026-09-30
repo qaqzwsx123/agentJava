@@ -30,6 +30,7 @@ import org.springframework.validation.annotation.Validated;
 @Configuration
 @ConfigurationProperties(prefix = "rag.knowledge.schedule")
 public class KnowledgeScheduleProperties {
+    // 文档定时刷新配置：定义扫描间隔、锁有效期、每批处理量、最小刷新间隔及运行超时，供调度扫描、锁管理和状态恢复使用。
 
     /**
      * 定时扫描间隔（毫秒）

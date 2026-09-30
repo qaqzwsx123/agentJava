@@ -37,6 +37,7 @@ import java.util.List;
  * 否则读不到配置项而漏判
  */
 public class RetrievalConfigEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
+    // 检索配置启动检查入口：在环境准备阶段读取后端类型和通道开关，发现未装配后端却启用对应通道时抛出配置异常。
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {

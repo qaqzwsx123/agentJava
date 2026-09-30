@@ -46,6 +46,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class DefaultIngestionKernel implements IngestionKernel {
+    // 摄取内核默认实现：固定执行文件类型识别、解析、分块、向量化和索引写入，汇总各阶段耗时；文件获取、任务状态流转和摄取日志由外层负责。
 
     /**
      * 解析器 options 键：原始文件名，写进块来源信息

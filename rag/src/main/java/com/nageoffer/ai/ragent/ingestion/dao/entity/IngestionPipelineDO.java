@@ -39,6 +39,7 @@ import java.util.Date;
 @Builder
 @TableName("t_ingestion_pipeline")
 public class IngestionPipelineDO {
+    // 摄取流水线持久化实体：承载记录 ID、名称、说明等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * ID

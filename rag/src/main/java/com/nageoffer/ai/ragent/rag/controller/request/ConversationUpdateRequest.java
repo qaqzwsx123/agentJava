@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class ConversationUpdateRequest {
+    // 会话更新参数：接收新的会话标题，供控制器在校验用户归属后完成重命名。
 
     /**
      * 会话标题

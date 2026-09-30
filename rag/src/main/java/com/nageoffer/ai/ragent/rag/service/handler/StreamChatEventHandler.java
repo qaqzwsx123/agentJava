@@ -41,6 +41,7 @@ import java.util.Optional;
 
 @Slf4j
 public class StreamChatEventHandler implements StreamCallback {
+    // RAG 流式事件处理器：接收模型文本和推理增量，经 SSE 推送并缓存回答，完成、异常或取消时保存消息及处理运行资源。
 
     private static final String TYPE_THINK = "think";
     private static final String TYPE_RESPONSE = "response";

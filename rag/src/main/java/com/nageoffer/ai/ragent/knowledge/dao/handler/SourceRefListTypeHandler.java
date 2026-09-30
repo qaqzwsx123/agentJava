@@ -36,6 +36,7 @@ import java.util.List;
  * 序列化只发生在 DAO 边界这一处 业务层全程持有 {@code List<SourceRef>} 不再手工 JSON 往返
  */
 public class SourceRefListTypeHandler extends BaseTypeHandler<List<SourceRef>> {
+    // List 与 jsonb 列的类型处理器 序列化只发生在 DAO 边界这一处 业务层全程持有 List 不再手工 JSON 往返。
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, List<SourceRef> parameter, JdbcType jdbcType) throws SQLException {

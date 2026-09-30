@@ -25,6 +25,7 @@ import java.util.List;
  * 向量存储服务接口
  */
 public interface VectorStoreService {
+    // 向量数据写入接口：约定文档分块向量的批量写入、按文档或块删除及单块更新，屏蔽 PostgreSQL 和 Milvus 等后端差异。
 
     /**
      * 批量建立文档的向量索引

@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class PromptTemplateUtils {
+    // 提示词文本工具：清理模板内容并按变量映射填充槽位，供模板加载和消息编排使用一致的文本处理规则。
 
     private static final Pattern MULTI_BLANK_LINES = Pattern.compile("(\\n){3,}");
     private static final Pattern SECTION_HEADER = Pattern.compile("^---\\s*section:\\s*(\\S+)\\s*---$", Pattern.MULTILINE);

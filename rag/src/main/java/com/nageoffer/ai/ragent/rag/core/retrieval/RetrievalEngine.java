@@ -53,6 +53,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.MULTI_CHANNEL_KEY
 @Service
 @RequiredArgsConstructor
 public class RetrievalEngine {
+    // 子问题检索编排器：按共同预算并行执行各子问题的多通道召回与后处理，格式化资料并合并意图归因和证据准入集合。
 
     private final SearchChannelProperties searchProperties;
     private final ContextFormatter contextFormatter;
@@ -188,5 +189,6 @@ public class RetrievalEngine {
                                       String kbContext,
                                       Map<String, List<RetrievedChunk>> intentChunks,
                                       Set<String> eligibleIntentIds) {
+        // 单个子问题上下文：绑定问题、格式化知识正文、意图片段归组和准入信息，供并行子任务完成后按原问题顺序合并。
     }
 }

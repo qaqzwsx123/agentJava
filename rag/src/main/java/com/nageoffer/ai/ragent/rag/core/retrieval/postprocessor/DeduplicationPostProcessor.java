@@ -36,6 +36,7 @@ import java.util.Map;
  */
 @Component
 public class DeduplicationPostProcessor implements SearchResultPostProcessor {
+    // 去重后置处理器 合并多个通道的结果并按 key 去重，同一 Chunk 多路命中时保留首次出现的实例 不比较跨通道原始分数，最终名次由下游 RRF 融合赋分。
 
     @Override
     public String getName() {

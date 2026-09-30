@@ -22,6 +22,7 @@ package com.nageoffer.ai.ragent.rag.dto;
  * 用于表示消息的类型和增量数据
  */
 public record MessageDelta(String type, String delta) {
+    // 流式消息增量载荷：以类型和新增文本区分回答或推理内容，供 SSE 接收端按顺序追加展示。
 
     /**
      * 消息类型

@@ -37,6 +37,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class EnricherSettings {
+    // 富集器设置实体类 定义文本块富集节点的配置参数，包括模型ID、是否附加文档元数据以及富集任务列表 富集器用于为分块后的文本块添加额外信息。
 
     /**
      * 用于富集处理的模型ID
@@ -62,6 +63,7 @@ public class EnricherSettings {
     @AllArgsConstructor
     @Builder
     public static class ChunkEnrichTask {
+        // 单个分块富集任务：指定富集类型以及可覆盖的系统提示词和用户模板，指导 EnricherNode 为每个分块生成附加元数据。
 
         /**
          * 富集任务类型

@@ -25,6 +25,7 @@ import lombok.Data;
  */
 @Data
 public class AgentSkillPageRequest extends Page {
+    // 技能分页筛选参数：携带名称或编码等关键词并复用公共分页信息，用于后台技能列表。
 
     /**
      * 关键词，匹配标识、名称与适用场景

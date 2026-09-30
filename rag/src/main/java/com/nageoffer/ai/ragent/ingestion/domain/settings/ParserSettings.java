@@ -34,6 +34,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class ParserSettings {
+    // 解析器设置实体类 定义文档解析节点的配置参数，包含多个解析规则。
 
     /**
      * 解析规则列表
@@ -50,6 +51,7 @@ public class ParserSettings {
     @AllArgsConstructor
     @Builder
     public static class ParserRule {
+        // 解析节点规则：保存匹配的 MIME 及解析选项，由 ParserNode 校验输入类型并将选项传给注册表选中的解析器。
 
         /**
          * 文档类型

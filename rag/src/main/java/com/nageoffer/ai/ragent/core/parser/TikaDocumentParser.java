@@ -44,6 +44,7 @@ import java.util.Set;
 @Slf4j
 @Component
 public class TikaDocumentParser implements DocumentParser {
+    // Tika 文本解析器：承担已注册的基础文本格式及 text 通配类型，提取并清理文字后按空行生成段落块；专门格式优先由对应解析器处理。
 
     private static final Tika TIKA = new Tika();
 

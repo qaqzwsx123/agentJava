@@ -41,6 +41,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class RecommendedQuestionServiceImpl implements RecommendedQuestionService {
+    // 推荐追问问题服务默认实现 null 表示未生成，空数组表示已生成但无合适追问，非空数组表示生成成功。
 
     private static final String ROLE_ASSISTANT = "assistant";
     private static final String ROLE_USER = "user";

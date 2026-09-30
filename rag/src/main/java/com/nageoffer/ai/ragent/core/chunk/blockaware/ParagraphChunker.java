@@ -34,6 +34,7 @@ import java.util.List;
  */
 @Component
 public class ParagraphChunker implements BlockChunker<ParagraphBlock> {
+    // 普通段落分块器：优先保留完整段落，超过容忍长度后调用 TextSplitter 按目标字符数和重叠量切分，并为每段保留章节路径和来源信息。
 
     @Override
     public Class<ParagraphBlock> blockType() {

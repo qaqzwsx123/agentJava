@@ -34,6 +34,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class NodeLog {
+    // 管道节点日志实体类 记录摄取管道中各个节点的执行信息，包括执行时长、状态、输出等 用于管道执行过程的监控和问题排查。
 
     /**
      * 节点的唯一标识符

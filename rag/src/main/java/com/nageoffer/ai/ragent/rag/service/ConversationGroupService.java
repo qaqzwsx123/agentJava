@@ -29,6 +29,7 @@ import java.util.List;
  * 提供对话消息、摘要和对话信息的查询功能
  */
 public interface ConversationGroupService {
+    // 对话消息分组查询接口：提供近期用户提问、按摘要边界读取历史以及消息分组查询，供记忆和摘要组件复用。
 
     /**
      * 获取指定对话中最新的用户消息列表

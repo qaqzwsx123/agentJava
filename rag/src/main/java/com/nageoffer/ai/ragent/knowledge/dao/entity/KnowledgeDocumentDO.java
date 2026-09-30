@@ -40,6 +40,7 @@ import java.util.Date;
 @Builder
 @TableName("t_knowledge_document")
 public class KnowledgeDocumentDO {
+    // 知识库文档持久化实体：承载记录 ID、知识库 ID、文档名称、来源类型、来源地址等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

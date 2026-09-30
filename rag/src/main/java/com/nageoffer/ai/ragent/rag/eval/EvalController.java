@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "ragent.eval", name = "enabled", havingValue = "true")
 public class EvalController {
+    // RAG 检索评测接口：按评测配置执行改写、意图和检索，装配命中文档与片段证据，供评测脚本同步比较检索效果。
 
     private final QueryRewriteService queryRewriteService;
     private final IntentResolver intentResolver;

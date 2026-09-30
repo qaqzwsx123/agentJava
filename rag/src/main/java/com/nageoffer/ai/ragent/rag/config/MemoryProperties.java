@@ -36,6 +36,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ValidMemoryConfig
 public class MemoryProperties {
+    // 记忆配置属性类 用于配置 RAG 系统中的对话记忆管理相关参数 包括历史轮数保留、缓存时间、摘要压缩等功能的配置。
 
     /**
      * 保留原文的最近轮数（user+assistant 视为一轮）

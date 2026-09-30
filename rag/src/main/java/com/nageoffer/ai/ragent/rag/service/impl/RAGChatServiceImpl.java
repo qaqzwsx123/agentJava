@@ -40,6 +40,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Service
 @RequiredArgsConstructor
 public class RAGChatServiceImpl implements RAGChatService {
+    // Workflow 模式 RAG 对话服务：装配排队限流、流式回调、追踪和聊天流水线，启动异步问答并提供用户任务停止入口。
 
     private final StreamChatPipeline chatPipeline;
     private final ChatQueueLimiter chatQueueLimiter;

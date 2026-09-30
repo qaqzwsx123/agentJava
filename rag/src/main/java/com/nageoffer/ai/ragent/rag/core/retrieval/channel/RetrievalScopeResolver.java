@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class RetrievalScopeResolver {
+    // 检索作用域解析器 由引擎按子问题各算一次放进 SearchContext，各通道只读不判， 避免同一子问题里向量走全局、关键词走定向这类作用域打架。
 
     private final SearchChannelProperties properties;
     private final KbCollectionProvider kbCollectionProvider;

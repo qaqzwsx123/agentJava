@@ -33,6 +33,7 @@ import java.util.Map;
  * JSON 响应解析器，用于解析 LLM 返回的 JSON 字符串
  */
 public final class JsonResponseParser {
+    // JSON 响应解析器，用于解析 LLM 返回的 JSON 字符串。
 
     private static final Gson GSON = new Gson();
 

@@ -66,6 +66,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.INTENT_CLASSIFIER
 @Service
 @RequiredArgsConstructor
 public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegistry {
+    // 模型意图分类器：加载缓存或数据库意图树，按执行架构筛选候选，构造分类提示词并解析模型评分，返回按相关度排序的意图节点。
 
     private final LLMService llmService;
     private final IntentNodeMapper intentNodeMapper;
@@ -143,6 +144,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             List<IntentNode> leafNodes,
             Map<String, IntentNode> id2Node
     ) {
+        // 意图分类用内存快照：组织加载后的根节点与查找结构，供构造候选提示词和解析模型返回的意图分数，不直接持久化。
     }
 
     /**

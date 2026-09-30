@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class VectorSpaceInitializer {
+    // 向量空间启动初始化器：通过 VectorStoreAdmin 在分布式锁保护下确保共享空间存在，Milvus 创建 collection，PostgreSQL 按实现依赖迁移后的表结构。
 
     private static final String LOCK_KEY_PREFIX = "ragent:vector:space:init:";
     private static final long LOCK_WAIT_SECONDS = 30;

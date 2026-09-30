@@ -26,6 +26,7 @@ import lombok.Data;
  */
 @Data
 public class IngestionPipelineNodeRequest {
+    // 摄取管道节点请求对象 用于接收管道中单个节点的配置信息，包括节点标识、类型、设置参数及执行条件；携带节点 ID、节点类型、节点参数、执行条件、后继节点 ID等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 节点的唯一标识符

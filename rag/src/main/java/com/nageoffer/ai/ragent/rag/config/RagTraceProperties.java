@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "rag.trace")
 public class RagTraceProperties {
+    // RAG 调用链追踪参数：控制追踪是否启用及异常文本保留长度，供切面和流式追踪组件统一记录执行信息。
 
     /**
      * 是否启用注解式 Trace 采集

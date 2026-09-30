@@ -30,6 +30,7 @@ import com.nageoffer.ai.ragent.core.parser.registry.ParseProfile;
  * @param budget       分块预算
  */
 public record IngestionSpec(int version, ParseProfile parseProfile, ChunkBudget budget) {
+    // 文档级摄取配置：保存结构版本、解析档位和分块预算，决定本篇文档如何解析和切分；嵌入模型由知识库约束的 VectorTarget 提供，不在这里覆盖。
 
     public static final int CURRENT_VERSION = 2;
 

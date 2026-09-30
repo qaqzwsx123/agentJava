@@ -57,6 +57,7 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class FusionPostProcessor implements SearchResultPostProcessor {
+    // RRF 融合处理器：按各通道名次和权重累加片段贡献，不直接比较余弦与 BM25 原始分，排序后截断为重排候选池。
 
     private static final String STRATEGY_RRF = "rrf";
 

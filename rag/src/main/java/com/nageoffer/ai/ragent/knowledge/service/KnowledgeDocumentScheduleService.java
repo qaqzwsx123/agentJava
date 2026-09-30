@@ -23,6 +23,7 @@ import com.nageoffer.ai.ragent.knowledge.dao.entity.KnowledgeDocumentDO;
  * 知识库文档定时任务服务
  */
 public interface KnowledgeDocumentScheduleService {
+    // 文档定时刷新管理接口：随文档配置创建、同步或删除刷新计划，并提供最近执行状态及历史执行记录。
 
     /**
      * 根据文档信息创建或更新定时任务记录

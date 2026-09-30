@@ -41,6 +41,7 @@ import java.util.Date;
 @Service
 @RequiredArgsConstructor
 public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentScheduleService {
+    // 文档刷新计划管理实现：根据文档的启用状态与 Cron 配置维护刷新计划，校验最小运行间隔，并查询和装配执行记录。
 
     private final KnowledgeDocumentScheduleMapper scheduleMapper;
     private final KnowledgeDocumentScheduleExecMapper scheduleExecMapper;

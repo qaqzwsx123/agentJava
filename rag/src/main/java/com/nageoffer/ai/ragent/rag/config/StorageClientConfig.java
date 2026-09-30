@@ -39,6 +39,7 @@ import java.net.URI;
  */
 @Configuration
 public class StorageClientConfig {
+    // 对象存储客户端配置 依 rag.storage.type 二选一注册：s3（rustfs / minio，默认）注册 S3Client + S3Presigner， oss 注册阿里云 OSS 客户端。与其对应的 ObjectStorageClient 实现按同一条件注册。
 
     @Bean
     @ConditionalOnProperty(name = "rag.storage.type", havingValue = "s3", matchIfMissing = true)

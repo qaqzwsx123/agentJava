@@ -51,6 +51,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.QUERY_REWRITE_AND
 @Service
 @RequiredArgsConstructor
 public class MultiQuestionRewriteService implements QueryRewriteService {
+    // 查询改写与拆分服务：先做术语归一化，再按开关调用 FAST 档模型生成改写问题和子问题；调用或解析失败时保留归一化问题。
 
     /**
      * 喂给改写的助手回复条数上限

@@ -40,6 +40,7 @@ public record RetrievalScope(boolean directed,
                              List<NodeScore> intents,
                              List<String> targetCollections,
                              List<String> supplementCollections) {
+    // 检索作用域 每个子问题算一次、向量 / 关键词 / 图谱共读一份：KB 意图足够置信则收窄到命中库（定向），否则退化为全库（全局） 定向下 supplementCollections 是未命中库，向量通道用它并行补一路，兜住意图判错导致的漏召回。
 
     public Set<String> directedIntentIds() {
         // 只有定向范围才收集有效意图 ID，去掉空候选与重复值，用于后续判断定向意图是否实际命中。

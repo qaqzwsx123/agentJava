@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
                                        Map<String, Set<String>> intentIdsByChunkKey,
                                        Set<String> directedIntentIds) {
+    // 多通道最终检索结果：保存处理后的证据片段、真实知识库归因和定向范围，供按意图分组及决定提示词意图是否准入。
 
     public KnowledgeRetrievalResult {
         // 为缺失结果集合补空值，并复制定向意图集合，保证检索结果可安全继续传递。

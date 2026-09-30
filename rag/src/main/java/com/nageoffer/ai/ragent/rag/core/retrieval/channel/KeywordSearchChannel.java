@@ -44,6 +44,7 @@ import java.util.concurrent.Executor;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "rag.keyword", name = "type", havingValue = "es")
 public class KeywordSearchChannel implements SearchChannel {
+    // 关键词召回通道：通过全文后端按共享作用域执行 BM25 检索，适合精确词和编号等查询，与其他启用通道并行后统一融合。
 
     private final KeywordRetrieverService keywordRetriever;
     private final SearchChannelProperties properties;

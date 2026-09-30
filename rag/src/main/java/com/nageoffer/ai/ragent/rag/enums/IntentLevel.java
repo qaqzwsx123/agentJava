@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum IntentLevel {
+    // 意图层级枚举：统一意图树层级的数值及转换方法，供节点配置和树结构处理使用。
 
     /**
      * 顶层：集团信息化 / 业务系统 / 中间件环境信息

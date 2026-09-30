@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class QueryTermMappingCreateRequest {
+    // 术语映射创建参数：接收原始术语、目标术语、匹配方式、优先级和启用状态，供后台新增归一化规则。
 
     /**
      * 用户原始短语

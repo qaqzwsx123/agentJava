@@ -31,6 +31,7 @@ import java.util.List;
  * 数据摄入任务服务接口
  */
 public interface IngestionTaskService {
+    // 摄取任务服务接口：约定执行来源任务或上传任务，以及查询任务和节点执行记录，隔离控制器与流水线执行细节。
 
     /**
      * 执行数据摄入任务

@@ -35,6 +35,7 @@ import java.util.List;
  */
 @Component
 public class TableChunker implements BlockChunker<TableBlock> {
+    // 结构化表格分块器：按完整数据行分组，同时考虑字符预算和每块行数上限；展示内容生成带表头的 Markdown 表格，向量正文使用“列名: 值”表达字段关系。
 
     @Override
     public Class<TableBlock> blockType() {

@@ -42,6 +42,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 public class IntentTreeController {
+    // 意图树管理 HTTP 入口：提供树查询、节点新增修改、删除及批量操作，调用意图树服务维护层级和知识库或工具绑定。
 
     private final IntentTreeService intentTreeService;
 

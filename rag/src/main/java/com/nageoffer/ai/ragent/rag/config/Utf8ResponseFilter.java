@@ -43,6 +43,7 @@ import java.io.IOException;
  */
 @Component
 public class Utf8ResponseFilter implements Filter {
+    // HTTP 响应编码过滤器：在请求链中统一设置 UTF-8，减少不同组件采用默认编码时出现的中文乱码。
 
     /**
      * 设置响应编码为 UTF-8 并继续执行过滤器链

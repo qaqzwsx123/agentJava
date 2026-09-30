@@ -38,6 +38,7 @@ import java.util.Date;
 @Builder
 @TableName("t_knowledge_document_chunk_log")
 public class KnowledgeDocumentChunkLogDO {
+    // 文档分块日志持久化实体：承载记录 ID、文档 ID、状态、处理模式、解析档位等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

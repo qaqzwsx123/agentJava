@@ -32,6 +32,7 @@ import java.util.List;
  */
 @Getter
 public class RetrievalConfigException extends RuntimeException {
+    // 检索配置启动异常：携带后端与通道开关之间的全部违规信息，中断不一致配置的启动并交由诊断器输出修正建议。
 
     private final transient List<RetrievalChannelConfigValidator.Violation> violations;
 

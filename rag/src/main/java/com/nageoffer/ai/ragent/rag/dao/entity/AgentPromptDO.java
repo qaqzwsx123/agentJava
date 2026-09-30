@@ -36,6 +36,7 @@ import java.util.Date;
 @Builder
 @TableName("t_agent_prompt")
 public class AgentPromptDO {
+    // 智能体槽位提示词持久化实体：承载记录 ID、智能体 ID、提示词槽位、正文等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

@@ -42,6 +42,7 @@ import java.util.List;
 @Builder
 @TableName(value = "t_agent_skill", autoResultMap = true)
 public class AgentSkillDO {
+    // 智能体技能持久化实体：承载记录 ID、技能编码、名称、说明、正文等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

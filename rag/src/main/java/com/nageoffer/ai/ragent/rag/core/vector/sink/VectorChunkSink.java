@@ -40,6 +40,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Order(Ordered.LOWEST_PRECEDENCE)
 public class VectorChunkSink implements ChunkSink {
+    // 向量索引写入端：实现 ChunkSink，按文档先删除旧向量再写入新块，委托向量服务及其可选图谱和关键词同步装饰器完成维护。
 
     private final VectorStoreService vectorStoreService;
 

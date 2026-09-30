@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class AgentProfileSaveRequest {
+    // 智能体档案保存参数：接收名称、说明和头像，供后台创建智能体或更新其展示信息。
 
     private String name;
 

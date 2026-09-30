@@ -29,6 +29,7 @@ import java.util.List;
  * </ul>
  */
 public interface IntentClassifier {
+    // 意图分类器接口 支持两种实现策略： 串行分类：所有意图在单次 LLM 调用中完成识别（适用于意图数量较少场景） 并行分类：按 Domain 拆分意图，并行调用多个 LLM 完成识别（适用于意图数量多场景）。
 
     /**
      * 对所有叶子分类节点做意图识别

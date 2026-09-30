@@ -48,6 +48,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.GUIDANCE_AMBIGUIT
 @Component
 @RequiredArgsConstructor
 public class AmbiguityLLMChecker {
+    // LLM 歧义确认器 规则层只能发现候选路径重名，是否真的要用户二选一由 LLM 判断 纯 RAG 是只读流程，判不出来时一律放行联合检索，不能因为模型异常反复阻断用户。
 
     private final LLMService llmService;
     private final PromptTemplateLoader promptTemplateLoader;

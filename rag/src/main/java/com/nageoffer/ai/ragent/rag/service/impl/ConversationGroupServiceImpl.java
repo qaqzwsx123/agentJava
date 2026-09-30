@@ -34,6 +34,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ConversationGroupServiceImpl implements ConversationGroupService {
+    // 对话组查询实现：围绕用户提问组织多轮消息，按摘要边界和轮数读取历史，供记忆加载、摘要压缩及流式回答关联使用。
 
     private final ConversationMessageMapper messageMapper;
     private final ConversationSummaryMapper summaryMapper;

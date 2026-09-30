@@ -26,6 +26,7 @@ package com.nageoffer.ai.ragent.core.parser.model;
  */
 public sealed interface Block
         permits HeadingBlock, ParagraphBlock, TableBlock, HtmlTableBlock, ImageBlock, CodeBlock, ListBlock {
+    // 解析结构单元的密封接口：统一标题、段落、表格、HTML 表格、图片、代码和列表类型，并要求提供来源信息，作为解析器与分块器之间的数据契约。
 
     /**
      * 来源信息：文件、页码 / sheet、bbox / 单元格范围

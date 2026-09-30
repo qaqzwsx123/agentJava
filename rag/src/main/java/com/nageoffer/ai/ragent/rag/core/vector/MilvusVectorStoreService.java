@@ -45,6 +45,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusVectorStoreService implements VectorStoreService {
+    // Milvus 向量写入实现：将 EmbeddedChunk 按统一块 ID 和逻辑集合写入共享空间，提供文档级及块级删除和更新。
 
     private static final Gson GSON = new Gson();
 

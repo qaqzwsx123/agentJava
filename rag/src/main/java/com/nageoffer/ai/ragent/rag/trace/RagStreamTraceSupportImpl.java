@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Component
 @RequiredArgsConstructor
 public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
+    // 跨线程流式节点追踪实现：创建可传递的 StreamSpan，避免仅测到异步任务提交耗时，支持在流完成、出错或取消时记录终态。
 
     private static final String STATUS_RUNNING = "RUNNING";
     private static final String STATUS_SUCCESS = "SUCCESS";
@@ -86,6 +87,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
     }
 
     private final class StreamSpanImpl implements StreamSpan {
+        // 流式追踪节点句柄：保存追踪 ID、节点 ID 和开始时间，控制节点栈脱离与终态幂等写入，供异步回调结束节点。
         private final String traceId;
         private final String nodeId;
         private final long startMillis;

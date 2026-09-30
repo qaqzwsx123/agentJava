@@ -29,6 +29,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class IntentNodeTreeVO {
+    // 意图树前端节点：返回节点编码、名称、层级、父节点和知识库或工具绑定等信息，并携带子节点供后台树形展示。
 
     private String id;
     private String intentCode;

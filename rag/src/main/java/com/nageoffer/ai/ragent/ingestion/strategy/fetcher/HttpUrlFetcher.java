@@ -36,6 +36,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class HttpUrlFetcher implements DocumentFetcher {
+    // HTTP 链接文档获取器 用于从指定的 HTTP/HTTPS 链接地址获取文档内容。
 
     private final HttpClientHelper httpClientHelper;
 

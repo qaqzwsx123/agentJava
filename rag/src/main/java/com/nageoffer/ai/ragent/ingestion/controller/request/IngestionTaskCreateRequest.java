@@ -29,6 +29,7 @@ import java.util.Map;
  */
 @Data
 public class IngestionTaskCreateRequest {
+    // 摄取任务创建请求对象 用于接收创建新摄取任务的请求参数，包括管道ID、文档源信息及元数据；携带流水线 ID、文档来源、元数据、物理向量空间等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 执行本次摄取的管道ID

@@ -43,6 +43,7 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 public class CitationContextEnricher {
+    // 引用上下文加工器：按本轮 SourceRef 编号替换知识正文内部文档锚点；未开启引用或无对应来源时清除内部标记，避免文档 ID 进入模型可见内容。
 
     private static final Pattern CONTENT_TAG = Pattern.compile(
             "(?m)^<content([^>]*) data-ragent-doc-id=\"([^\"]*)\">$");

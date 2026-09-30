@@ -25,6 +25,7 @@ import java.util.Date;
 @Getter
 @Builder
 public class ScheduleStateContext {
+    // 本次定时刷新状态上下文：绑定计划 ID、执行记录 ID、Cron、开始时间和下次运行时间，供刷新过程的各终态更新复用。
 
     private final String scheduleId;
     private final String execId;

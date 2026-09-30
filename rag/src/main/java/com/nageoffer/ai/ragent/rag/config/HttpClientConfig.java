@@ -29,6 +29,7 @@ import java.time.Duration;
  */
 @Configuration
 public class HttpClientConfig {
+    // HTTP 客户端装配：分别创建流式模型调用和同步请求使用的 OkHttpClient，统一连接、读取和调用超时等网络参数。
 
     /**
      * 流式 HTTP 客户端（Primary）

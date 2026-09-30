@@ -33,6 +33,7 @@ import java.util.List;
  */
 @Component
 public class CodeChunker implements BlockChunker<CodeBlock> {
+    // 代码分块器：长度允许时整块保留，过长时沿完整代码行拆分；各段展示文本补齐 Markdown 代码围栏，向量正文保留代码内容，不从行中间硬切。
 
     @Override
     public Class<CodeBlock> blockType() {

@@ -49,6 +49,7 @@ import java.util.TreeSet;
 @Slf4j
 @Component
 public class ParserRegistry {
+    // 解析器注册与路由中心：启动时按 MIME 和解析档位建立映射并检查冲突及覆盖情况；查找时优先精确类型，再尝试通配类型和 FAST 档，无匹配则明确报错。
 
     private static final String WILDCARD_SUFFIX = "/*";
 

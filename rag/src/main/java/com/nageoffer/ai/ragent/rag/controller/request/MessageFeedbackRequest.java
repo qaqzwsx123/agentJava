@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class MessageFeedbackRequest {
+    // 用户消息反馈参数：接收点赞点踩值、原因和补充说明，供服务层校验后提交反馈事件。
 
     /**
      * 反馈值：1=点赞，-1=点踩

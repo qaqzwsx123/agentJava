@@ -35,6 +35,7 @@ import org.springframework.util.StringUtils;
 @Component
 @RequiredArgsConstructor
 public class VectorTargetResolver {
+    // 知识库向量目标解析器：结合知识库的逻辑集合与嵌入模型，以及部署要求的维度，统一构造 VectorTarget，避免各写入路径自行选择模型。
 
     private final RAGDefaultProperties ragDefaultProperties;
 

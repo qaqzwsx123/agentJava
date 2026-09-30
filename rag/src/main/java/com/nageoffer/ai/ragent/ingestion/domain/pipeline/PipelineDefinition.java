@@ -33,6 +33,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class PipelineDefinition {
+    // 摄取管道定义实体类 定义一个完整的文档摄取管道，包含管道的基本信息和节点配置列表。
 
     /**
      * 管道的唯一标识符

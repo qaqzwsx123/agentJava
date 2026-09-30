@@ -43,6 +43,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 public class AgentSkillController {
+    // 智能体技能管理 HTTP 入口：提供技能分页、工具选项、详情和保存删除等操作，将业务校验交给技能管理服务。
 
     private final AgentSkillAdminService agentSkillAdminService;
 

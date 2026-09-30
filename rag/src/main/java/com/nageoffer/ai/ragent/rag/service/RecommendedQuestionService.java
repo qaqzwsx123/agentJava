@@ -25,6 +25,7 @@ import com.nageoffer.ai.ragent.rag.dto.RecommendedQuestionsPayload;
  * 推荐问题缓存读取与生成入口
  */
 public interface RecommendedQuestionService {
+    // 推荐追问服务接口：按消息及用户读取或生成推荐问题，统一处理已有缓存、空推荐和生成失败等结果。
 
     /**
      * 幂等生成指定 assistant 消息的推荐追问问题

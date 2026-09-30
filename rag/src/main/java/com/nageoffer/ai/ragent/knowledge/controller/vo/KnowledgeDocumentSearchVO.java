@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class KnowledgeDocumentSearchVO {
+    // 文档搜索返回对象；组织记录 ID、知识库 ID、文档名称等返回字段，供前端查询和展示。
 
     /**
      * 文档ID

@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
+    // 知识库管理实现：维护知识库配置及统计，校验模型与逻辑集合，删除时提交事务消息，由异步消费者回收相关索引和文件资源。
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;

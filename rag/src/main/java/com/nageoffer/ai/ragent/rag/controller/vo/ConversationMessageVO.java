@@ -34,6 +34,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class ConversationMessageVO {
+    // 会话消息视图对象；组织记录 ID、会话 ID、消息角色、正文、点赞或点踩等返回字段，供前端查询和展示。
 
     /**
      * 消息ID

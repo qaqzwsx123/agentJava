@@ -34,6 +34,7 @@ import java.util.List;
  */
 public record ChunkDraft(String content, String embeddingBody, ChunkMetadata metadata,
                          boolean piece, boolean heading) {
+    // 分块草稿：各分块器输出的中间结果，尚未分配最终 ID、序号和完整向量文本；保存展示内容、可选向量正文、元数据及切片和标题标记，供后续合并打包。
 
     public ChunkDraft {
         // 展示内容为 null 时用空串，元数据为 null 时使用空对象，简化后续打包逻辑。

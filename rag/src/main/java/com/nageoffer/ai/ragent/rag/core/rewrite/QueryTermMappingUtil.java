@@ -18,6 +18,7 @@
 package com.nageoffer.ai.ragent.rag.core.rewrite;
 
 public class QueryTermMappingUtil {
+    // 术语替换工具：根据原词和目标词执行文本替换，处理英文词边界等匹配细节，供问题术语归一化复用。
 
     /**
      * 安全归一化替换：

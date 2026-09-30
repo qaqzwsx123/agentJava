@@ -29,6 +29,7 @@ public record MinerUStatus(
         String zipUrl,
         String errorMessage
 ) {
+    // MinerU 任务状态快照：携带当前归一化状态、成功结果 ZIP 地址和失败原因，供轮询器判断继续等待、下载结果或终止任务。
 
     /**
      * 仅当远端任务状态为 DONE 时判定解析完成。

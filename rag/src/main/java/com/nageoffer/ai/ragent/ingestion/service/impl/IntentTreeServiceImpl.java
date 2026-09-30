@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class IntentTreeServiceImpl implements IntentTreeService {
+    // 意图树管理实现：读写意图节点，校验父子层级和知识库集合绑定，执行子树及批量操作，并在修改后清理意图缓存和记录业务变更。
 
     private final IntentNodeMapper intentNodeMapper;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
@@ -579,6 +580,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
     }
 
     private record CollectionBinding(List<String> collectionNames, String primaryKbId) {
+        // 意图节点集合绑定结果：保存归一化后的集合名列表和主知识库 ID，供节点新增、更新及兼容字段装配使用。
 
         private static CollectionBinding empty() {
             // 创建没有集合名与主知识库 ID 的空绑定。

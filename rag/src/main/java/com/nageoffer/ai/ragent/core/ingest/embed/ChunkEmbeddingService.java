@@ -36,6 +36,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ChunkEmbeddingService {
+    // 分块向量化服务：批量读取 Chunk.embeddingText，调用指定模型生成向量，校验返回条数和每条维度，再按原分块顺序包装为 EmbeddedChunk。
 
     private final EmbeddingService embeddingService;
 

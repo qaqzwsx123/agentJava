@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 @Component
 @RequiredArgsConstructor
 public class StreamChatTraceRunner {
+    // 流式问答追踪包装器：创建整轮运行记录并绑定上下文，通过回调捕获首字、完成、异常和取消，记录真实流式耗时并收尾。
 
     private static final String ENTRY_METHOD = "RAGChatService#streamChat";
     private static final String TRACE_NAME = "rag-stream-chat";

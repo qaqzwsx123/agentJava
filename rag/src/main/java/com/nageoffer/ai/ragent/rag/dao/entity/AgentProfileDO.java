@@ -36,6 +36,7 @@ import java.util.Date;
 @Builder
 @TableName("t_agent_profile")
 public class AgentProfileDO {
+    // 智能体配置持久化实体：承载记录 ID、名称、说明、头像、是否内置等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

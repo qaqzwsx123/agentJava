@@ -34,6 +34,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class EnhancerSettings {
+    // 增强器设置实体类 定义文档增强节点的配置参数，包括使用的模型ID和增强任务列表。
 
     /**
      * 用于增强处理的模型ID
@@ -54,6 +55,7 @@ public class EnhancerSettings {
     @AllArgsConstructor
     @Builder
     public static class EnhanceTask {
+        // 单个文档增强任务：指定增强类型及系统提示词和用户模板，指导 EnhancerNode 调用模型处理整篇文档输入。
 
         /**
          * 增强任务类型

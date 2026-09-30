@@ -29,6 +29,7 @@ import java.util.Locale;
  * {@code IngestionSpecSchemaProvider} 单点下发
  */
 public enum ParseProfile {
+    // 解析档位枚举：FAST 表示快速解析并作为全局回退档，FIDELITY 表示更注重版面保真；与文件类型共同决定解析器，并负责档位代码转换及默认值。
 
     /**
      * 快速档：本地解析器优先，零外部成本；也是全局兜底档，请求档位无匹配时回落到它，仍无则显式报错

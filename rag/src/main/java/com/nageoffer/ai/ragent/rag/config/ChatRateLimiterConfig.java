@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class ChatRateLimiterConfig {
+    // 聊天并发限流装配：将 Redis、并发上限、许可租期、调度与通知配置注入 FairDistributedRateLimiter，供 SSE 请求排队使用。
 
     private static final String CHAT_LIMITER_NAME = "rag:global:chat";
 

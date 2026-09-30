@@ -23,6 +23,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 
 public interface IngestionPipelineNodeMapper extends BaseMapper<IngestionPipelineNodeDO> {
+    // 摄取流水线节点数据库访问接口：通过 MyBatis-Plus 映射对应实体，供服务层执行基础增删改查及接口中声明的业务查询。
 
     @Delete("DELETE FROM t_ingestion_pipeline_node WHERE pipeline_id = #{pipelineId}")
     int physicalDeleteByPipelineId(@Param("pipelineId") String pipelineId);

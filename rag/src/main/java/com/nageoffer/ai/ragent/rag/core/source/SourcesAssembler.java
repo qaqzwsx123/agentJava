@@ -41,6 +41,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class SourcesAssembler {
+    // 回答来源装配器 把检索片段（KB 命中）按文档去重、按相关度赋号，补齐来源类型与外部链接， 产出文档级来源列表。该列表既用于 SSE 下发/面板展示，也作为行内角标的唯一编号源。
 
     /**
      * 摘录最大长度 超出以省略号截断

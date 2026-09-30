@@ -34,6 +34,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class ConversationMessageBO {
+    // 会话消息写入业务参数：绑定会话、用户、角色和正文等信息，供服务层统一保存一条对话消息。
 
     /**
      * 对话ID

@@ -22,6 +22,7 @@ import lombok.Data;
 
 @Data
 public class IngestionPipelineNodeVO {
+    // 摄取流水线节点返回对象：向前端提供节点 ID、类型、参数、执行条件和后继节点，使编辑页面能够还原流水线连线。
 
     private String id;
 

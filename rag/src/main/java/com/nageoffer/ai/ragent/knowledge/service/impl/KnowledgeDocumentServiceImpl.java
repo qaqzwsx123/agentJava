@@ -104,6 +104,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
+    // 知识库文档处理实现：管理上传和远程来源、处理模式及配置，以事务消息触发异步分块，并调用摄取内核或流水线完成解析入库及状态记录。
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper documentMapper;
@@ -384,6 +385,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private record ProcessModeConfig(ProcessMode processMode, String ingestionSpec, String pipelineId) {
+        // 文档处理模式解析结果：绑定普通分块或流水线模式、规范化摄取配置和流水线 ID，确保后续使用同一份已校验配置。
     }
 
     /**

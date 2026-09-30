@@ -43,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Validated
 public class IngestionPipelineController {
+    // 摄取流水线管理入口：接收流水线创建、更新、详情、分页和删除请求，将节点与连线配置交给 IngestionPipelineService 处理并返回统一结果。
 
     private final IngestionPipelineService pipelineService;
 

@@ -33,6 +33,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Builder
 public class AgentPromptConfigVO {
+    // 某智能体的槽位配置，槽位元数据与生效判定一并下发，前端不再维护第二份映射表；组织智能体 ID、是否内置、提示词槽位等返回字段，供前端查询和展示。
 
     private String agentId;
 
@@ -57,6 +58,7 @@ public class AgentPromptConfigVO {
     @AllArgsConstructor
     @Builder
     public static class Slot {
+        // 智能体提示词槽位视图：返回槽位编码、展示名称、编辑提示、生效分组、正文和回落状态，供前端动态构建提示词编辑页面。
 
         private String slotKey;
         private String displayName;

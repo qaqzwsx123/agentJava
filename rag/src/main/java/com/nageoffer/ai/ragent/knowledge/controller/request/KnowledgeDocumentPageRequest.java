@@ -22,6 +22,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeDocumentPageRequest extends Page {
+    // 文档分页筛选参数：在分页信息之外指定状态和名称关键词，由文档列表接口限定查询范围。
 
     private String status;
 

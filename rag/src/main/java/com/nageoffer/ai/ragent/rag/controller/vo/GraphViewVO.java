@@ -31,6 +31,7 @@ import java.util.List;
 @Data
 @Builder
 public class GraphViewVO {
+    // 知识图谱可视化视图 规整为前端直接可用的 {nodes, edges} 结构，与底层图存储（Neo4j 等）解耦： 后端只认 LightRAG 归一化后的图谱语义，换存储不影响前端；组织节点配置、记录 ID、名称、说明、文档来源等返回字段，供前端查询和展示。
 
     /**
      * 节点集
@@ -53,6 +54,7 @@ public class GraphViewVO {
     @Data
     @Builder
     public static class Node {
+        // 图谱可视化节点：承载实体 ID、名称、类型、描述及来源等信息，供前端绘制和查看实体。
 
         /**
          * 节点唯一 id，边按此关联
@@ -81,6 +83,7 @@ public class GraphViewVO {
     @Data
     @Builder
     public static class Edge {
+        // 图谱可视化关系边：绑定起止节点和关系名称、说明等属性，供前端绘制实体间的关联。
 
         /**
          * 边唯一 id

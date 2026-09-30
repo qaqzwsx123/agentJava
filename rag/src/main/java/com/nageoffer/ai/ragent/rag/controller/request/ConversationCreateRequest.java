@@ -32,6 +32,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class ConversationCreateRequest {
+    // 会话创建参数：携带会话、用户、本轮问题和活跃时间，作为创建或更新会话的接口输入。
 
     /**
      * 会话ID

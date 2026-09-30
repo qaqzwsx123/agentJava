@@ -41,6 +41,7 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class RerankPostProcessor implements SearchResultPostProcessor {
+    // 模型重排处理器：根据当前子问题为融合候选重新评分并取上下文 Top-K，记录通道贡献和分数分布，后续仍可执行证据门控及元数据补充。
 
     private final RerankService rerankService;
     private final RAGConfigProperties ragConfigProperties;

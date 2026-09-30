@@ -40,6 +40,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class IngestionContext {
+    // 文档摄取上下文实体类 在文档摄取管道执行过程中，承载和传递所有中间数据和状态信息。
 
     /**
      * 摄取任务的唯一标识符

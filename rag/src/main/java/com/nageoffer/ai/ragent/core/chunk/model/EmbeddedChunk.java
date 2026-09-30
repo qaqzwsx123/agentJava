@@ -26,6 +26,7 @@ package com.nageoffer.ai.ragent.core.chunk.model;
  * @param embedding 向量，维度由部署级配置固定，写入前已在向量化阶段校验
  */
 public record EmbeddedChunk(Chunk chunk, float[] embedding) {
+    // 已向量化的分块：将正式 Chunk 与向量模型生成的 float[] 绑定，供后续索引写入使用；构造时要求分块和向量有效，确保正文与向量始终关联同一个块 ID。
 
     public EmbeddedChunk {
         // 必须同时具备原始分块和非空向量，否则在构造阶段立即报错，避免写入不完整索引。

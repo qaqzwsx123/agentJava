@@ -30,6 +30,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "rag.keyword")
 public class KeywordProperties {
+    // 关键词检索配置 type=none（默认）时不注册任何关键词读写实现，与「从未引入关键词检索」运行期等价。
 
     /**
      * 关键词检索后端类型
@@ -54,6 +55,7 @@ public class KeywordProperties {
 
     @Data
     public static class Es {
+        // Elasticsearch 关键词后端参数：保存连接地址、共享索引名称及写入和查询分词器，供客户端、索引和检索实现读取。
 
         /**
          * ES 连接地址

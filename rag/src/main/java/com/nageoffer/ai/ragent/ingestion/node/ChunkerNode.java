@@ -46,6 +46,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class ChunkerNode implements IngestionNode {
+    // 分块节点：把 Block 列表按预算切块并向量化 两处随内核化收窄的适配：分块参数从"策略枚举 + 一堆自由键"收敛成 ChunkBudget； 向量化从 embed(chunks, null) 改为按上下文里的向量落点，因此不再与上传路径用不同的模型。
 
     /**
      * 不分块哨兵：沿用前端既有约定的 {@code -1}，在此翻译成整文档预算

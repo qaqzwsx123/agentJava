@@ -39,6 +39,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ChunkingService {
+    // 分块总入口：接收解析后的 Block 和分块预算；整篇模式生成单个分块，其余模式交给类型调度器切分、打包并装配为正式 Chunk。
 
     private final BlockAwareChunkerDispatcher blockAwareChunkerDispatcher;
 

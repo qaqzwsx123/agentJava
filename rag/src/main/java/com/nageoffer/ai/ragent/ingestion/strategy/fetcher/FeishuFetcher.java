@@ -45,6 +45,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class FeishuFetcher implements DocumentFetcher {
+    // 飞书文档抓取器 负责从飞书平台获取文档内容，支持 docx 类型的在线文档和二进制文件。
 
     private static final String TOKEN_URL = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal/";
 

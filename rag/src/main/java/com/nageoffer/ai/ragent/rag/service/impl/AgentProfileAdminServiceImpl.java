@@ -53,6 +53,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
+    // 智能体与提示词管理实现：维护智能体档案、激活状态和槽位内容，按架构装配生效配置，修改后刷新提示词缓存。
 
     /**
      * 与 t_agent_profile.avatar 列宽一致

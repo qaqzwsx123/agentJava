@@ -27,6 +27,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class VectorSpaceSpec {
+    // 物理向量空间规格：绑定 VectorSpaceId 和备注，供空间管理接口描述需要创建或检查的向量存储空间。
 
     /**
      * 向量空间标识

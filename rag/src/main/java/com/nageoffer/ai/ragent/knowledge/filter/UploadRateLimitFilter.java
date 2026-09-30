@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class UploadRateLimitFilter extends OncePerRequestFilter {
+    // 文件上传限流 Filter 在 multipart 解析之前拦截，防止临时文件产生。
 
     private final RedissonClient redissonClient;
     private final RagSemaphoreProperties semaphoreProperties;

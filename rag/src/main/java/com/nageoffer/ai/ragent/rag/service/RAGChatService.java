@@ -24,6 +24,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * 对外暴露流式问答与任务停止能力，屏蔽控制器层之外的实现细节
  */
 public interface RAGChatService {
+    // RAG 对话服务接口 对外暴露流式问答与任务停止能力，屏蔽控制器层之外的实现细节。
 
     /**
      * 发起一次 SSE 流式问答

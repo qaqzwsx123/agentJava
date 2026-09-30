@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
  */
 @Component
 public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
+    // HTML 表格分块器：保留 HTML 表格形式，需要拆分时沿完整 tr 行分组，每段重复首行表头并补齐 table 外壳，避免转换成普通表格时丢失合并单元格等信息。
 
     private static final Pattern ROW = Pattern.compile("<tr\\b[^>]*>.*?</tr>",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);

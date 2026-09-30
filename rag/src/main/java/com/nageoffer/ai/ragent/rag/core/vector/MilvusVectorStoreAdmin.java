@@ -40,6 +40,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusVectorStoreAdmin implements VectorStoreAdmin {
+    // Milvus 向量空间管理实现：根据部署维度与度量配置创建或检查共享 collection 和索引，并管理指定逻辑分区的数据清理。
 
     private final MilvusClientV2 milvusClient;
     private final RAGDefaultProperties ragDefaultProperties;

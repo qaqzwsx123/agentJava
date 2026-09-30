@@ -40,6 +40,7 @@ import org.springframework.stereotype.Component;
         consumerGroup = "knowledge-document-chunk_cg${unique-name:}"
 )
 public class KnowledgeDocumentChunkConsumer implements RocketMQListener<MessageWrapper<KnowledgeDocumentChunkEvent>> {
+    // 文档分块任务 MQ 消费者 负责异步执行耗时的文本提取、分块、向量嵌入及写库操作。
 
     private final KnowledgeDocumentService documentService;
 

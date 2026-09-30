@@ -39,6 +39,7 @@ public record IngestionOutcome(
         List<Chunk> chunks,
         IngestionTimings timings
 ) {
+    // 摄取结果：返回识别出的 MIME、实际解析器类型、解析结构块数量、最终文档分块及阶段耗时，供外层更新统计和记录日志；向量已写入索引，不再随结果返回。
 
     public IngestionOutcome {
         // 把分块结果复制为只读列表，缺少耗时统计时补全零值，统一结果读取约定。
@@ -55,6 +56,7 @@ public record IngestionOutcome(
      * 各阶段耗时（毫秒）：解析含类型识别，分块含 Block / Chunk 两层插槽加工
      */
     public record IngestionTimings(long parseMillis, long chunkMillis, long embedMillis, long indexMillis) {
+        // 摄取阶段耗时记录：以毫秒保存解析、分块、向量化和索引写入四个阶段的实际计时，供本次摄取结果携带与展示。
 
         public static IngestionTimings zero() {
             // 构造全部阶段耗时为零的统计，供未执行处理阶段的结果复用。

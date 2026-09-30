@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class IntentTreeCacheManager {
+    // 意图树 Redis 缓存管理器：提供整棵意图树读取、写入、存在检查及清理，供分类查询复用并在管理变更后刷新。
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;

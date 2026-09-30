@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
  */
 @Component
 public class FetcherNode implements IngestionNode {
+    // 流水线文档获取节点：按来源类型选择 DocumentFetcher，取得文件字节和元信息写入上下文；上下文已有上传字节时跳过重复获取。
 
     private final Map<SourceType, DocumentFetcher> fetchers;
 

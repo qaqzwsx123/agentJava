@@ -27,4 +27,5 @@ public record HeadingBlock(
         int level,
         String text
 ) implements Block {
+    // 标题结构单元：保存来源、标题级别和文字；HeadingHandler 用它维护章节路径，HeadingChunker 将标题渲染为草稿，供后续打包识别章节边界。
 }

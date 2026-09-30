@@ -32,6 +32,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class ConversationVO {
+    // 会话视图对象；组织会话 ID、标题、最后活跃时间等返回字段，供前端查询和展示。
 
     /**
      * 会话ID

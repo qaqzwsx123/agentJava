@@ -34,6 +34,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class AgentSkillVO {
+    // 技能视图对象 列表页不返回 content，正文只在详情里带出；组织记录 ID、技能编码、名称、说明、正文等返回字段，供前端查询和展示。
 
     private String id;
     private String skillCode;

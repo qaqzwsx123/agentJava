@@ -55,6 +55,7 @@ import java.util.List;
 @Component
 @ConditionalOnProperty(name = "rag.storage.type", havingValue = "s3", matchIfMissing = true)
 public class S3ObjectStorageClient implements ObjectStorageClient {
+    // S3 兼容存储（rustfs / minio）的 ObjectStorageClient 实现 rag.storage.type=s3（默认）时注册。承接原 S3FileStorageService 的裸 S3 逻辑， 不含 namespace/key 组装与 DTO 装配。
 
     private static final Duration PRESIGN_DURATION = Duration.ofMinutes(10);
     private static final int CONNECT_TIMEOUT_MS = 10_000;

@@ -32,6 +32,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class NodeConfig {
+    // 管道节点配置实体类 定义摄取管道中单个节点的配置信息，包括节点标识、类型、设置参数以及执行条件等。
 
     /**
      * 节点的唯一标识符

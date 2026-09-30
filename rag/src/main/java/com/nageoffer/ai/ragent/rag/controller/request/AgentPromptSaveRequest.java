@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class AgentPromptSaveRequest {
+    // 单个槽位提示词保存请求，内容留空即恢复回落内置智能体；携带正文等参数，供控制器接收并交给服务层校验和处理。
 
     private String content;
 }

@@ -33,6 +33,7 @@ import org.springframework.util.StringUtils;
 @Component
 @ConfigurationProperties(prefix = "rag.storage")
 public class RagStorageProperties {
+    // 对象存储部署配置：选择 S3 或阿里云 OSS，配置私有文档桶、公开资产桶和对应连接参数；知识库在全局文档桶内按目录隔离。
 
     /**
      * 存储后端类型
@@ -64,6 +65,7 @@ public class RagStorageProperties {
 
     @Data
     public static class S3 {
+        // S3 兼容存储参数：保存 endpoint、访问凭据、区域、路径风格和公开地址等信息，供 S3 客户端及预签名服务装配。
 
         /**
          * S3 服务端点，如 rustfs 的 <a href="http://localhost:9000">...</a>
@@ -106,6 +108,7 @@ public class RagStorageProperties {
 
     @Data
     public static class Oss {
+        // 阿里云 OSS 存储参数：保存 endpoint、访问凭据、区域及公开 URL，供 OSS 客户端和资产公开地址生成使用。
 
         /**
          * OSS 服务端点，如 <a href="https://oss-cn-hangzhou.aliyuncs.com">...</a>

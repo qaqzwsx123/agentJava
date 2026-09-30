@@ -23,6 +23,7 @@ import com.nageoffer.ai.ragent.rag.controller.vo.AgentProfileListVO;
 import com.nageoffer.ai.ragent.rag.controller.vo.AgentPromptConfigVO;
 
 public interface AgentProfileAdminService {
+    // 智能体管理接口：约定档案增删改查、激活及提示词槽位读取保存，供后台维护不同智能体的人设和功能提示词。
 
     /**
      * 查询全部智能体，内置在前、其余按创建时间

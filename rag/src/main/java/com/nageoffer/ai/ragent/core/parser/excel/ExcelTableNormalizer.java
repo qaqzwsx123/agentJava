@@ -43,6 +43,7 @@ import java.util.List;
  * 这类复杂版面的 Excel 应由上层路由到 MinerU 解析，POI 只负责一 sheet 一张规整表
  */
 public final class ExcelTableNormalizer {
+    // Excel 表格规范化工具：把一个工作表整理为一张规整表，展开合并单元格、展平多行表头、保留链接和删除线标记，并过滤空行空列。
 
     /**
      * 多行表头展平时使用的分隔符
@@ -68,6 +69,7 @@ public final class ExcelTableNormalizer {
             List<String> headers,
             List<List<String>> rows
     ) {
+        // Excel 规范化结果：保存展平后的列名和清理后的二维数据行，供 ExcelDocumentParser 生成 TableBlock；表头和数据均为空才判为空表。
         public boolean isEmpty() {
             // 表头和数据行都为空才判定为空表，只有表头的表仍保留。
             return headers.isEmpty() && rows.isEmpty();

@@ -38,6 +38,7 @@ import org.apache.poi.ss.usermodel.Workbook;
  */
 @Slf4j
 public final class ExcelValueFormatter {
+    // Excel 单元格格式化工具：将数值、日期、布尔和公式转换为文本；公式求值失败时尝试缓存值和原公式，同时提供字体删除线检测。
 
     private ExcelValueFormatter() {
         // 单元格格式化通过静态方法复用，私有构造器阻止实例化。

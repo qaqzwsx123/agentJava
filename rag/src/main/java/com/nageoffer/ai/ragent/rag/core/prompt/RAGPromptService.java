@@ -45,6 +45,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.CONTEXT_FORMAT_PA
 @Service
 @RequiredArgsConstructor
 public class RAGPromptService {
+    // RAG Prompt 编排服务 根据知识库检索结果选择模板，并构造发送给 LLM 的消息序列。
 
     private final PromptTemplateLoader templateLoader;
     private final AgentPromptResolver agentPromptResolver;

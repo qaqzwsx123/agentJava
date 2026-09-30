@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class RecommendedQuestionController {
+    // 推荐追问问题控制器 答案完成后按需触发，POST 幂等生成推荐追问并落库，不占用 chat 流式关键路径。
 
     private final RecommendedQuestionService recommendedQuestionService;
 

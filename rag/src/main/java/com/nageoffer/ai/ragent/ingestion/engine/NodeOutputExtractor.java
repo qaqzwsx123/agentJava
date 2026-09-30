@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
  */
 @Component
 public class NodeOutputExtractor {
+    // 流水线节点输出摘要提取器：从摄取上下文提取获取、解析、增强、分块和索引等节点的诊断信息，避免把文件字节或完整向量塞进节点日志。
 
     /**
      * 按节点类型提取运行产物用于执行日志，参数不全返回空映射，未知节点类型使用通用视图。

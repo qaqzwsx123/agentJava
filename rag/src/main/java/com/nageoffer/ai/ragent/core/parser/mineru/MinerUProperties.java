@@ -30,6 +30,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties("mineru")
 @Data
 public class MinerUProperties {
+    // MinerU 接入配置：绑定 API 地址和令牌、轮询间隔、超时、表格及公式提取、OCR、语言，以及分布式并发许可和租期等参数。
 
     /**
      * MinerU SaaS API 根地址，默认 <a href="https://mineru.net/api/v4">...</a>

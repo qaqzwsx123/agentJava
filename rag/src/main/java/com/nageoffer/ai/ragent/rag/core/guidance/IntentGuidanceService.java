@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class IntentGuidanceService {
+    // 意图澄清判定 意图树层级由用户自行配置，因此只按「根到叶的节点路径」找重名分叉，再由 LLM 确认是否真的需要用户选择。
 
     /**
      * 参与重名比较的最短名称长度，避免单字名把无关路径判成冲突
@@ -336,8 +337,10 @@ public class IntentGuidanceService {
      * 待 LLM 确认的路径重名候选组
      */
     private record PathConflict(String topicName, List<NodeScore> ranked) {
+        // 意图路径重名冲突：保存可能产生歧义的候选路径信息，供澄清服务组成待模型确认的冲突组。
     }
 
     private record AmbiguityGroup(String topicName, List<NodeScore> ranked) {
+        // 待确认的意图歧义组：汇总重名路径及对应候选，交给歧义检查模型判断是否需要用户选择。
     }
 }

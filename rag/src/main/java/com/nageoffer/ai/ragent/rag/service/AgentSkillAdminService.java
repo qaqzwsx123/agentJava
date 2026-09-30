@@ -29,6 +29,7 @@ import java.util.List;
  * 技能管理服务
  */
 public interface AgentSkillAdminService {
+    // 智能体技能管理接口：提供技能分页、详情、保存、删除、启停和工具选项查询，供后台控制器维护模型可加载的操作手册。
 
     /**
      * 分页查询技能，不返回正文

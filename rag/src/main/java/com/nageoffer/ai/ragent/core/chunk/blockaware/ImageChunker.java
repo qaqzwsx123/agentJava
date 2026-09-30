@@ -33,6 +33,7 @@ import java.util.List;
  */
 @Component
 public class ImageChunker implements BlockChunker<ImageBlock> {
+    // 图片分块器：展示内容保留图片描述和 Markdown 图片链接，有描述时向量正文只使用描述，并在元数据中记录图片资产；自身不调用视觉模型生成描述。
 
     @Override
     public Class<ImageBlock> blockType() {

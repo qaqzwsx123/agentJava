@@ -28,6 +28,7 @@ import java.util.Date;
 @Data
 @Builder
 public class RagTraceNodeVO {
+    // RAG Trace 节点明细；组织追踪 ID、节点 ID、父节点 ID、节点深度、节点类型等返回字段，供前端查询和展示。
 
     private String traceId;
 

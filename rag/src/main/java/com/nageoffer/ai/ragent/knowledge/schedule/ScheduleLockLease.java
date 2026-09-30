@@ -18,4 +18,5 @@
 package com.nageoffer.ai.ragent.knowledge.schedule;
 
 public record ScheduleLockLease(String scheduleId, String lockToken) {
+    // 刷新锁租约凭据：由计划 ID 和唯一锁令牌组成，后续续租、释放及状态写入使用同一令牌校验持有者。
 }

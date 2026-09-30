@@ -31,6 +31,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class ChunkerSettings {
+    // 分块器设置实体类 定义文档分块节点的配置参数，包括分块策略、块大小、重叠大小等。
 
     /**
      * 分块策略（已废弃：保留字段只为管道编辑器 UI 不用改，后端不再读取）

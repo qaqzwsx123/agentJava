@@ -34,6 +34,7 @@ import java.util.List;
  * @param supplement 补充路候选名额，0 表示本次不补
  */
 public record ScopeQuota(int primary, int supplement) {
+    // 主路与补充路候选配额：依据是否定向和补充比例分配有限名额，并按额度截断各路结果，保证零名额不会被解释为不封顶。
 
     /**
      * 按作用域切分通道产出额度

@@ -54,6 +54,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.CONTEXT_FORMAT_PA
 @Service
 @RequiredArgsConstructor
 public class JdbcConversationMemorySummaryService implements ConversationMemorySummaryService {
+    // 数据库会话摘要实现：检查轮数阈值，通过分布式锁保护后台压缩，调用模型合并旧摘要及待压缩消息，保存新摘要与覆盖边界。
 
     private static final String SUMMARY_LOCK_PREFIX = "ragent:memory:summary:lock:";
 

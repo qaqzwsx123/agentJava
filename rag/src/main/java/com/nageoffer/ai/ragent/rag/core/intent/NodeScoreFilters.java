@@ -27,6 +27,7 @@ import java.util.List;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class NodeScoreFilters {
+    // 意图评分过滤工具：按知识库等类型和可选最低分筛选 NodeScore，供检索范围与提示词统一使用知识意图口径。
 
     /**
      * 过滤 KB 类型意图（node 非空、kind 为 null 或 KB）

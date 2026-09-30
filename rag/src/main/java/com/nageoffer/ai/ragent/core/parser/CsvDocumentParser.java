@@ -42,6 +42,7 @@ import java.util.Set;
 @Slf4j
 @Component
 public class CsvDocumentParser implements DocumentParser {
+    // CSV 解析器：探测字符编码并处理引号、逗号和字段内换行，过滤空行，以首行为表头整理数据行，产出带文件来源信息的 TableBlock。
 
     public static final String OPT_SOURCE_FILE = "sourceFile";
 

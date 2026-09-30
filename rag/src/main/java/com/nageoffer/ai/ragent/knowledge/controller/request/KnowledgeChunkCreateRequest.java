@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class KnowledgeChunkCreateRequest {
+    // 知识库 Chunk 创建请求；携带正文、插入序号、分块 ID等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 分块正文内容

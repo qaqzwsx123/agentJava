@@ -57,6 +57,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class IngestionPipelineServiceImpl implements IngestionPipelineService {
+    // 摄取流水线管理实现：持久化流水线和节点配置，组装 PipelineDefinition 与前端视图，并处理创建、更新、删除及业务变更记录。
 
     private final IngestionPipelineMapper pipelineMapper;
     private final IngestionPipelineNodeMapper nodeMapper;

@@ -32,6 +32,7 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class QueryTermMappingService {
+    // 查询术语归一化服务：优先从缓存加载已启用规则，未命中时回表并按优先级及词长排序，再逐条替换用户问题中的术语。
 
     private final QueryTermMappingMapper mappingMapper;
     private final QueryTermMappingCacheManager cacheManager;

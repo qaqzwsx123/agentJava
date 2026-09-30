@@ -40,7 +40,7 @@ import java.util.Map;
  */
 @Component
 public class BlockAwareChunkerDispatcher {
-
+    //**分块调度器。**遍历解析得到的 Block，按实际类型找到对应分块器；遇到标题先更新章节路径。最后统一调用打包器和装配器，返回正式分块。启动时若两个分块器认领同一种 Block，会报冲突。
     private final HeadingHandler headingHandler;
     private final ChunkPacker chunkPacker;
     private final Map<Class<? extends Block>, BlockChunker<?>> registry;

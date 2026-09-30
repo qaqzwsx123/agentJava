@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class ChatQueueLimiter {
+    // RAG 流式请求排队入口：根据全局并发配置申请分布式许可，排队成功后启动问答，超时则经 SSE 返回拒绝结果，并绑定取消和释放动作。
 
     private static final String REJECT_MESSAGE = "系统繁忙，请稍后再试";
     private static final String RESPONSE_TYPE = "response";
@@ -193,5 +194,6 @@ public class ChatQueueLimiter {
     }
 
     private record RejectedContext(String conversationId, String taskId, String messageId, String title) {
+        // 排队拒绝响应上下文：记录会话、任务、消息 ID 和标题，使超时拒绝也能关联正确会话并完成事件推送与消息记录。
     }
 }
