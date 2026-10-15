@@ -39,6 +39,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
 
     @Override
     public void setApplicationContext(@NonNull ApplicationContext applicationContext) throws BeansException {
+        // Spring 初始化组件时注入容器，并保存到静态位置，供非 Spring 管理的调用方访问。
         ApplicationContextHolder.CONTEXT = applicationContext;
     }
 
@@ -46,6 +47,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
      * 根据类型获取 Bean
      */
     public static <T> T getBean(Class<T> clazz) {
+        // 按类型委托容器查找 Bean；不存在或有多个无法确定的候选时，由 Spring 抛出对应异常。
         return CONTEXT.getBean(clazz);
     }
 
@@ -53,6 +55,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
      * 根据名称获取 Bean
      */
     public static Object getBean(String name) {
+        // 按注册名称查找 Bean，返回原始对象；名称不存在时不自行兜底，由容器报告错误。
         return CONTEXT.getBean(name);
     }
 
@@ -60,6 +63,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
      * 根据名称和类型获取 Bean
      */
     public static <T> T getBean(String name, Class<T> clazz) {
+        // 同时按名称定位、按类型校验 Bean，避免调用方拿到对象后再做不安全的强制转换。
         return CONTEXT.getBean(name, clazz);
     }
 
@@ -67,6 +71,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
      * 根据类型获取同类型的所有 Bean
      */
     public static <T> Map<String, T> getBeansOfType(Class<T> clazz) {
+        // 返回指定类型的全部 Bean，以注册名称为键，适合收集策略、扩展实现等组件。
         return CONTEXT.getBeansOfType(clazz);
     }
 
@@ -74,6 +79,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
      * 查找 Bean 上的注解
      */
     public static <A extends Annotation> A findAnnotationOnBean(String beanName, Class<A> annotationType) {
+        // 委托 Spring 按 Bean 名称查找目标注解；没有该注解时返回 null。
         return CONTEXT.findAnnotationOnBean(beanName, annotationType);
     }
 
@@ -81,6 +87,7 @@ public class ApplicationContextHolder implements ApplicationContextAware {
      * 获取 ApplicationContext
      */
     public static ApplicationContext getInstance() {
+        // 返回启动时绑定的容器引用；若容器尚未注入，此处仍可能为 null。
         return CONTEXT;
     }
 }

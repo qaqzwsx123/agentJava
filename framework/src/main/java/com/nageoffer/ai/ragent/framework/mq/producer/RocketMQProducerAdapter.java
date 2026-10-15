@@ -47,8 +47,10 @@ public class RocketMQProducerAdapter implements MessageQueueProducer {
      */
     @Override
     public SendResult send(String topic, String keys, String bizDesc, Object body) {
+        // 1. 调用方未给业务键时生成随机值，再把相同键同时放入消息包装器与 RocketMQ 消息头。
         keys = StrUtil.isEmpty(keys) ? UUID.randomUUID().toString() : keys;
 
+        // 2. 业务载荷统一包进 MessageWrapper，业务 key 同时写入消息头以支持消息检索。
         Message<MessageWrapper<Object>> message = MessageBuilder
                 .withPayload(MessageWrapper.builder().keys(keys).body(body).build())
                 .setHeader(MessageConst.PROPERTY_KEYS, keys)
@@ -56,6 +58,7 @@ public class RocketMQProducerAdapter implements MessageQueueProducer {
 
         SendResult sendResult;
         try {
+            // 3. 同步等待 Broker 发送结果；调用抛错时保留原异常并交给业务方决定重试。
             sendResult = rocketMQTemplate.syncSend(topic, message);
         } catch (Throwable ex) {
             log.error("[生产者] {} - 消息发送失败，topic: {}, keys: {}", bizDesc, topic, keys, ex);
@@ -73,12 +76,14 @@ public class RocketMQProducerAdapter implements MessageQueueProducer {
     @Override
     public void sendInTransaction(String topic, String keys, String bizDesc, Object body,
                                   Consumer<Object> localTransaction) {
+        // 1. 为业务键提供缺省值，并生成独立事务 ID，后者用于定位本次消息对应的本地回调。
         keys = StrUtil.isEmpty(keys) ? UUID.randomUUID().toString() : keys;
         String txId = UUID.randomUUID().toString();
 
         // 回调必须先登记，后续半消息触发的本地事务监听才能通过 txId 找到业务动作。
         transactionListener.registerLocalTransaction(txId, localTransaction);
 
+        // 2. 业务载荷统一包进 MessageWrapper，业务 key 同时写入消息头以支持消息检索。
         Message<MessageWrapper<Object>> message = MessageBuilder
                 .withPayload(MessageWrapper.builder().keys(keys).body(body).build())
                 .setHeader(MessageConst.PROPERTY_KEYS, keys)
@@ -88,12 +93,15 @@ public class RocketMQProducerAdapter implements MessageQueueProducer {
 
         TransactionSendResult sendResult;
         try {
+            // 3. 发送半消息并触发本地事务监听；回调使用消息头里的事务 ID 找到刚登记的业务动作。
             sendResult = rocketMQTemplate.sendMessageInTransaction(topic, message, null);
         } catch (Throwable ex) {
+            // 4. 发送异常时主动撤销尚未触发的回调，避免临时表持续积累。
             transactionListener.unregisterLocalTransaction(txId);
             log.error("[生产者] {} - 事务消息发送失败，topic: {}, keys: {}", bizDesc, topic, keys, ex);
             throw ex;
         }
+        // 5. 即使没有抛异常，发送状态失败也要清理回调；具体结果仍记录在日志中。
         if (sendResult.getSendStatus() != SendStatus.SEND_OK) {
             transactionListener.unregisterLocalTransaction(txId);
         }

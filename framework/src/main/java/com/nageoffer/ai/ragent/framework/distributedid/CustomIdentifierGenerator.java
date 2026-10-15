@@ -30,11 +30,13 @@ public class CustomIdentifierGenerator implements IdentifierGenerator {
 
     @Override
     public Number nextId(Object entity) {
+        // 委托 Hutool 当前 Snowflake 实例生成数值 ID，实体参数不参与编号计算。
         return IdUtil.getSnowflakeNextId();
     }
 
     @Override
     public String nextUUID(Object entity) {
+        // 这里返回雪花 ID 的字符串形式，供需要字符串主键的映射使用，并非随机 UUID。
         return IdUtil.getSnowflakeNextIdStr();
     }
 }

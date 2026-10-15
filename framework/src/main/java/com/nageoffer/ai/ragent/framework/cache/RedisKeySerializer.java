@@ -39,12 +39,15 @@ public class RedisKeySerializer implements RedisSerializer<String> {
 
     @Override
     public byte[] serialize(String key) throws SerializationException {
+        // 先在原始 key 前拼接配置前缀，再使用平台默认字符集生成字节；这里没有额外做空值或编码转换。
         String builderKey = keyPrefix + key;
+        // 返回的是带前缀的完整键字节，Redis 中不同业务可借此区分命名空间。
         return builderKey.getBytes();
     }
 
     @Override
     public String deserialize(byte[] bytes) throws SerializationException {
+        // 按 UTF-8 把 Redis 返回的字节恢复成字符串；这里只解码，不移除序列化时添加的前缀。
         return new String(bytes, StandardCharsets.UTF_8);
     }
 }

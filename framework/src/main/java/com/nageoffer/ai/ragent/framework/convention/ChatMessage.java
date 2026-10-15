@@ -68,6 +68,7 @@ public class ChatMessage {
          * @throws IllegalArgumentException 当传入的字符串无法匹配任何角色时抛出异常
          */
         public static Role fromString(String value) {
+            // 逐个比较枚举名，忽略大小写；没有匹配项就抛异常，不静默回退到某个默认角色。
             for (Role role : Role.values()) {
                 if (role.name().equalsIgnoreCase(value)) {
                     return role;
@@ -127,11 +128,13 @@ public class ChatMessage {
     private MessageStatus messageStatus = MessageStatus.NORMAL;
 
     public ChatMessage(Role role, String content) {
+        // 仅设置角色与正文，其余可选信息留空，结束状态沿用字段默认的 NORMAL。
         this.role = role;
         this.content = content;
     }
 
     public ChatMessage(Role role, String content, MessageStatus messageStatus) {
+        // 同时保存调用方指定的消息状态，用于表达正常、被中断或被拒绝的消息。
         this.role = role;
         this.content = content;
         this.messageStatus = messageStatus;
@@ -144,6 +147,7 @@ public class ChatMessage {
      * @return 封装好的 {@link ChatMessage} 对象，角色为 {@link Role#SYSTEM}
      */
     public static ChatMessage system(String content) {
+        // 固定 SYSTEM 角色，统一通过基础构造方法封装系统提示词。
         return new ChatMessage(Role.SYSTEM, content);
     }
 
@@ -154,6 +158,7 @@ public class ChatMessage {
      * @return 封装好的 {@link ChatMessage} 对象，角色为 {@link Role#USER}
      */
     public static ChatMessage user(String content) {
+        // 固定 USER 角色封装用户正文，避免各调用点手动设置角色时产生差异。
         return new ChatMessage(Role.USER, content);
     }
 
@@ -164,6 +169,7 @@ public class ChatMessage {
      * @return 封装好的 {@link ChatMessage} 对象，角色为 {@link Role#ASSISTANT}
      */
     public static ChatMessage assistant(String content) {
+        // 创建只带回答正文的助手消息，思考内容与耗时保持为空。
         return new ChatMessage(Role.ASSISTANT, content);
     }
 
@@ -175,6 +181,7 @@ public class ChatMessage {
      * @return 封装好的 {@link ChatMessage} 对象，角色为 {@link Role#ASSISTANT}
      */
     public static ChatMessage assistant(String content, String thinkingContent) {
+        // 复用完整助手消息工厂，保留思考内容，未提供的耗时显式传 null。
         return assistant(content, thinkingContent, null);
     }
 
@@ -187,6 +194,7 @@ public class ChatMessage {
      * @return 封装好的 {@link ChatMessage} 对象，角色为 {@link Role#ASSISTANT}
      */
     public static ChatMessage assistant(String content, String thinkingContent, Integer thinkingDuration) {
+        // 先创建助手正文，再补充思考文本和秒级耗时，返回同一条消息对象。
         ChatMessage message = new ChatMessage(Role.ASSISTANT, content);
         message.setThinkingContent(thinkingContent);
         message.setThinkingDuration(thinkingDuration);

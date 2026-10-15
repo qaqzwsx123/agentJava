@@ -48,6 +48,7 @@ public enum IdempotentConsumeStatusEnum {
      * @return 是否消费失败
      */
     public static boolean isError(String consumeStatus) {
+        // 只有已有状态为 CONSUMING 才表示另一消费者正在处理；空值和已完成状态均不属于这个分支。
         return Objects.equals(CONSUMING.code, consumeStatus);
     }
 }

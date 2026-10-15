@@ -31,6 +31,7 @@ public final class UserContext {
      * 设置当前线程的用户上下文
      */
     public static void set(LoginUser user) {
+        // 把登录用户快照绑定到当前线程；跨线程传递还需要使用支持 TTL 的执行方式。
         CONTEXT.set(user);
     }
 
@@ -38,6 +39,7 @@ public final class UserContext {
      * 获取当前线程的用户上下文
      */
     public static LoginUser get() {
+        // 读取当前线程绑定的用户，未绑定时返回 null，不在这里发起登录校验。
         return CONTEXT.get();
     }
 
@@ -45,6 +47,7 @@ public final class UserContext {
      * 获取当前线程用户，若不存在则抛异常
      */
     public static LoginUser requireUser() {
+        // 先读取用户快照；调用场景要求登录而上下文缺失时，立即抛出客户端异常。
         LoginUser user = CONTEXT.get();
         if (user == null) {
             throw new ClientException("未获取到当前登录用户");
@@ -56,6 +59,7 @@ public final class UserContext {
      * 获取当前用户 ID（未登录返回 null）
      */
     public static String getUserId() {
+        // 从当前快照读取用户 ID；未登录时返回 null，避免在可选身份场景中抛空指针。
         LoginUser user = CONTEXT.get();
         return user == null ? null : user.getUserId();
     }
@@ -64,6 +68,7 @@ public final class UserContext {
      * 获取当前用户名（未登录返回 null）
      */
     public static String getUsername() {
+        // 读取用户名，用户上下文缺失时保持 null，由调用方决定是否必须登录。
         LoginUser user = CONTEXT.get();
         return user == null ? null : user.getUsername();
     }
@@ -72,6 +77,7 @@ public final class UserContext {
      * 获取当前角色（未登录返回 null）
      */
     public static String getRole() {
+        // 读取当前角色快照；这里只取值，不执行角色权限判断。
         LoginUser user = CONTEXT.get();
         return user == null ? null : user.getRole();
     }
@@ -80,6 +86,7 @@ public final class UserContext {
      * 获取当前头像（未登录返回 null）
      */
     public static String getAvatar() {
+        // 从登录快照取头像地址；没有用户上下文时返回 null。
         LoginUser user = CONTEXT.get();
         return user == null ? null : user.getAvatar();
     }
@@ -88,6 +95,7 @@ public final class UserContext {
      * 清理当前线程的用户上下文
      */
     public static void clear() {
+        // 请求收尾时移除当前线程的用户引用，防止线程池复用后把身份带入下一次请求。
         CONTEXT.remove();
     }
 
@@ -95,6 +103,7 @@ public final class UserContext {
      * 判断是否已存在用户上下文
      */
     public static boolean hasUser() {
+        // 仅检查是否绑定用户对象，不重新验证会话有效性或具体角色。
         return CONTEXT.get() != null;
     }
 }

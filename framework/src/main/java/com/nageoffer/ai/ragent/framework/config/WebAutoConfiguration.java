@@ -32,6 +32,7 @@ public class WebAutoConfiguration {
      */
     @Bean
     public GlobalExceptionHandler globalExceptionHandler() {
+        // 注册统一异常处理器，让参数校验、业务异常及兜底错误使用项目约定的响应结构。
         return new GlobalExceptionHandler();
     }
 }

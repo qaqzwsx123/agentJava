@@ -46,6 +46,7 @@ public class SnowflakeIdInitializer {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @PostConstruct
     public void init() {
+        // 启动时先准备 Redis Lua 脚本；workerId 与 datacenterId 由脚本一次执行共同分配。
         // 加载Lua脚本
         DefaultRedisScript<List> script = new DefaultRedisScript<>();
         script.setScriptSource(new ResourceScriptSource(new ClassPathResource("lua/snowflake_init.lua")));
@@ -55,6 +56,7 @@ public class SnowflakeIdInitializer {
             // 执行 Lua 脚本获取 workerId 和 datacenterId
             List<Long> result = stringRedisTemplate.execute(script, Collections.emptyList());
 
+            // 返回值必须恰好是两项编号，结果缺失或形状不符时拒绝继续初始化。
             if (CollUtil.isEmpty(result) || result.size() != 2) {
                 throw new RuntimeException("从Redis获取WorkerId和DataCenterId失败");
             }
@@ -68,6 +70,7 @@ public class SnowflakeIdInitializer {
 
             log.info("分布式Snowflake初始化完成, workerId: {}, datacenterId: {}", workerId, datacenterId);
         } catch (Exception e) {
+            // 初始化属于启动前置条件，Redis 或编号分配失败时保留原因并让启动失败。
             throw new RuntimeException("分布式Snowflake初始化失败", e);
         }
     }

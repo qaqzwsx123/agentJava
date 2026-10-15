@@ -64,9 +64,9 @@ public interface RagStreamTraceSupport {
      * 不开启 trace 时使用的空实现，所有方法 no-op
      */
     StreamSpan NOOP_SPAN = new StreamSpan() {
-        @Override public void detach() {}
-        @Override public void finishSuccess() {}
-        @Override public void finishError(Throwable error) {}
-        @Override public void finishCancelledIfRunning() {}
+        @Override public void detach() { /* 未启用追踪时没有节点入栈，无需执行脱离操作。 */ }
+        @Override public void finishSuccess() { /* 空实现不创建节点，也无需记录正常完成，调用方可以统一走收尾入口。 */ }
+        @Override public void finishError(Throwable error) { /* 关闭追踪时忽略节点错误记录，不改变业务异常自身的传播方式。 */ }
+        @Override public void finishCancelledIfRunning() { /* 空实现没有运行中的节点，取消收尾无需更新任何状态。 */ }
     };
 }

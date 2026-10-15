@@ -34,8 +34,10 @@ public abstract class AbstractException extends RuntimeException {
     public final String errorMessage;
 
     public AbstractException(String message, Throwable throwable, IErrorCode errorCode) {
+        // 1. 保留 RuntimeException 的原始消息和原因链，再分别保存对外返回的业务错误码与消息。
         super(message, throwable);
         this.errorCode = errorCode.code();
+        // 2. 自定义消息有长度时优先使用；为 null 或空串时回退错误码默认文案，空白串不会在此被过滤。
         this.errorMessage = Optional.ofNullable(StringUtils.hasLength(message) ? message : null).orElse(errorCode.message());
     }
 }

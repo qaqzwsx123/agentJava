@@ -86,6 +86,7 @@ public class Result<T> implements Serializable {
      * @return 如果状态码为 {@link #SUCCESS_CODE}，返回 {@code true}；否则返回 {@code false}
      */
     public boolean isSuccess() {
+        // 从固定成功码一侧调用 equals，code 为 null 时也安全返回 false。
         return SUCCESS_CODE.equals(code);
     }
 }

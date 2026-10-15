@@ -1,7 +1,7 @@
 server:
   port: 9090
   servlet:
-    context-path: /api/ragent
+    context-path: /api/ragent  # 全局路径前缀，所有接口都在 /api/ragent 下
 
 spring:
   application:
@@ -9,8 +9,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 100MB
+      max-file-size: 50MB # 单个上传文件最大 50MB
+      max-request-size: 100MB # 整个 multipart 请求最大 100MB
 
   datasource:
     driver-class-name: org.postgresql.Driver
@@ -19,12 +19,12 @@ spring:
     password: postgres
     url: jdbc:postgresql://192.168.137.100:5432/ragent?client_encoding=UTF8
     hikari:
-      connection-timeout: 5000
+      connection-timeout: 5000 # 获取连接超时 5s
       idle-timeout: 600000 #空闲连接超过 10 分钟（600000ms）被回收
-      max-lifetime: 1800000
-      maximum-pool-size: 10
-      minimum-idle: 5
-      pool-name: RagentHikariPool
+      max-lifetime: 1800000 # 连接最大存活 30 分钟
+      maximum-pool-size: 10 # 最大连接数
+      minimum-idle: 5 # 最小空闲连接数
+      pool-name: RagentHikariPool # 连接池名称
 
   data:
     redis:
@@ -35,29 +35,31 @@ spring:
 ragent:
   engine:
     type: agent  # 执行架构档位，可选 workflow（v1 编排管线）/ agent（v2 ReAct 架构，RAG 管线降级为主 Agent 的一个 Tool）
-  demo-mode: false
+  demo-mode: false # 演示模式开关
   eval:
-    enabled: true
+    enabled: true # 是否启用评估模块
 
+# ============================================================
 # Agent 执行架构（ragent.engine.type=agent 时生效）；单模型无 fallback，供应商可用性由 provider 侧保障
+# ============================================================
 agent:
   mcp:
     servers:
-      - name: default
-        url: http://localhost:9099
+      - name: default # MCP 服务名
+        url: http://localhost:9099 # MCP 服务地址
   chat:
-    provider: ollama   # 本地 Ollama 的 OpenAI 兼容端点
+    provider: ollama   # 聊天模型供应商，此处用本地 Ollama 的 OpenAI 兼容端点
     model: qwen3.5:2b
   max-iters: 10         # ReAct 循环上限，超出后熔断收尾
   max-retries: 1        # 最大尝试次数含首次，1 即不重试
-  sse-timeout-ms: 900000
+  sse-timeout-ms: 900000 # SSE 超时 15 分钟
   memory:
-    context-window-chars: 100000
-    summary-enabled: true
-    long-term-enabled: true
-    evictable-tools: [ search_knowledge ]
-  trace:
-    enabled: false  # 开启前先起 resources/docker/langfuse 那套服务
+    context-window-chars: 100000 # 上下文窗口字符数上限
+    summary-enabled: true # 是否启用上下文摘要压缩
+    long-term-enabled: true # 是否启用长期记忆
+    evictable-tools: [ search_knowledge ]  # 可被驱逐的工具列表
+  trace:  #$agent.trace 配置块是 Agent 引擎的链路追踪（Observability）配置，用来把 Agent 每一次运行的内部步骤上报到 Langfuse
+    enabled: false  #  # 是否启用 Langfuse 追踪；开启前先起 resources/docker/langfuse 那套服务
     capture-content: true  # 记录提示词与工具出入参；纯骨架改 false
     endpoint: http://localhost:3000/api/public/otel/v1/traces
     public-key: pk-lf-ragent-local     # 与 compose 里的 LANGFUSE_INIT_PROJECT_PUBLIC_KEY 一致
@@ -67,9 +69,12 @@ agent:
     service-version:  # 留空取 build-info 版本；要盖 pom 版本才填
     environment:      # 如 local / staging / prod
 
+# ============================================================
+# RAG 检索增强配置
+# ============================================================
 rag:
   storage:
-    type: s3  # 可选 s3（rustfs / minio）/ oss（阿里云）
+    type: s3  # 存储类型：s3（rustfs / minio）/ oss（阿里云）
     kb-bucket: ragent-sources        # 全局知识库桶（私有），所有知识库文档按 collectionName 目录隔离；OSS 桶名全局唯一，生产需按部署覆盖
     asset-bucket: ragent-assets # 多模态资产桶（公共读），PDF 抽出的图片等供浏览器匿名直连预览
     s3:
@@ -77,7 +82,7 @@ rag:
       access-key: rustfsadmin
       secret-key: rustfsadmin
       region: us-east-1
-      path-style: true
+      path-style: true # 使用 path-style 访问
       public-url:  # 内外网端点不同时配置，留空回退 endpoint
     oss:
       endpoint: https://oss-cn-hangzhou.aliyuncs.com
@@ -90,7 +95,7 @@ rag:
     type: pg  # 可选 milvus / pg
 
   keyword:
-    type: none  # 可选 none / es
+    type: none    # 关键词检索类型：none / es
     es:
       uris: http://127.0.0.1:9200
       index: rag_keyword_store  # 全库共享索引，按 collection_name 字段区分知识库
@@ -106,15 +111,15 @@ rag:
 
   default:
     collection-name: rag_default_store
-    dimension: 1536
-    metric-type: COSINE
+    dimension: 1536  # 向量维度
+    metric-type: COSINE # 相似度度量方式
     sse-timeout-ms: 300000  # SSE 全局超时（毫秒），默认 5 分钟
 
   query-rewrite:
-    enabled: true
+    enabled: true # 是否启用查询改写
 
   rerank:
-    enabled: true
+    enabled: true # 是否启用重排序
 
   citation:
     enabled: true  # 回答行内引用角标 [N](#cite-N)：开启会动态追加引用规则并为资料注入编号，增加首字延迟；关闭不影响文档级来源面板
@@ -122,17 +127,17 @@ rag:
   rate-limit:
     global:
       enabled: true
-      max-concurrent: 10
-      max-wait-seconds: 15
-      lease-seconds: 30
-      poll-interval-ms: 200
+      max-concurrent: 10 # 全局最大并发数
+      max-wait-seconds: 15  # 最大等待秒数
+      lease-seconds: 30 # 租约秒数
+      poll-interval-ms: 200 # 轮询间隔
 
   memory:
-    history-keep-turns: 8
-    summary-enabled: true
-    summary-start-turns: 9
-    summary-max-chars: 400
-    title-max-length: 30
+    history-keep-turns: 8 # 保留最近 8 轮历史
+    summary-enabled: true # 启用摘要
+    summary-start-turns: 9 # 从第 9 轮开始摘要
+    summary-max-chars: 400 # 摘要最大字符数
+    title-max-length: 30 # 标题最大长度
 
   semaphore:
     document-upload:
@@ -143,10 +148,10 @@ rag:
 
   knowledge:
     schedule:
-      scan-delay-ms: 10000
-      lock-seconds: 900
-      batch-size: 20
-      min-interval-seconds: 60
+      scan-delay-ms: 10000 # 扫描延迟 10s
+      lock-seconds: 900 # 锁定时长 15 分钟
+      batch-size: 20 # 批处理大小
+      min-interval-seconds: 60 # 最小间隔 60s
 
   search:
     # 检索漏斗三段预算，各自独立、单调收窄，启动时校验 recall-budget ≥ default-top-k 且 rerank-candidate-limit ≥ default-top-k
@@ -172,7 +177,7 @@ rag:
         timeout-seconds: 10
         api-key: ${YDC_API_KEY:}
     fusion:
-      strategy: rrf
+      strategy: rrf               # 融合策略：RRF
       rrf-k: 20                   # 候选池通常仅 20~40 条，k=60 会过度平滑名次；调低至 20 让头部更有区分度（配合「检索归因」日志校准）
       rerank-candidate-limit: 40  # ② RRF 融合后送入 Rerank 的候选池上限，<=0 不截断（经验值 40~100）
       channel-weights:
@@ -200,6 +205,9 @@ rag:
       5. 最后另起一行，用一句话自然引出图片（例如"下方为该内容对应的原始图片："），以便在这段文字后紧接着展示图片。
     max-output-tokens: 4096
 
+# ============================================================
+# AI 模型供应商配置
+# ============================================================
 ai:
   providers:
     ollama:
@@ -228,14 +236,14 @@ ai:
         chat: /v1/chat/completions
 
   selection:
-    failure-threshold: 2
-    open-duration-ms: 30000
+    failure-threshold: 2  # 失败阈值
+    open-duration-ms: 30000 # 熔断开启时长
 
   stream:
-    message-chunk-size: 1
+    message-chunk-size: 1 # 流式消息块大小
 
   chat:
-    candidates:
+    candidates:    # 聊天模型候选列表
       - id: qwen-plus
         provider: bailian
         model: qwen-plus-latest
@@ -258,10 +266,10 @@ ai:
         model: deepseek-flash
         supports-thinking: true
 
-    default-tier: standard
-    deep-thinking-tier: deep
+    default-tier: standard  # 默认档位
+    deep-thinking-tier: deep  # 深度思考档位
 
-    tiers:
+    tiers:      # 档位定义
       fast:
         candidates: [ qwen3-local ]
         timeout-ms: 120000
@@ -273,7 +281,7 @@ ai:
         timeout-ms: 180000
 
   embedding:
-    default-model: qwen-emb-8b
+    default-model: qwen-emb-8b  # 默认嵌入模型
     candidates:
       - id: qwen-emb-8b
         provider: bailian
@@ -292,7 +300,7 @@ ai:
         priority: 3
 
   rerank:
-    default-model: qwen3-rerank
+    default-model: qwen3-rerank  # 默认重排序模型
     candidates:
       - id: qwen3-rerank
         provider: bailian
@@ -304,41 +312,55 @@ ai:
         priority: 100
 
   vlm:
-    default-model: qwen-vl-max
+    default-model: qwen-vl-max  # 默认视觉语言模型
     candidates:
       - id: qwen-vl-max
         provider: bailian
         model: qwen-vl-max
 
+
+# ============================================================
+# MinerU 文档解析 SaaS API 配置
+# ===========================================================
+
 # MinerU SaaS API 配置（PDF / Word / PPT 走 MinerU 解析）
 mineru:
   api-url: https://mineru.net/api/v4
   api-key: ${MINERU_API_KEY:}
-  poll-interval-seconds: 5
-  timeout-seconds: 300
-  enable-table: true
-  enable-formula: true
-  ocr: false
-  language: ch
-  concurrency-limit: 5
-  semaphore-name: rag:mineru:parse
-  max-wait-seconds: 30
-  lease-seconds: 900
+  poll-interval-seconds: 5         # 轮询间隔
+  timeout-seconds: 300             # 超时时间
+  enable-table: true               # 启用表格解析
+  enable-formula: true             # 启用公式解析
+  ocr: false                       # 是否启用 OCR
+  language: ch                     # 语言
+  concurrency-limit: 5             # 并发限制
+  semaphore-name: rag:mineru:parse # 信号量名称
+  max-wait-seconds: 30             # 最大等待秒数
+  lease-seconds: 900               # 租约秒数
 
+# ============================================================
+# Sa-Token 权限认证配置
+# ============================================================
 sa-token:
-  token-name: Authorization
-  timeout: 2592000
-  is-concurrent: true
-  is-share: false
-  token-style: simple-uuid
-  is-log: false
-  is-print: false
+  token-name: Authorization        # token 名称
+  timeout: 2592000                 # 有效期 30 天
+  is-concurrent: true              # 是否允许并发登录
+  is-share: false                  # 是否共享 token
+  token-style: simple-uuid         # token 风格
+  is-log: false                    # 是否打印日志
+  is-print: false                  # 是否打印 banner
 
+# ============================================================
+# RocketMQ 配置
+# ============================================================
 rocketmq:
   name-server: 192.168.137.100:9876
   producer:
-    group: ragent-producer${unique-name:}_pg
-    send-message-timeout: 2000
+    group: ragent-producer${unique-name:}_pg # 生产者组
+    send-message-timeout: 2000  # 发送超时 2s
 
+# ============================================================
+# Milvus 向量库配置
+# ============================================================
 milvus:
   uri: http://192.168.137.100:19531  # 改为 19531
