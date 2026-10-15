@@ -114,6 +114,7 @@ public class IngestionEngine {
                 continue;
             }
 
+            // visited 用于跳过已检查起点，path 单独跟踪本条链，用来识别本轮遍历中的环。
             Set<String> path = new HashSet<>();
             String current = nodeId;
 
@@ -131,6 +132,7 @@ public class IngestionEngine {
                 }
 
                 String nextId = config.getNextNodeId();
+                // 同时验证 nextNodeId 确实存在，避免运行到中途才发现断开的节点引用。
                 if (StringUtils.hasText(nextId)) {
                     if (!nodeConfigMap.containsKey(nextId)) {
                         throw new ClientException("找不到下一个节点: " + nextId + "，被节点 " + current + " 引用");

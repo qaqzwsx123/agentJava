@@ -53,6 +53,9 @@ public class TikaDocumentParser implements DocumentParser {
         pdfConfig.setExtractUniqueInlineImagesOnly(true);
     }
 
+    /**
+     * 返回 Tika 解析器注册标识，供解析器目录和执行日志识别。
+     */
     @Override
     public String getParserType() {
         return ParserType.TIKA.getType();
@@ -88,6 +91,9 @@ public class TikaDocumentParser implements DocumentParser {
         return ParsedDocument.of(blocks, Map.of("parser", getParserType(), "mimeType", mimeType == null ? "" : mimeType));
     }
 
+    /**
+     * 从解析选项读取源文件名，缺失时为空，供块级溯源使用。
+     */
     private String extractSourceFile(Map<String, Object> options) {
         if (options == null) {
             return "";

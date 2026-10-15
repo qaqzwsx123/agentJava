@@ -68,11 +68,17 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
         return rewriteWithSplit(userQuestion).rewrittenQuestion();
     }
 
+    /**
+     * 先进行术语归一化，再按开关选择规则拆分或结合历史的模型改写；无历史重载传入空列表。
+     */
     @Override
     public RewriteResult rewriteWithSplit(String userQuestion) {
         return rewriteWithSplit(userQuestion, List.of());
     }
 
+    /**
+     * 先进行术语归一化，再按开关选择规则拆分或结合历史的模型改写；无历史重载传入空列表。
+     */
     @Override
     @RagTraceNode(name = "query-rewrite-and-split", type = "REWRITE")
     public RewriteResult rewriteWithSplit(String userQuestion, List<ChatMessage> history) {
@@ -87,6 +93,9 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
         return callLLMRewriteAndSplit(normalizedQuestion, userQuestion, history);
     }
 
+    /**
+     * 选取改写历史并调用 FAST 档模型；调用或解析失败时回退为归一化问题及单个子问题。
+     */
     private RewriteResult callLLMRewriteAndSplit(String normalizedQuestion,
                                                  String originalQuestion,
                                                  List<ChatMessage> history) {
@@ -152,6 +161,9 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
         return status == null || status == ChatMessage.MessageStatus.NORMAL;
     }
 
+    /**
+     * 按系统提示词、选取的历史、当前问题组装改写请求；当前问题始终放在最后一条。
+     */
     private ChatRequest buildRewriteRequest(String systemPrompt,
                                             String question,
                                             List<ChatMessage> rewriteHistory) {
@@ -172,6 +184,9 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     }
 
 
+    /**
+     * 去除 Markdown 围栏后解析 rewrite 和 sub_questions，过滤空子问题；缺少有效改写时返回 null。
+     */
     private RewriteResult parseRewriteAndSplit(String raw) {
         try {
             // 移除可能存在的 Markdown 代码块标记
@@ -208,6 +223,9 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
         }
     }
 
+    /**
+     * 按问号、句号、分号和换行切分问题，过滤空片段并补问号，无法拆分时保留原问题。
+     */
     private List<String> ruleBasedSplit(String question) {
         // 兜底：按常见分隔符拆分
         List<String> parts = Arrays.stream(question.split("[?？。；;\\n]+"))

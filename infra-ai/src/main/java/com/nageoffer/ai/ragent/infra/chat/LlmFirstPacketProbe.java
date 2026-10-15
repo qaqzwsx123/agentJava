@@ -31,6 +31,9 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class LlmFirstPacketProbe {
 
+    /**
+     * 委托探测桥在指定时间预算内等待首包、错误或无内容结束信号，并保留线程中断语义。
+     */
     @RagTraceNode(name = "llm-first-packet", type = "LLM_TTFT")
     public ProbeStreamBridge.ProbeResult awaitFirstPacket(ProbeStreamBridge bridge,
                                                           long timeout,

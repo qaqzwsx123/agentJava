@@ -83,6 +83,9 @@ public class BlockAwareChunkerDispatcher {
         return ChunkAssembler.assembleAll(chunkPacker.pack(drafts, budget));
     }
 
+    /**
+     * 按结构化块的实际类型查找分块器并执行，未注册类型明确抛错，不静默丢弃内容。
+     */
     @SuppressWarnings("unchecked")
     private List<ChunkDraft> chunkOne(Block block, ChunkContext ctx) {
         BlockChunker<Block> chunker = (BlockChunker<Block>) registry.get(block.getClass());

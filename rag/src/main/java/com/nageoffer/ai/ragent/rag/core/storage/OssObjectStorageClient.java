@@ -59,6 +59,9 @@ public class OssObjectStorageClient implements ObjectStorageClient {
         this.ossProperties = properties.getOss();
     }
 
+    /**
+     * 委托统一上传方法按给定大小和类型写入 OSS。
+     */
     @Override
     public void streamPut(String bucket, String key, InputStream content, long size, String contentType) {
         put(bucket, key, content, size, contentType);
@@ -69,6 +72,9 @@ public class OssObjectStorageClient implements ObjectStorageClient {
         put(bucket, key, content, size, contentType);
     }
 
+    /**
+     * 设置对象长度及可选媒体类型，然后调用 OSS SDK 上传输入流。
+     */
     private void put(String bucket, String key, InputStream content, long size, String contentType) {
         ObjectMetadata meta = new ObjectMetadata();
         meta.setContentLength(size);
@@ -78,11 +84,17 @@ public class OssObjectStorageClient implements ObjectStorageClient {
         ossClient.putObject(bucket, key, content, meta);
     }
 
+    /**
+     * 返回 OSS 对象内容流，调用方消费后负责关闭。
+     */
     @Override
     public InputStream getObject(String bucket, String key) {
         return ossClient.getObject(bucket, key).getObjectContent();
     }
 
+    /**
+     * 委托 OSS SDK 删除指定桶和键对应的对象。
+     */
     @Override
     public void deleteObject(String bucket, String key) {
         ossClient.deleteObject(bucket, key);
@@ -119,6 +131,9 @@ public class OssObjectStorageClient implements ObjectStorageClient {
         log.info("已清空前缀 bucket={}, prefix={}, 对象数={}", bucket, prefix, cleared);
     }
 
+    /**
+     * 委托 OSS SDK 检查对象是否存在。
+     */
     @Override
     public boolean objectExists(String bucket, String key) {
         return ossClient.doesObjectExist(bucket, key);
@@ -150,6 +165,9 @@ public class OssObjectStorageClient implements ObjectStorageClient {
         ossClient.setBucketAcl(bucket, CannedAccessControlList.PublicRead);
     }
 
+    /**
+     * 优先采用配置的公共地址，否则使用桶的虚拟主机地址，再拼接对象键。
+     */
     @Override
     public String buildPublicUrl(String bucket, String key) {
         String base = StringUtils.hasText(ossProperties.getPublicUrl())
@@ -173,6 +191,9 @@ public class OssObjectStorageClient implements ObjectStorageClient {
         return scheme + "://" + bucket + "." + host;
     }
 
+    /**
+     * 移除地址末尾一个斜线，避免拼接对象键时产生双斜线。
+     */
     private String stripTrailingSlash(String s) {
         return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
     }

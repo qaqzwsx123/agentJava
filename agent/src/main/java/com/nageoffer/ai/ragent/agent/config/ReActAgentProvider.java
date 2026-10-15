@@ -119,6 +119,9 @@ public class ReActAgentProvider {
         current.activeAgent().agent().clearStateCache(userId, sessionId);
     }
 
+    /**
+     * 比较缓存 Agent 的人设和工具目录指纹；任一配置变化都需要在下一次获取时重建实例。
+     */
     private boolean matches(CachedAgent current, String persona, ResolvedCatalog catalog) {
         return current != null
                 && current.persona().equals(persona)
@@ -154,6 +157,9 @@ public class ReActAgentProvider {
                 .build();
     }
 
+    /**
+     * 读取 Agent 主提示词作为人设；配置为空直接报错，避免创建缺少业务约束的 Agent。
+     */
     private String resolvePersona(Map<String, String> prompts) {
         String persona = prompts.get(AgentPromptSlot.AGENT_MAIN.name());
         if (StrUtil.isBlank(persona)) {

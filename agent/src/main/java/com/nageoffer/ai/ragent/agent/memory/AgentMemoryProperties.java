@@ -148,6 +148,9 @@ public class AgentMemoryProperties {
         return Math.min(Math.max(derived, MEMORY_MAX_FLOOR_CHARS), MEMORY_MAX_CEIL_CHARS);
     }
 
+    /**
+     * 返回触发记忆抽取所需的最小轮次数，供流水线判断是否积累了足够素材。
+     */
     public int resolveExtractMinTurns() {
         return MEMORY_EXTRACT_MIN_TURNS;
     }

@@ -61,6 +61,10 @@ public class RecommendedQuestionGenerator {
     private final AgentPromptResolver agentPromptResolver;
     private final LLMService llmService;
 
+    /**
+     * 按预算截取问题、答案和证据素材，渲染提示词并调用 FAST 档模型生成推荐追问。
+     * 结果交给解析器校验数量与内容，任何调用或解析异常返回 failed 状态。
+     */
     @RagTraceNode(name = "recommended-question-gen", type = "RECOMMEND_GEN")
     public RecommendedQuestionsPayload generate(String question, String answer, List<GroundingChunk> chunks) {
         try {
@@ -105,6 +109,7 @@ public class RecommendedQuestionGenerator {
                 continue;
             }
             String prefix = idx++ + ". 【" + StrUtil.nullToEmpty(chunk.getDocName()) + "】";
+            // 把编号和文档名称也计入总预算，正文只占剩余字符，防止模板素材无界增长。
             int remaining = MAX_CHUNKS_CHARS - sb.length() - prefix.length() - 1;
             if (remaining <= 0) {
                 break;
@@ -129,6 +134,7 @@ public class RecommendedQuestionGenerator {
         }
         try {
             JSONArray array = JSONUtil.parseArray(stripped);
+            // 仅接收文本元素，逐条去空白、截断并稳定去重，最后限制返回数量。
             LinkedHashSet<String> dedup = new LinkedHashSet<>();
             for (Object item : array) {
                 if (!(item instanceof CharSequence)) {

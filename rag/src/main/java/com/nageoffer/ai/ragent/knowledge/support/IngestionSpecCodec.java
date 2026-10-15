@@ -111,12 +111,16 @@ public class IngestionSpecCodec {
             throw new ClientException("摄取配置 JSON 格式不合法");
         }
         try {
+            // 把松散 JSON 还原为规格对象再序列化，使默认值和校验规则统一生效。
             return write(fromMap(raw));
         } catch (IllegalArgumentException e) {
             throw new ClientException("摄取配置不合法：" + e.getMessage());
         }
     }
 
+    /**
+     * 从持久化映射还原解析档位及分块预算，统一交给规格对象承载。
+     */
     private IngestionSpec fromMap(Map<String, Object> raw) {
         return IngestionSpec.of(ParseProfile.from(readString(raw, KEY_PARSE_PROFILE)),
                 toBudget(readInt(raw, KEY_MAX_CHARS), readInt(raw, KEY_OVERLAP_CHARS),
@@ -143,6 +147,9 @@ public class IngestionSpecCodec {
                 tolerance != null && tolerance > 0 ? tolerance : defaults.toleranceFactor());
     }
 
+    /**
+     * 兼容配置中的数字和整数字符串，缺失或格式无效返回 null，留给预算构造逻辑处理。
+     */
     private static Integer readInt(Map<String, Object> raw, String key) {
         Object value = raw.get(key);
         if (value instanceof Number number) {
@@ -158,6 +165,9 @@ public class IngestionSpecCodec {
         return null;
     }
 
+    /**
+     * 将配置值转为字符串，键不存在时返回 null。
+     */
     private static String readString(Map<String, Object> raw, String key) {
         Object value = raw.get(key);
         return value == null ? null : value.toString();

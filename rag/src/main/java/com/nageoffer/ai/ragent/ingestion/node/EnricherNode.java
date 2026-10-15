@@ -60,6 +60,10 @@ public class EnricherNode implements IngestionNode {
         return IngestionNodeType.ENRICHER.getValue();
     }
 
+    /**
+     * 逐个为有正文的向量分块执行关键词、摘要或元数据增强，按配置合并文档级元数据。
+     * 分块不可变，增强后创建带新元数据的分块并保留原向量，最后整体替换上下文列表。
+     */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         List<EmbeddedChunk> chunks = context.getChunks();
@@ -84,6 +88,7 @@ public class EnricherNode implements IngestionNode {
             if (attachMetadata && context.getMetadata() != null) {
                 extras.putAll(context.getMetadata());
             }
+            // 同一分块的多个增强任务依次运行，结果先放入 extras，循环结束后统一生成替换对象。
             for (EnricherSettings.ChunkEnrichTask task : settings.getTasks()) {
                 if (task == null || task.getType() == null) {
                     continue;
@@ -111,6 +116,9 @@ public class EnricherNode implements IngestionNode {
         return NodeResult.ok("Enricher completed");
     }
 
+    /**
+     * 解析分块增强设置，未配置时返回空任务列表。
+     */
     private EnricherSettings parseSettings(JsonNode node) {
         if (node == null || node.isNull()) {
             return EnricherSettings.builder().tasks(List.of()).build();
@@ -118,6 +126,9 @@ public class EnricherNode implements IngestionNode {
         return objectMapper.convertValue(node, EnricherSettings.class);
     }
 
+    /**
+     * 以分块正文、序号和任务标识渲染模板；模板为空时直接使用分块正文。
+     */
     private String buildUserPrompt(String template, EmbeddedChunk chunk, IngestionContext context) {
         String input = chunk.content();
         if (!StringUtils.hasText(template)) {
@@ -132,6 +143,9 @@ public class EnricherNode implements IngestionNode {
         return PromptTemplateRenderer.render(template, vars);
     }
 
+    /**
+     * 将模型结果转为关键词、摘要或扩展字段，合并到当前分块的待写入元数据中。
+     */
     private void applyResult(Map<String, Object> extras, ChunkEnrichType type, String response) {
         switch (type) {
             case KEYWORDS -> extras.put("keywords", JsonResponseParser.parseStringList(response));
@@ -142,6 +156,9 @@ public class EnricherNode implements IngestionNode {
         }
     }
 
+    /**
+     * 使用 FAST 档及可选优先模型执行分块增强请求。
+     */
     private String chat(ChatRequest request, String modelId) {
         return llmService.chat(request, Tier.FAST, modelId);
     }

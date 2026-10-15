@@ -92,6 +92,9 @@ public class AgentPromptResolver {
         return own;
     }
 
+    /**
+     * 先以内置智能体的非空槽位建立基线，再由激活智能体的非空槽位覆盖，支持未配置槽位回落。
+     */
     private Map<String, String> loadFromDb() {
         AgentProfileDO builtin = firstByFlag(AgentProfileDO::getBuiltin);
         if (builtin == null) {
@@ -105,6 +108,9 @@ public class AgentPromptResolver {
         return resolved;
     }
 
+    /**
+     * 按指定标志查询配置，并按创建时间、ID 取最早一条；无匹配返回 null。
+     */
     private AgentProfileDO firstByFlag(SFunction<AgentProfileDO, Integer> flag) {
         List<AgentProfileDO> profiles = agentProfileMapper.selectList(
                 Wrappers.lambdaQuery(AgentProfileDO.class)

@@ -61,6 +61,10 @@ public class ChatQueueLimiter {
     private final ConversationGroupService conversationGroupService;
     private final MemoryProperties memoryProperties;
 
+    /**
+     * 开启全局限流时登记带超时和取消回调的排队请求；关闭时直接投递执行线程池。
+     * 获准后的业务执行使用指定线程池，SSE 完成、超时或错误会取消等待；线程池拒绝也进入拒绝响应。
+     */
     public void enqueue(String question, String conversationId, SseEmitter emitter, Runnable onAcquire) {
         if (!Boolean.TRUE.equals(rateLimitProperties.getGlobalEnabled())) {
             try {
@@ -87,6 +91,9 @@ public class ChatQueueLimiter {
 
     // ==================== Reject 业务 ====================
 
+    /**
+     * 尝试保存被拒绝的问答记录，再发送拒绝事件；保存失败仍结束 SSE，避免前端一直等待。
+     */
     private void handleReject(String question, String conversationId, SseEmitter emitter) {
         RejectedContext context = null;
         try {
@@ -98,6 +105,10 @@ public class ChatQueueLimiter {
         sendRejectEvents(emitter, context);
     }
 
+    /**
+     * 为有效用户和问题创建或复用会话，保存用户消息与 REJECTED 回复，并准备拒绝响应所需的标识。
+     * 新会话优先回读生成的标题，缺失时按问题截取兜底标题。
+     */
     private RejectedContext recordRejectedConversation(String question, String conversationId, String userId) {
         if (StrUtil.isBlank(question) || StrUtil.isBlank(userId)) {
             return null;
@@ -133,6 +144,9 @@ public class ChatQueueLimiter {
         return new RejectedContext(actualConversationId, taskId, messageId, title);
     }
 
+    /**
+     * 从问题截取配置长度作为拒绝会话的备用标题，空问题返回空字符串。
+     */
     private String buildFallbackTitle(String question) {
         if (StrUtil.isBlank(question)) {
             return Strings.EMPTY;
@@ -142,6 +156,9 @@ public class ChatQueueLimiter {
         return cleaned.length() <= maxLen ? cleaned : cleaned.substring(0, maxLen);
     }
 
+    /**
+     * 存在拒绝记录时依次发送 meta、reject、finish，最后始终发送 done 并关闭 SSE。
+     */
     private void sendRejectEvents(SseEmitter emitter, RejectedContext rejectedContext) {
         SseEmitterSender sender = new SseEmitterSender(emitter);
         if (rejectedContext != null) {
@@ -155,6 +172,9 @@ public class ChatQueueLimiter {
         sender.complete();
     }
 
+    /**
+     * 优先读取传递到当前线程的用户上下文，缺失时尝试登录框架，均不可用时返回 null。
+     */
     private String resolveUserId() {
         String userId = UserContext.getUserId();
         if (StrUtil.isNotBlank(userId)) {

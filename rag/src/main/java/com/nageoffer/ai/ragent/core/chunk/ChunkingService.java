@@ -54,6 +54,9 @@ public class ChunkingService {
         return blockAwareChunkerDispatcher.dispatch(blocks, budget);
     }
 
+    /**
+     * 将全部结构化块渲染成一个切片，空文档不产出，溯源取首块，供整篇模式使用。
+     */
     private List<Chunk> wholeDocument(List<Block> blocks) {
         if (blocks == null || blocks.isEmpty()) {
             return List.of();

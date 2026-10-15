@@ -74,6 +74,9 @@ public class RoutingLLMService implements LLMService {
                 .collect(Collectors.toMap(ChatClient::provider, Function.identity()));
     }
 
+    /**
+     * 按思考开关、可选档位及优先模型选择候选，再交给执行器依次尝试同步调用；无优先模型时使用普通档位选择。
+     */
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
     public String chat(ChatRequest request) {
@@ -85,6 +88,9 @@ public class RoutingLLMService implements LLMService {
         );
     }
 
+    /**
+     * 按思考开关、可选档位及优先模型选择候选，再交给执行器依次尝试同步调用；无优先模型时使用普通档位选择。
+     */
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
     public String chat(ChatRequest request, Tier tier) {
@@ -96,6 +102,9 @@ public class RoutingLLMService implements LLMService {
         );
     }
 
+    /**
+     * 按思考开关、可选档位及优先模型选择候选，再交给执行器依次尝试同步调用；无优先模型时使用普通档位选择。
+     */
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
     public String chat(ChatRequest request, Tier tier, String preferredModelId) {
@@ -110,6 +119,10 @@ public class RoutingLLMService implements LLMService {
         );
     }
 
+    /**
+     * 依次尝试健康候选模型，等待首包探测成功后返回取消句柄。
+     * 启动失败、首包超时或无正文结束会取消该候选并尝试下一个；全部失败时通知下游错误。
+     */
     @Override
     @RagTraceNode(name = "llm-stream-routing", type = "LLM_ROUTING")
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback) {
@@ -121,6 +134,7 @@ public class RoutingLLMService implements LLMService {
         String label = ModelCapability.CHAT.getDisplayName();
         Throwable lastError = null;
 
+        // 逐个尝试候选，只有获取健康许可的模型才会真正发起请求。
         for (ModelTarget target : targets) {
             ChatClient client = resolveClient(target, label);
             if (client == null) {
@@ -131,6 +145,7 @@ public class RoutingLLMService implements LLMService {
                 continue;
             }
 
+            // 首包探测阶段先隔离候选的回调，避免失败候选的正文或错误直接污染下游。
             ProbeStreamBridge bridge = new ProbeStreamBridge(callback);
 
             StreamCancellationHandle handle;
@@ -151,6 +166,7 @@ public class RoutingLLMService implements LLMService {
                 continue;
             }
 
+            // 预算用于首包等待；成功后返回上游句柄，后续流事件由桥接回调继续处理。
             long firstPacketBudgetMs = target.timeoutMs();
             ProbeStreamBridge.ProbeResult result = awaitFirstPacket(bridge, handle, callback, firstPacketBudgetMs, permit);
 
@@ -170,6 +186,9 @@ public class RoutingLLMService implements LLMService {
         throw notifyAllFailed(callback, lastError);
     }
 
+    /**
+     * 按候选模型的 provider 查找聊天客户端，缺失时记录日志并返回 null，让外层跳过该候选。
+     */
     private ChatClient resolveClient(ModelTarget target, String label) {
         ChatClient client = clientsByProvider.get(target.candidate().getProvider());
         if (client == null) {
@@ -179,6 +198,9 @@ public class RoutingLLMService implements LLMService {
         return client;
     }
 
+    /**
+     * 在候选模型预算内等待首包结果；线程中断时取消上游、归还半开名额并通知下游错误。
+     */
     private ProbeStreamBridge.ProbeResult awaitFirstPacket(ProbeStreamBridge bridge,
                                                            StreamCancellationHandle handle,
                                                            StreamCallback callback,
@@ -199,6 +221,9 @@ public class RoutingLLMService implements LLMService {
         }
     }
 
+    /**
+     * 将首包探测的错误、超时或无正文结果转为具体异常，保留失败原因供最终异常链使用。
+     */
     private Throwable buildLastErrorAndLog(ProbeStreamBridge.ProbeResult result, ModelTarget target, String label) {
         switch (result.getType()) {
             case ERROR -> {
@@ -230,6 +255,9 @@ public class RoutingLLMService implements LLMService {
         }
     }
 
+    /**
+     * 构造所有候选失败的统一异常，通知流式回调并返回该异常供调用方抛出。
+     */
     private RemoteException notifyAllFailed(StreamCallback callback, Throwable lastError) {
         RemoteException finalException = new RemoteException(
                 STREAM_ALL_FAILED_MESSAGE,

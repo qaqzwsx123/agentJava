@@ -298,6 +298,10 @@ public final class FairDistributedRateLimiter {
 
     // ==================== 抢占核心 ====================
 
+    /**
+     * 待处理请求进入可获准队头范围后，尝试领取有租期的并发许可。
+     * 许可争抢失败按原序号重新入队；若与取消、超时竞争，则清理重新入队记录或归还已拿到的许可。
+     */
     private boolean tryAcquireIfReady(Ticket ticket) {
         if (!ticket.isPending()) {
             return false;
@@ -335,6 +339,9 @@ public final class FairDistributedRateLimiter {
         return ticket.grant(permitId);
     }
 
+    /**
+     * 为等待票据设置定时检查并注册通知唤醒；终态清理轮询，超过截止时间触发超时。
+     */
     private void scheduleQueuePoll(Ticket ticket) {
         int interval = Math.max(50, pollIntervalMsSupplier.getAsInt());
         Runnable poller = () -> {
@@ -355,6 +362,9 @@ public final class FairDistributedRateLimiter {
 
     // ==================== Redis 操作 ====================
 
+    /**
+     * 非阻塞尝试获取指定租期的分布式许可；被中断时保留线程中断标记并返回 null。
+     */
     private String tryAcquirePermit() {
         RPermitExpirableSemaphore sem = redissonClient.getPermitExpirableSemaphore(semaphoreKey);
         try {
@@ -365,10 +375,16 @@ public final class FairDistributedRateLimiter {
         }
     }
 
+    /**
+     * 读取分布式信号量剩余许可数，作为当前可尝试放行的队头范围。
+     */
     private int availablePermits() {
         return redissonClient.getPermitExpirableSemaphore(semaphoreKey).availablePermits();
     }
 
+    /**
+     * 按许可 ID 归还资源；许可已过期等异常只记调试日志，不中断清理流程。
+     */
     private void releasePermitQuietly(String permitId) {
         try {
             redissonClient.getPermitExpirableSemaphore(semaphoreKey).release(permitId);
@@ -391,6 +407,9 @@ public final class FairDistributedRateLimiter {
         }
     }
 
+    /**
+     * 删除指定排队请求的存活标记，异常隔离在清理流程内。
+     */
     private void deleteEntryMarker(String requestId) {
         try {
             redissonClient.getBucket(entryKeyPrefix + requestId, StringCodec.INSTANCE).delete();
@@ -419,17 +438,26 @@ public final class FairDistributedRateLimiter {
         return result.size() >= 2 ? parseLong(result.get(1)) : nextQueueSeq();
     }
 
+    /**
+     * 通过 Redis 原子递增取得全局排队序号，使跨节点请求具有统一顺序。
+     */
     private long nextQueueSeq() {
         RAtomicLong seq = redissonClient.getAtomicLong(queueSeqKey);
         return seq.incrementAndGet();
     }
 
+    /**
+     * 广播许可变化通知，让等待节点及时重试，不必只依赖下一次定时轮询。
+     */
     private void publishQueueNotify() {
         redissonClient.getTopic(notifyTopicKey).publish("permit_changed");
     }
 
     // ==================== 辅助 ====================
 
+    /**
+     * 兼容 Redis 返回的数值或数字字符串，无法识别时返回零。
+     */
     private static long parseLong(Object value) {
         if (value instanceof Number n) {
             return n.longValue();

@@ -36,6 +36,9 @@ public final class TaskCancellation {
         return Thread.currentThread().isInterrupted();
     }
 
+    /**
+     * 检查当前任务取消标记以及异常原因链中的中断、取消异常，避免把主动停止当作模型故障。
+     */
     public static boolean isCancellation(Throwable error) {
         if (isCancelled()) {
             return true;

@@ -39,6 +39,9 @@ public class ImageChunker implements BlockChunker<ImageBlock> {
         return ImageBlock.class;
     }
 
+    /**
+     * 将图片描述与 Markdown 链接组成展示正文，嵌入正文仅取有效描述，并把资产引用保留在元数据。
+     */
     @Override
     public List<ChunkDraft> chunk(ImageBlock block, ChunkContext ctx) {
         if (block == null || block.asset() == null) {
@@ -57,9 +60,13 @@ public class ImageChunker implements BlockChunker<ImageBlock> {
                 .provenance(block.provenance())
                 .build();
 
+        // 链接留在展示正文，嵌入正文使用图片描述，避免将资产 URL 作为检索语义。
         return List.of(ChunkDraft.of(content, hasDescription ? description.strip() : null, metadata));
     }
 
+    /**
+     * 图片说明优先使用 caption，其次使用 altText，两者缺失则为空。
+     */
     private String pickCaption(ImageBlock block) {
         if (block.caption() != null && !block.caption().isEmpty()) {
             return block.caption();

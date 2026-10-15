@@ -50,9 +50,12 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
         return "Rerank";
     }
 
+    /**
+     * 返回重排步骤顺序 10，位于融合后、证据门控及元数据补充前。
+     */
     @Override
     public int getOrder() {
-        return 10;  // 最后执行
+        return 10;  // 融合后执行，随后还有证据门控和元数据补充。
     }
 
     @Override

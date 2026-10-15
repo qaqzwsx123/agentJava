@@ -249,6 +249,9 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         }
     }
 
+    /**
+     * 查询指定流水线下未删除的节点，供详情展示与执行配置组装使用。
+     */
     private List<IngestionPipelineNodeDO> fetchNodes(String pipelineId) {
         LambdaQueryWrapper<IngestionPipelineNodeDO> qw = new LambdaQueryWrapper<IngestionPipelineNodeDO>()
                 .eq(IngestionPipelineNodeDO::getPipelineId, pipelineId)
@@ -256,12 +259,18 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return nodeMapper.selectList(qw);
     }
 
+    /**
+     * 将流水线记录和节点列表合并为详情响应，节点配置通过 toNodeVO 统一转换。
+     */
     private IngestionPipelineVO toVO(IngestionPipelineDO pipeline, List<IngestionPipelineNodeDO> nodes) {
         IngestionPipelineVO vo = BeanUtil.toBean(pipeline, IngestionPipelineVO.class);
         vo.setNodes(nodes.stream().map(this::toNodeVO).toList());
         return vo;
     }
 
+    /**
+     * 将节点记录转换为前端结构，统一节点类型并把 settings、condition JSON 还原为树节点。
+     */
     private IngestionPipelineNodeVO toNodeVO(IngestionPipelineNodeDO node) {
         IngestionPipelineNodeVO vo = BeanUtil.toBean(node, IngestionPipelineNodeVO.class);
         vo.setNodeType(normalizeNodeTypeForOutput(node.getNodeType()));
@@ -270,6 +279,9 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return vo;
     }
 
+    /**
+     * 组装执行器所需的节点配置，包含节点类型、参数、执行条件和下一个节点 ID。
+     */
     private NodeConfig toNodeConfig(IngestionPipelineNodeDO node) {
         return NodeConfig.builder()
                 .nodeId(node.getNodeId())
@@ -280,6 +292,9 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
                 .build();
     }
 
+    /**
+     * 将非空 JSON 树序列化为数据库文本；null 和 JSON null 都按空值处理。
+     */
     private String toJson(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
@@ -287,6 +302,9 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return node.toString();
     }
 
+    /**
+     * 解析节点配置 JSON；配置为空或解析失败时返回 null，由后续配置处理决定默认行为。
+     */
     private JsonNode parseJson(String raw) {
         if (!StringUtils.hasText(raw)) {
             return null;
@@ -314,6 +332,9 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         }
     }
 
+    /**
+     * 把可识别的节点类型转换为标准值；历史未知值保留原文，避免读取详情时直接失败。
+     */
     private String normalizeNodeTypeForOutput(String nodeType) {
         if (!StringUtils.hasText(nodeType)) {
             return nodeType;

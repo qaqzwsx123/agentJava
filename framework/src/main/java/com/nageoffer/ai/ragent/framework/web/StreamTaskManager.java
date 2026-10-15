@@ -71,6 +71,10 @@ public class StreamTaskManager {
         this.redissonClient = redissonClient;
     }
 
+    /**
+     * 启动时订阅跨节点取消主题，解析任务与发起方，再交给 cancelLocal 复核属主并取消本地任务。
+     * 兼容旧节点只广播 taskId 的载荷，订阅 ID 留给销毁时注销。
+     */
     @PostConstruct
     public void subscribe() {
         RTopic topic = redissonClient.getTopic(CANCEL_TOPIC);
@@ -86,6 +90,9 @@ public class StreamTaskManager {
         });
     }
 
+    /**
+     * 组件销毁时移除本次主题监听器，避免同进程重建后残留重复订阅。
+     */
     @PreDestroy
     public void unsubscribe() {
         if (listenerId == -1) {
@@ -127,6 +134,9 @@ public class StreamTaskManager {
         }
     }
 
+    /**
+     * 读取当前节点登记任务的取消标记；不存在的任务返回 false，不在每次检查时访问 Redis。
+     */
     public boolean isCancelled(String taskId) {
         StreamTaskInfo info = tasks.getIfPresent(taskId);
         return info != null && info.cancelled.get();
@@ -155,6 +165,10 @@ public class StreamTaskManager {
         publishCancel(taskId, requester);
     }
 
+    /**
+     * 先将带发起方身份的取消标记写入 Redis，再广播给所有节点。
+     * 标记覆盖取消早于任务注册的窗口，执行节点仍需复核发起方是否有权取消。
+     */
     private void publishCancel(String taskId, String requester) {
         // 先设置 Redis 标记，再发布消息
         RBucket<String> bucket = redissonClient.getBucket(cancelKey(taskId));
@@ -180,6 +194,7 @@ public class StreamTaskManager {
         if (requester == null) {
             return false;
         }
+        // 注册后再检查取消标记的发起方，避免属主登记前写入的他人标记生效。
         if (!isRequesterAllowed(taskInfo, requester)) {
             log.warn("忽略非属主埋下的取消标记，taskId：{}，属主：{}，发起方：{}", taskId, taskInfo.ownerUserId, requester);
             return false;
@@ -199,7 +214,12 @@ public class StreamTaskManager {
         return StrUtil.isNotBlank(taskInfo.ownerUserId) && taskInfo.ownerUserId.equals(requester);
     }
 
+    /**
+     * 只处理本节点登记的任务，复核发起方并通过 CAS 抢占取消权。
+     * 先执行上游中断，再运行引擎提供的收尾回调；重复广播不会重复取消。
+     */
     private void cancelLocal(String taskId, String requester) {
+        // 广播会到达所有节点，只有实际持有本地任务记录的节点进入取消流程。
         StreamTaskInfo taskInfo = tasks.getIfPresent(taskId);
         if (taskInfo == null) {
             return;
@@ -217,6 +237,7 @@ public class StreamTaskManager {
             return;
         }
 
+        // 先打断模型或 Agent 上游，再执行个性化收尾，保留已生成内容。
         if (taskInfo.cancelAction != null) {
             taskInfo.cancelAction.run();
         }
@@ -227,6 +248,9 @@ public class StreamTaskManager {
         }
     }
 
+    /**
+     * 移除本地任务登记，并异步删除 Redis 的取消标记和属主记录；不等待删除完成。
+     */
     public void unregister(String taskId) {
         // 清理本地缓存
         tasks.invalidate(taskId);
@@ -236,16 +260,26 @@ public class StreamTaskManager {
         redissonClient.getBucket(ownerKey(taskId)).deleteAsync();
     }
 
+    /**
+     * 构造指定任务的 Redis 取消标记键，与任务属主键分开保存。
+     */
     private String cancelKey(String taskId) {
         return CANCEL_KEY_PREFIX + taskId;
     }
 
+    /**
+     * 构造指定任务的 Redis 属主键，供跨节点的主动停止请求校验用户身份。
+     */
     private String ownerKey(String taskId) {
         return OWNER_KEY_PREFIX + taskId;
     }
 
+    /**
+     * 从本地缓存取得任务信息，不存在时原子加载空记录，随后由 register 绑定属主与回调。
+     */
     @SneakyThrows
     private StreamTaskInfo getOrCreate(String taskId) {
+        // 缓存加载保证同一个 taskId 复用同一份取消标志和回调容器。
         return tasks.get(taskId, StreamTaskInfo::new);
     }
 

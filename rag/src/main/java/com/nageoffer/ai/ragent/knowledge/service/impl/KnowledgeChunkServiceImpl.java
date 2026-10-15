@@ -542,6 +542,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return chunkEmbeddingService.embed(chunks, target);
     }
 
+    /**
+     * 估算非空切片的 token 数；空正文记为零，供切片信息保存和展示使用。
+     */
     private Integer resolveTokenCount(String content) {
         if (!StringUtils.hasText(content)) {
             return 0;

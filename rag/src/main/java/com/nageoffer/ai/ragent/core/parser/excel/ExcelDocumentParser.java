@@ -56,6 +56,9 @@ public class ExcelDocumentParser implements DocumentParser {
 
     private static final int DEFAULT_HEADER_ROWS = 1;
 
+    /**
+     * 返回基于 POI 的 Excel 解析器标识。
+     */
     @Override
     public String getParserType() {
         return ParserType.EXCEL_POI.getType();
@@ -75,6 +78,10 @@ public class ExcelDocumentParser implements DocumentParser {
         ));
     }
 
+    /**
+     * 打开工作簿并逐个解析可见工作表，复用单元格格式化器与公式求值器，汇总表格和标题块。
+     * 隐藏表不参与解析；工作簿与输入流退出时关闭，异常转换为服务异常。
+     */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
         if (content == null || content.length == 0) {
@@ -93,6 +100,7 @@ public class ExcelDocumentParser implements DocumentParser {
             DataFormatter formatter = new DataFormatter();
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
+            // 同一工作簿复用格式化器和求值器，逐表生成带工作表溯源的结构化块。
             totalSheets = workbook.getNumberOfSheets();
             for (int i = 0; i < totalSheets; i++) {
                 if (workbook.isSheetHidden(i) || workbook.isSheetVeryHidden(i)) {
@@ -138,6 +146,9 @@ public class ExcelDocumentParser implements DocumentParser {
         );
     }
 
+    /**
+     * 从选项读取源文件名，未配置时使用空字符串。
+     */
     private static String extractString(Map<String, Object> options) {
         if (options == null) {
             return "";
@@ -146,6 +157,9 @@ public class ExcelDocumentParser implements DocumentParser {
         return v == null ? "" : v.toString();
     }
 
+    /**
+     * 兼容数字或字符串形式的表头行数配置，缺失或格式错误时使用默认表头行数。
+     */
     private static int extractInt(Map<String, Object> options) {
         if (options == null) {
             return ExcelDocumentParser.DEFAULT_HEADER_ROWS;

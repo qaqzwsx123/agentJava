@@ -26,6 +26,10 @@ import org.springframework.util.StringUtils;
 @Service
 public class HeuristicTokenCounterService implements TokenCounterService {
 
+    /**
+     * 按 ASCII 约四字符一 token、CJK 每字符一 token、其他约两字符一 token 估算，空白不计。
+     * 这是启发式估算，不是目标模型 tokenizer 的精确分词结果。
+     */
     @Override
     public Integer countTokens(String text) {
         if (!StringUtils.hasText(text)) {
@@ -56,6 +60,9 @@ public class HeuristicTokenCounterService implements TokenCounterService {
         return Math.max(total, 1);
     }
 
+    /**
+     * 判断字符是否属于配置列举的中日韩文字、假名、韩文及相关符号 Unicode 区块。
+     */
     private boolean isCjk(char ch) {
         Character.UnicodeBlock block = Character.UnicodeBlock.of(ch);
         return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS

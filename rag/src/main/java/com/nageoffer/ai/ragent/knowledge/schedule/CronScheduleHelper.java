@@ -33,6 +33,9 @@ public final class CronScheduleHelper {
     private CronScheduleHelper() {
     }
 
+    /**
+     * 按系统时区计算给定时间之后的下一次 Cron 触发时间；缺少参数或无后续触发返回 null。
+     */
     public static Date nextRunTime(String cron, Date from) {
         if (!StringUtils.hasText(cron) || from == null) {
             return null;
@@ -46,6 +49,9 @@ public final class CronScheduleHelper {
         return Date.from(next.atZone(ZoneId.systemDefault()).toInstant());
     }
 
+    /**
+     * 取接下来两次 Cron 触发时间比较间隔，判断是否小于允许值；缺少参数或无法计算按不合格处理。
+     */
     public static boolean isIntervalLessThan(String cron, Date from, long minSeconds) {
         if (!StringUtils.hasText(cron) || from == null) {
             return true;

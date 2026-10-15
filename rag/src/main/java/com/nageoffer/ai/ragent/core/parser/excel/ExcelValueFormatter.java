@@ -62,6 +62,9 @@ public final class ExcelValueFormatter {
         return formatter.formatCellValue(cell).trim();
     }
 
+    /**
+     * 按公式求值、缓存结果、原始公式的顺序尝试取得单元格文本，逐级失败时降级，最终返回空字符串。
+     */
     private static String formatFormulaCell(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
         // 第 1 选择：通过 evaluator 求值
         if (evaluator != null) {
@@ -120,6 +123,9 @@ public final class ExcelValueFormatter {
         }
     }
 
+    /**
+     * 生成工作表名与单元格地址，供公式解析失败日志定位具体单元格。
+     */
     private static String describe(Cell cell) {
         return cell.getSheet().getSheetName()
                 + "!" + cell.getAddress().formatAsString();

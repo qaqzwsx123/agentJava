@@ -84,6 +84,9 @@ public class GroundingChunksAssembler {
                 .toList();
     }
 
+    /**
+     * 读取召回得分，缺失时按零参与证据素材排序。
+     */
     private static double score(RetrievedChunk chunk) {
         return chunk.getScore() == null ? 0D : chunk.getScore();
     }

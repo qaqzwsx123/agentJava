@@ -51,6 +51,9 @@ public enum ParseProfile {
         return code;
     }
 
+    /**
+     * 返回默认 FAST 解析档位，供未显式指定档位的摄入流程使用。
+     */
     public static ParseProfile defaultProfile() {
         return FAST;
     }

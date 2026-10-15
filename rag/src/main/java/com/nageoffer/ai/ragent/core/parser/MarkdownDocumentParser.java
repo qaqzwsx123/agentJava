@@ -75,11 +75,17 @@ public class MarkdownDocumentParser implements DocumentParser {
             .extensions(List.of(TablesExtension.create()))
             .build();
 
+    /**
+     * 返回 Markdown 解析器的注册类型标识。
+     */
     @Override
     public String getParserType() {
         return ParserType.MARKDOWN.getType();
     }
 
+    /**
+     * 以 UTF-8 读取 Markdown，遍历语法树提取结构化块，并附带解析器、媒体类型和块数元数据。
+     */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
         if (content == null || content.length == 0) {
@@ -91,6 +97,7 @@ public class MarkdownDocumentParser implements DocumentParser {
 
         Document doc = (Document) PARSER.parse(text);
         BlockExtractingVisitor visitor = new BlockExtractingVisitor(prov);
+        // 按语法树类型提取标题、段落、代码等块，后续分块器据此选择对应切分策略。
         doc.accept(visitor);
 
         return ParsedDocument.of(visitor.getBlocks(), Map.of(
@@ -117,6 +124,9 @@ public class MarkdownDocumentParser implements DocumentParser {
         ));
     }
 
+    /**
+     * 从解析选项取得源文件名，用于结构化块的溯源记录。
+     */
     private static String extractSourceFile(Map<String, Object> options) {
         if (options == null) {
             return "";

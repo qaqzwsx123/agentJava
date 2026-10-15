@@ -41,6 +41,9 @@ public class HeadingChunker implements BlockChunker<HeadingBlock> {
         return HeadingBlock.class;
     }
 
+    /**
+     * 规范标题级别并生成标题草稿，展示文本保留 Markdown 井号，嵌入文本仅使用标题正文。
+     */
     @Override
     public List<ChunkDraft> chunk(HeadingBlock block, ChunkContext ctx) {
         if (block == null || !StringUtils.hasText(block.text())) {

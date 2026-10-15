@@ -242,6 +242,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 .build();
     }
 
+    /**
+     * 把运行完成后的任务记录放入变更日志上下文；结果或任务 ID 缺失时跳过本次日志。
+     */
     private void putTaskSnapshot(IngestionResult result) {
         if (result == null || !StringUtils.hasText(result.getTaskId())) {
             bizChangeLogContext.skip();
@@ -346,6 +349,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return orderMap;
     }
 
+    /**
+     * 从节点执行日志判定 failed、skipped 或 success；成功但带 Skipped 前缀的节点归为跳过。
+     */
     private String resolveNodeStatus(NodeLog log) {
         if (log == null) {
             return "failed";
@@ -360,6 +366,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return "success";
     }
 
+    /**
+     * 汇总上下文元数据和增强节点生成的关键词、问题，保存为任务级产物。
+     */
     private Map<String, Object> buildTaskMetadata(IngestionContext context) {
         Map<String, Object> data = new HashMap<>();
         if (context.getMetadata() != null) {
@@ -374,6 +383,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return data;
     }
 
+    /**
+     * 校验必须显式提供流水线 ID，缺失时返回业务异常，不隐式选择默认流水线。
+     */
     private String resolvePipelineId(String pipelineId) {
         if (StringUtils.hasText(pipelineId)) {
             return pipelineId;
@@ -381,6 +393,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         throw new ClientException("必须传流水线ID");
     }
 
+    /**
+     * 将可识别的任务状态转换为标准枚举值，未知历史状态保留原文。
+     */
     private String normalizeStatus(String status) {
         if (!StringUtils.hasText(status)) {
             return status;
@@ -411,6 +426,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return source;
     }
 
+    /**
+     * 组装任务详情，转换状态、来源类型并解析日志和元数据 JSON，保留运行耗时相关时间字段。
+     */
     private IngestionTaskVO toVO(IngestionTaskDO task) {
         return IngestionTaskVO.builder()
                 .id(String.valueOf(task.getId()))
@@ -431,6 +449,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 .build();
     }
 
+    /**
+     * 组装节点执行详情，统一类型和状态，并解析节点输出 JSON 供前端查看。
+     */
     private IngestionTaskNodeVO toNodeVO(IngestionTaskNodeDO node) {
         return IngestionTaskNodeVO.builder()
                 .id(String.valueOf(node.getId()))
@@ -449,6 +470,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 .build();
     }
 
+    /**
+     * 序列化任务日志或元数据；输入为空或序列化失败时返回 null。
+     */
     private String writeJson(Object value) {
         if (value == null) {
             return null;
@@ -460,6 +484,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 解析任务元数据或节点输出为映射，空值、JSON null 和格式错误均降级为空映射。
+     */
     private Map<String, Object> readMap(String raw) {
         if (!StringUtils.hasText(raw)) {
             return Map.of();
@@ -473,6 +500,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 保留节点状态、耗时与错误等日志摘要，移除体积较大的 output，完整输出由节点记录保存。
+     */
     private List<NodeLog> buildLogSummary(List<NodeLog> logs) {
         if (logs == null) {
             return List.of();
@@ -490,6 +520,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 .toList();
     }
 
+    /**
+     * 解析数据库中的节点日志数组，缺失或格式错误时返回空列表。
+     */
     private List<NodeLog> readLogs(String raw) {
         if (!StringUtils.hasText(raw)) {
             return List.of();
@@ -502,6 +535,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 统一可识别的文件来源类型；未知历史值原样返回。
+     */
     private String normalizeSourceType(String sourceType) {
         if (!StringUtils.hasText(sourceType)) {
             return sourceType;
@@ -513,6 +549,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 统一可识别的流水线节点类型；未知历史值原样返回。
+     */
     private String normalizeNodeType(String nodeType) {
         if (!StringUtils.hasText(nodeType)) {
             return nodeType;
@@ -524,6 +563,9 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 去除状态首尾空白、转小写并统一连字符，供节点状态展示使用。
+     */
     private String normalizeNodeStatus(String status) {
         if (!StringUtils.hasText(status)) {
             return status;

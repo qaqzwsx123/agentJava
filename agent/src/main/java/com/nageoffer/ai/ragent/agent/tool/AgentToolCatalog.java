@@ -130,6 +130,9 @@ public class AgentToolCatalog {
         return resolveMcpTools().bindings.size();
     }
 
+    /**
+     * 读取知识检索工具的描述提示词；缺失时拒绝构建目录，避免注册描述不完整的工具。
+     */
     private String resolveKnowledgeToolDescription(Map<String, String> prompts) {
         String description = prompts.get(AgentPromptSlot.KNOWLEDGE_TOOL_DESCRIPTION.name());
         if (StrUtil.isBlank(description)) {
@@ -189,6 +192,10 @@ public class AgentToolCatalog {
         return new McpResolution(bindings, unavailableToolIds);
     }
 
+    /**
+     * 把同一工具的业务配置合并成 MCP 绑定：选择展示名、合并去重描述，并汇总确认要求。
+     * 多份配置中只要有一份要求确认，合并后的绑定就保留该要求。
+     */
     private McpToolBinding toBinding(String toolId, List<IntentNode> nodes, RemoteTool remote) {
         // 1. 提取展示名称（displayName）
         //    从所有意图节点中取出名称，过滤掉空白，取第一个非空名称作为展示名

@@ -68,16 +68,25 @@ public class AgentDashboardService implements DashboardService {
         this.clock = clock;
     }
 
+    /**
+     * 取得指定窗口的 Agent 看板概览；未指定窗口时使用 24h。
+     */
     @Override
     public DashboardOverviewVO loadOverview(String window) {
         return snapshot(window, null, "24h").overview();
     }
 
+    /**
+     * 取得同一快照中的回复、工具、确认和记忆统计，默认窗口为 24h。
+     */
     @Override
     public AgentDashboardPerformance loadPerformance(String window) {
         return snapshot(window, null, "24h").performance();
     }
 
+    /**
+     * 校验趋势指标属于 Agent 支持范围，再按窗口与粒度取得趋势；默认窗口为七天。
+     */
     @Override
     public DashboardTrendsVO loadTrends(String metric, String window, String granularity) {
         String key = metric == null ? "" : metric.trim().toLowerCase(Locale.ROOT);
@@ -87,6 +96,10 @@ public class AgentDashboardService implements DashboardService {
         return snapshot(window, granularity, "7d").trends().get(key);
     }
 
+    /**
+     * 按窗口和粒度缓存统计快照，缓存有效时复用；过期或时钟回拨时重新查询并统一组装。
+     * 同一个缓存键通过 compute 串行刷新，概览、性能和趋势采用同一份窗口参数。
+     */
     private Snapshot snapshot(String window, String granularity, String fallback) {
         String label = AgentDashboardWindow.normalize(window, fallback);
         String grain = AgentDashboardWindow.granularity(granularity, label);
@@ -102,6 +115,9 @@ public class AgentDashboardService implements DashboardService {
         });
     }
 
+    /**
+     * 组装 Agent 总量、新增量和当前周期对上周期的变化指标，标明 engine 为 agent。
+     */
     private DashboardOverviewVO overview(AgentDashboardWindow window, Map<String, Object> row) {
         return DashboardOverviewVO.builder().engine("agent").window(window.label())
                 .compareWindow("prev_" + window.label()).updatedAt(window.updatedAt())
@@ -116,6 +132,10 @@ public class AgentDashboardService implements DashboardService {
                 .build();
     }
 
+    /**
+     * 将回复状态、工具块状态、确认结果和记忆统计汇总为 Agent 性能响应。
+     * 分别计算工具调用排行和确认工具排行；批准比例只以已批准及已拒绝的确认作分母。
+     */
     private AgentDashboardPerformance performance(AgentDashboardWindow window, AgentDashboardReader.Rows rows) {
         Map<String, Object> replies = rows.replies();
         long total = count(replies, "total");
@@ -123,11 +143,13 @@ public class AgentDashboardService implements DashboardService {
         long interrupted = count(replies, "interrupted");
         long awaiting = count(replies, "awaiting_confirm");
         long withBlocks = count(replies, "with_blocks");
+        // 回复以消息状态统计，工具与确认以块状态统计，三个层次分别汇总。
         Map<String, Long> tools = new HashMap<>();
         Map<String, Long> confirms = new HashMap<>();
         List<AgentDashboardPerformance.ToolCount> topTools = new ArrayList<>();
         List<AgentDashboardPerformance.ConfirmToolCount> confirmTools = new ArrayList<>();
         long knowledgeCalls = 0;
+        // 同一查询结果含状态汇总、工具排行和确认工具排行，通过 category 分开消费。
         for (Map<String, Object> block : rows.blocks()) {
             if ("status".equals(block.get("category"))) {
                 Map<String, Long> target = "tool".equals(block.get("kind")) ? tools : confirms;
@@ -149,6 +171,7 @@ public class AgentDashboardService implements DashboardService {
                 .thenComparing(AgentDashboardPerformance.ToolCount::name));
         confirmTools.sort(Comparator.comparingLong(AgentDashboardPerformance.ConfirmToolCount::calls).reversed()
                 .thenComparing(AgentDashboardPerformance.ConfirmToolCount::name));
+        // 排行整理完毕后计算总量与比例；仍待确认的块保留独立状态。
         long toolTotal = sum(tools);
         long confirmTotal = sum(confirms);
         long approved = confirms.getOrDefault("approved", 0L);
@@ -174,6 +197,10 @@ public class AgentDashboardService implements DashboardService {
                         count(memory, "active_memories"), count(memory, "added_memories"), count(memory, "invalidated_memories")));
     }
 
+    /**
+     * 把数据库返回的时间桶按指标分组，补充工具调用趋势并组装展示序列。
+     * 支持的对比指标将上周期数据平移到当前时间轴；回复按正常、中断、待确认及其他状态拆分。
+     */
     private Map<String, DashboardTrendsVO> trends(AgentDashboardWindow window, AgentDashboardReader.Rows rows) {
         Map<String, Map<LocalDateTime, Long>> values = new HashMap<>();
         for (Map<String, Object> row : rows.trends()) {
@@ -210,11 +237,18 @@ public class AgentDashboardService implements DashboardService {
         return Map.copyOf(result);
     }
 
+    /**
+     * 为一条趋势序列绑定名称，并委托 points 补齐时间桶。
+     */
     private DashboardTrendSeriesVO series(String name, AgentDashboardWindow window,
                                           Map<LocalDateTime, Long> values, Duration shift) {
         return DashboardTrendSeriesVO.builder().name(name).data(points(window, values, shift)).build();
     }
 
+    /**
+     * 按小时或日期生成连续时间桶，缺少数据补零；通过 shift 在当前时间轴展示上周期取值。
+     * 首尾桶只包含查询窗口内的记录，不将查询范围扩大到完整小时或日期。
+     */
     private List<DashboardTrendPointVO> points(AgentDashboardWindow window, Map<LocalDateTime, Long> values,
                                                Duration shift) {
         ChronoUnit unit = window.granularity().equals("hour") ? ChronoUnit.HOURS : ChronoUnit.DAYS;
@@ -228,6 +262,9 @@ public class AgentDashboardService implements DashboardService {
         return points;
     }
 
+    /**
+     * 兼容 JDBC Timestamp 与 LocalDateTime，统一为本地桶时间。
+     */
     private static LocalDateTime timestamp(Object value) {
         return value instanceof Timestamp time ? time.toLocalDateTime() : (LocalDateTime) value;
     }
@@ -242,28 +279,46 @@ public class AgentDashboardService implements DashboardService {
         return timestamp(value).atZone(clock.getZone()).toInstant().toEpochMilli();
     }
 
+    /**
+     * 从聚合行读取整数指标，空值或非数值类型按零处理。
+     */
     private static long count(Map<String, Object> row, String key) {
         return row.get(key) instanceof Number number ? number.longValue() : 0;
     }
 
+    /**
+     * 读取可空小数指标并保留两位小数；缺少数值时保持 null。
+     */
     private static Double decimal(Map<String, Object> row, String key) {
         return row.get(key) instanceof Number number ? Math.round(number.doubleValue() * 100.0) / 100.0 : null;
     }
 
+    /**
+     * 汇总各状态的数量，得到工具或确认块的总数。
+     */
     private static long sum(Map<String, Long> values) {
         return values.values().stream().mapToLong(Long::longValue).sum();
     }
 
+    /**
+     * 计算比例并保留两位小数；scale 控制百分比或均值口径，分母为零时返回 null。
+     */
     private static Double ratio(long numerator, long denominator, int scale) {
         return denominator == 0 ? null : Math.round(numerator * (double) scale / denominator * 100) / 100.0;
     }
 
+    /**
+     * 读取当前与上一周期的同名指标，计算绝对差和百分比差。
+     */
     private static DashboardOverviewKpiVO compared(Map<String, Object> row, String key) {
         long current = count(row, key);
         long previous = count(row, "previous_" + key);
         return kpi(current, current - previous, ratio(current - previous, previous, 100));
     }
 
+    /**
+     * 封装当前值、增量及变化百分比，供 Agent 概览统一展示。
+     */
     private static DashboardOverviewKpiVO kpi(long value, long delta, Double deltaPct) {
         return DashboardOverviewKpiVO.builder().value(value).delta(delta).deltaPct(deltaPct).build();
     }

@@ -39,6 +39,9 @@ public abstract class ForwardingStreamCallback implements StreamCallback {
         this.delegate = delegate;
     }
 
+    /**
+     * 首次正文触发一次首内容钩子，然后转发给下游；钩子异常不阻断正文推送。
+     */
     @Override
     public final void onContent(String content) {
         if (firstContentSeen.compareAndSet(false, true)) {
@@ -51,6 +54,9 @@ public abstract class ForwardingStreamCallback implements StreamCallback {
         delegate.onContent(content);
     }
 
+    /**
+     * 直接转发思考增量，首正文钩子仍仅由 onContent 触发。
+     */
     @Override
     public final void onThinking(String content) {
         delegate.onThinking(content);
@@ -78,6 +84,9 @@ public abstract class ForwardingStreamCallback implements StreamCallback {
     protected void onFirstContent() {
     }
 
+    /**
+     * 先通知下游正常完成，再在 finally 中触发一次成功收尾钩子。
+     */
     @Override
     public final void onComplete() {
         try {
@@ -87,6 +96,9 @@ public abstract class ForwardingStreamCallback implements StreamCallback {
         }
     }
 
+    /**
+     * 先通知下游异常，再在 finally 中触发一次失败收尾钩子。
+     */
     @Override
     public final void onError(Throwable error) {
         try {
@@ -103,6 +115,9 @@ public abstract class ForwardingStreamCallback implements StreamCallback {
         finishOnce(success, error);
     }
 
+    /**
+     * 通过原子标志保证完成和错误回调竞争时，最终收尾钩子只执行一次。
+     */
     private void finishOnce(boolean success, Throwable error) {
         if (!finished.compareAndSet(false, true)) {
             return;

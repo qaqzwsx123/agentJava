@@ -203,8 +203,13 @@ public class AgentRunHandle {
         }
     }
 
+    /**
+     * 在有限时间内等待上游终止信号，给 Agent 框架完成状态保存的机会。
+     * 超时或当前线程被中断时返回 false，由调用方转入强制断流；保留线程中断标记。
+     */
     private boolean awaitUpstreamTermination() {
         try {
+            // 等待的是 doFinally 发出的终止信号；等待有上限，避免停止请求无限阻塞。
             boolean terminated = upstreamTerminated.await(GRACEFUL_INTERRUPT_WAIT_MS, TimeUnit.MILLISECONDS);
             if (!terminated) {
                 log.warn("等待上游流响应打断超时，转为强制断流, taskId: {}", taskId);
@@ -216,10 +221,16 @@ public class AgentRunHandle {
         }
     }
 
+    /**
+     * 读取任务管理器中的本地取消状态，供启动和事件回调决定是否继续处理。
+     */
     public boolean isCancelled() {
         return taskManager.isCancelled(taskId);
     }
 
+    /**
+     * 以正常完成路径申请唯一收尾权，执行回复落库与结束事件回调。
+     */
     public void complete(Runnable body) {
         settleAndClose(body);
     }
@@ -241,7 +252,11 @@ public class AgentRunHandle {
         });
     }
 
+    /**
+     * 仅在本次取得收尾权并完成资源释放后关闭 SSE；重复回调不会再次关闭或落库。
+     */
     private void settleAndClose(Runnable body) {
+        // settle 内部负责注销与释放，只有取得收尾权的出口负责关闭 SSE。
         if (settle(body)) {
             sender.complete();
         }
@@ -255,6 +270,7 @@ public class AgentRunHandle {
             if (settled) {
                 return false;
             }
+            // 先占有唯一收尾权，再执行落库和终止事件；其他完成、错误或取消回调会直接跳过。
             settled = true;
             try {
                 body.run();
@@ -284,6 +300,9 @@ public class AgentRunHandle {
         releaseHooks.clear();
     }
 
+    /**
+     * 隔离单个释放回调的异常，保证状态清理失败时仍能继续归还名额等后续动作。
+     */
     private void runReleaseHook(Runnable hook) {
         try {
             hook.run();

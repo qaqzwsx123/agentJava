@@ -44,6 +44,9 @@ public class HttpUrlFetcher implements DocumentFetcher {
         return SourceType.URL;
     }
 
+    /**
+     * 校验来源地址、组装鉴权头并下载文件，补全文件名和 MIME，返回统一抓取结果。
+     */
     @Override
     public FetchResult fetch(DocumentSource source) {
         String location = source.getLocation();
@@ -61,6 +64,9 @@ public class HttpUrlFetcher implements DocumentFetcher {
         return new FetchResult(resp.body(), contentType, fileName);
     }
 
+    /**
+     * 把 token 凭证转为 Bearer 鉴权头，其他凭证键原样作为请求头，忽略空键与 null 值。
+     */
     private Map<String, String> buildHeaders(Map<String, String> credentials) {
         if (credentials == null || credentials.isEmpty()) {
             return Map.of();
@@ -79,6 +85,9 @@ public class HttpUrlFetcher implements DocumentFetcher {
         return headers;
     }
 
+    /**
+     * 移除媒体类型中的 charset 等分号参数，返回用于解析器匹配的 MIME 主类型。
+     */
     private String normalizeContentType(String contentType) {
         if (!StringUtils.hasText(contentType)) {
             return null;

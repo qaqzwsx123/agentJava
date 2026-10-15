@@ -117,6 +117,7 @@ public class MultiChannelRetrievalEngine {
                         .add(intentId);
             }
         }
+        // 先由意图绑定建立集合到意图映射，再把最终切片按实际集合归因，不凭相似度猜测归属。
         Map<String, Set<String>> intentIdsByChunkKey = new LinkedHashMap<>();
         for (RetrievedChunk chunk : chunks) {
             Set<String> intentIds = chunk.getCollectionName() == null
@@ -129,6 +130,10 @@ public class MultiChannelRetrievalEngine {
         return intentIdsByChunkKey;
     }
 
+    /**
+     * 筛选已启用通道后并行检索，分别施加超时，通道异常返回该通道的空结果。
+     * 按通道类型排序仅稳定日志和派发顺序，不代表召回优先级；汇总后记录各通道结果数量。
+     */
     private List<SearchChannelResult> executeSearchChannels(SearchContext context) {
         // 按通道类型枚举序做稳定排序：通道并行执行、下游融合（RRF）与归因均与顺序无关，
         // 这里排序仅为日志/派发顺序稳定可复现，不承载任何检索优先级语义
@@ -147,6 +152,7 @@ public class MultiChannelRetrievalEngine {
                 enabledChannels.stream().map(SearchChannel::getName).toList());
 
         long channelTimeoutMs = searchProperties.getChannels().getTimeoutMs();
+        // 每个启用通道独立异步执行并包上超时，某一路失败不直接终止整轮召回。
         List<CompletableFuture<SearchChannelResult>> futures = enabledChannels.stream()
                 .map(channel -> withTimeout(CompletableFuture.supplyAsync(
                         () -> {
@@ -167,6 +173,7 @@ public class MultiChannelRetrievalEngine {
         int failureCount = 0;
         int totalChunks = 0;
 
+        // 等待通道任务结算后收集结果；日志中的“无结果”也包括异常或超时后的空结果。
         List<SearchChannelResult> results = futures.stream()
                 .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
@@ -198,6 +205,10 @@ public class MultiChannelRetrievalEngine {
         return results;
     }
 
+    /**
+     * 按 order 顺序执行已启用的融合、去重、重排等处理器，每一步接收上一步结果。
+     * 单个处理器抛错时记录并继续后续处理；没有处理器时直接合并原始通道切片。
+     */
     private List<RetrievedChunk> executePostProcessors(List<SearchChannelResult> results,
                                                        SearchContext context) {
         List<SearchResultPostProcessor> enabledProcessors = postProcessors.stream()
@@ -218,6 +229,7 @@ public class MultiChannelRetrievalEngine {
 
         int initialSize = chunks.size();
 
+        // 顺序影响处理语义：去重、融合、重排、证据门控、元数据补充依次消费结果。
         for (SearchResultPostProcessor processor : enabledProcessors) {
             try {
                 int beforeSize = chunks.size();
@@ -254,6 +266,7 @@ public class MultiChannelRetrievalEngine {
             return future;
         }
         long startTime = System.currentTimeMillis();
+        // 超时只结算 Future 并放弃结果，不保证底层搜索请求被中断或已经停止执行。
         return future.orTimeout(timeoutMs, TimeUnit.MILLISECONDS)
                 .exceptionally(e -> {
                     long latencyMs = System.currentTimeMillis() - startTime;

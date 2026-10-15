@@ -47,6 +47,9 @@ public class CsvDocumentParser implements DocumentParser {
 
     private static final char BOM = '\uFEFF';
 
+    /**
+     * 返回 CSV 解析器的注册类型标识。
+     */
     @Override
     public String getParserType() {
         return ParserType.CSV.getType();
@@ -61,6 +64,9 @@ public class CsvDocumentParser implements DocumentParser {
         ));
     }
 
+    /**
+     * 解码并解析 CSV，移除空行，将首行视为表头并按表头宽度补齐数据行，产出带文件溯源的表格块。
+     */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
         if (content == null || content.length == 0) {
@@ -74,6 +80,7 @@ public class CsvDocumentParser implements DocumentParser {
             return ParsedDocument.of(List.of());
         }
 
+        // 首个有效行确定表头和宽度，后续数据行由 padRow 规范为该宽度。
         List<String> headers = grid.get(0);
         int width = headers.size();
         List<List<String>> rows = new ArrayList<>(grid.size() - 1);
@@ -110,6 +117,9 @@ public class CsvDocumentParser implements DocumentParser {
         }
     }
 
+    /**
+     * 移除文本开头的 BOM，避免首列表头多出不可见字符。
+     */
     private static String stripBom(String text) {
         return !text.isEmpty() && text.charAt(0) == BOM ? text.substring(1) : text;
     }
@@ -183,6 +193,9 @@ public class CsvDocumentParser implements DocumentParser {
         return padded;
     }
 
+    /**
+     * 检查该行所有单元格是否均为空白，供 CSV 解析过滤空行。
+     */
     private static boolean isBlankRow(List<String> row) {
         for (String cell : row) {
             if (cell != null && !cell.isBlank()) {
@@ -192,6 +205,9 @@ public class CsvDocumentParser implements DocumentParser {
         return true;
     }
 
+    /**
+     * 从解析选项取得源文件名，未配置时使用空字符串。
+     */
     private String extractSourceFile(Map<String, Object> options) {
         if (options == null) {
             return "";

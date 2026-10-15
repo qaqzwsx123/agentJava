@@ -39,6 +39,9 @@ public class AIHubMixChatClient extends AbstractOpenAIStyleChatClient {
         return doChat(request, target);
     }
 
+    /**
+     * 将 AIHubMix 流式调用交给共享 HTTP 流实现，返回用于主动停止的取消句柄。
+     */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
         return doStreamChat(request, callback, target);

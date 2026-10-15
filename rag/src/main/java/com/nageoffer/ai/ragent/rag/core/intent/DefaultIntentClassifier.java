@@ -109,6 +109,9 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         return new IntentTreeData(allNodes, leafNodes, id2Node);
     }
 
+    /**
+     * 从已加载的意图树 ID 索引取得节点，空 ID 返回 null。
+     */
     @Override
     public IntentNode getNodeById(String id) {
         if (id == null || id.isBlank()) {

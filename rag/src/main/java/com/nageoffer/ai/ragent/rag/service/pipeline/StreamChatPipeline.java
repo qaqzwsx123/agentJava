@@ -80,27 +80,37 @@ public class StreamChatPipeline {
      * 执行流式对话管道
      */
     public void execute(StreamChatContext ctx) {
+        // 先读历史并保存当前问题，后面的改写与回答共用这份历史。
         loadMemory(ctx);
+        // 结合历史补全问题并拆分；实现内处理术语映射及失败回退。
         rewriteQuery(ctx);
+        // 为每个子问题识别候选意图，后续用于澄清、系统路由及定向检索。
         resolveIntents(ctx);
 
+        // 需要用户澄清时结束本轮，不继续使用含歧义的候选检索。
         if (handleGuidance(ctx)) {
             return;
         }
+        // 纯系统意图进入系统对话，其余才进入知识召回。
         if (handleSystemOnly(ctx)) {
             return;
         }
 
+        // 并行多路召回、后处理和证据归因封装在检索引擎下游。
         RetrievalContext retrievalCtx = retrieve(ctx);
         if (handleEmptyRetrieval(ctx, retrievalCtx)) {
             return;
         }
 
+        // 有证据时建立来源引用、组装提示词并启动可取消的流式回答。
         streamRagResponse(ctx, retrievalCtx);
     }
 
     // ==================== 流水线阶段 ====================
 
+    /**
+     * 先读取本轮提问之前的会话历史，再保存用户问题并通知回调其消息 ID，避免提示词重复包含本轮问题。
+     */
     private void loadMemory(StreamChatContext ctx) {
         List<ChatMessage> history = memoryService.load(ctx.getConversationId(), ctx.getUserId());
         String questionMessageId = memoryService.append(
@@ -109,16 +119,25 @@ public class StreamChatPipeline {
         ctx.setHistory(history);
     }
 
+    /**
+     * 结合历史对问题做术语归一化、改写和拆分，将结果写回本轮上下文。
+     */
     private void rewriteQuery(StreamChatContext ctx) {
         RewriteResult rewriteResult = queryRewriteService.rewriteWithSplit(ctx.getQuestion(), ctx.getHistory());
         ctx.setRewriteResult(rewriteResult);
     }
 
+    /**
+     * 对改写得到的子问题识别意图，保存每个子问题的候选节点与得分。
+     */
     private void resolveIntents(StreamChatContext ctx) {
         List<SubQuestionIntent> subIntents = intentResolver.resolve(ctx.getRewriteResult());
         ctx.setSubIntents(subIntents);
     }
 
+    /**
+     * 判断是否需要意图澄清；需要时直接返回澄清提示并完成流，返回 true 表示主链路应短路。
+     */
     private boolean handleGuidance(StreamChatContext ctx) {
         GuidanceDecision decision = guidanceService.detectAmbiguity(
                 ctx.getRewriteResult().rewrittenQuestion(),
@@ -133,6 +152,9 @@ public class StreamChatPipeline {
         return true;
     }
 
+    /**
+     * 全部子问题均为系统意图时直接调用系统对话模型，并将其取消句柄绑定到任务。
+     */
     private boolean handleSystemOnly(StreamChatContext ctx) {
         List<SubQuestionIntent> subIntents = ctx.getSubIntents();
         boolean allSystemOnly = subIntents.stream()
@@ -146,6 +168,7 @@ public class StreamChatPipeline {
                 .filter(StrUtil::isNotBlank)
                 .findFirst()
                 .orElse(null);
+        // 本分支不做知识检索，系统提示词、历史和当前问题直接进入模型。
         StreamCancellationHandle handle = streamSystemResponse(
                 ctx.getRewriteResult().rewrittenQuestion(),
                 ctx.getHistory(),
@@ -156,10 +179,16 @@ public class StreamChatPipeline {
         return true;
     }
 
+    /**
+     * 将各子问题及其意图交给检索引擎，返回已组装的知识上下文与来源切片。
+     */
     private RetrievalContext retrieve(StreamChatContext ctx) {
         return retrievalEngine.retrieve(ctx.getSubIntents());
     }
 
+    /**
+     * 检索上下文为空时发送固定无文档回复并完成流，返回 true 阻止继续生成缺少依据的回答。
+     */
     private boolean handleEmptyRetrieval(StreamChatContext ctx, RetrievalContext retrievalCtx) {
         if (!retrievalCtx.isEmpty()) {
             return false;
@@ -170,6 +199,10 @@ public class StreamChatPipeline {
         return true;
     }
 
+    /**
+     * 为检索结果建立统一来源编号，补充引用与推荐追问素材，再启动基于知识的流式回答。
+     * 将模型取消句柄交给任务管理器，使主动停止和断连回收能中断上游。
+     */
     private void streamRagResponse(StreamChatContext ctx, RetrievalContext retrievalCtx) {
         // 检索完成后建立唯一来源编号：同一列表用于完成事件、来源面板与消息落库，开启引用时还作为行内角标编号
         List<SourceRef> sources = sourcesAssembler.assemble(retrievalCtx.getIntentChunks());
@@ -193,6 +226,9 @@ public class StreamChatPipeline {
 
     // ==================== LLM 响应 ====================
 
+    /**
+     * 选择意图自定义或默认系统提示词，依次加入历史与当前问题，发起不启用思考的系统对话。
+     */
     private StreamCancellationHandle streamSystemResponse(String question, List<ChatMessage> history,
                                                           String customPrompt, StreamCallback callback) {
         String systemPrompt = StrUtil.isNotBlank(customPrompt)
@@ -214,6 +250,9 @@ public class StreamChatPipeline {
         return llmService.streamChat(req, callback);
     }
 
+    /**
+     * 把知识证据、可用意图、历史和子问题组装成结构化消息，按深度思考开关发起流式模型调用。
+     */
     private StreamCancellationHandle streamLLMResponse(RewriteResult rewriteResult, RetrievalContext ctx,
                                                        List<NodeScore> kbIntents,
                                                        List<ChatMessage> history,
@@ -224,6 +263,7 @@ public class StreamChatPipeline {
                 .eligibleIntentIds(ctx.getEligibleIntentIds())
                 .build();
 
+        // 提示词构造器根据证据准入意图选择规则，并把证据、历史与当前问题放到对应消息中。
         List<ChatMessage> messages = promptBuilder.buildStructuredMessages(
                 promptContext,
                 history,

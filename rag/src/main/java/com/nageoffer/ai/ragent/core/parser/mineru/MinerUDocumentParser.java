@@ -106,6 +106,9 @@ public class MinerUDocumentParser implements DocumentParser {
                 properties.getSemaphoreName(), properties.getConcurrencyLimit());
     }
 
+    /**
+     * 返回 MinerU 解析器的注册类型标识。
+     */
     @Override
     public String getParserType() {
         return ParserType.MINERU.getType();
@@ -119,6 +122,10 @@ public class MinerUDocumentParser implements DocumentParser {
         );
     }
 
+    /**
+     * 校验输入后获取带租期的分布式解析许可，调用完整解析流程并在 finally 归还许可。
+     * 等待许可超时或被中断时明确失败，被中断时保留线程中断标记。
+     */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
         if (content == null || content.length == 0) {
@@ -128,6 +135,7 @@ public class MinerUDocumentParser implements DocumentParser {
         String permitId = null;
         RPermitExpirableSemaphore semaphore = redissonClient.getPermitExpirableSemaphore(properties.getSemaphoreName());
         try {
+            // 限制跨节点同时进行的解析任务数量；许可带租期，finally 仍主动归还。
             permitId = semaphore.tryAcquire(
                     properties.getMaxWaitSeconds(),
                     properties.getLeaseSeconds(),
@@ -150,6 +158,10 @@ public class MinerUDocumentParser implements DocumentParser {
         }
     }
 
+    /**
+     * 依次申请上传票据、上传源文件、等待解析、下载结果 ZIP 并解包为结构化块。
+     * 将批次 ID、结果地址及解析器信息合入文档元数据，便于后续排查解析任务。
+     */
     private ParsedDocument doParseStructured(byte[] content, String mimeType, Map<String, Object> options) {
         String sourceFile = extractString(options, OPT_SOURCE_FILE, "");
         String documentId = extractString(options, OPT_DOCUMENT_ID, UUID.randomUUID().toString());
@@ -208,6 +220,9 @@ public class MinerUDocumentParser implements DocumentParser {
         return "doc-" + documentId + extFromMime(mimeType);
     }
 
+    /**
+     * 将文件名、文档 ID 及 OCR、表格、公式和语言配置组装为 MinerU 解析参数。
+     */
     private BatchSubmitRequest buildSubmitRequest(String fileName, String documentId) {
         return new BatchSubmitRequest(
                 fileName,
@@ -219,6 +234,9 @@ public class MinerUDocumentParser implements DocumentParser {
         );
     }
 
+    /**
+     * 为常见办公文件 MIME 推断上传扩展名，未知类型使用 .bin。
+     */
     private static String extFromMime(String mimeType) {
         if (mimeType == null) {
             return ".bin";
@@ -234,6 +252,9 @@ public class MinerUDocumentParser implements DocumentParser {
         return ".bin";
     }
 
+    /**
+     * 读取非空解析选项文本，选项不存在或为空白时返回指定默认值。
+     */
     private static String extractString(Map<String, Object> options, String key, String defaultValue) {
         if (options == null) {
             return defaultValue;

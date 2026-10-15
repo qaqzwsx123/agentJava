@@ -169,6 +169,7 @@ public class ChunkPacker {
             taken = next;
             from--;
         }
+        // 只有引入片段与目标合计仍在容忍上限内才合并，否则保留缓冲区不动。
         if (from == buffer.size() || contentLength(target) + taken > budget.toleranceChars()) {
             return List.of();
         }
@@ -221,6 +222,7 @@ public class ChunkPacker {
             assets.addAll(draft.metadata().assets());
         }
 
+        // 合并内容后仅保留共同章节路径，资产汇总，溯源采用首个片段。
         ChunkMetadata merged = ChunkMetadata.builder()
                 .outlinePath(parts.get(0).metadata().outlinePath().subList(0, commonPrefixLength(parts)))
                 .assets(assets)
@@ -230,6 +232,9 @@ public class ChunkPacker {
                 merged, false, heading);
     }
 
+    /**
+     * 计算两个章节路径或一组草稿的共同路径前缀长度，供合并切片保留共同章节信息。
+     */
     private static int commonPrefixLength(List<ChunkDraft> drafts) {
         List<String> first = drafts.get(0).metadata().outlinePath();
         int common = first.size();
@@ -239,6 +244,9 @@ public class ChunkPacker {
         return common;
     }
 
+    /**
+     * 计算两个章节路径或一组草稿的共同路径前缀长度，供合并切片保留共同章节信息。
+     */
     private static int commonPrefixLength(List<String> a, List<String> b) {
         int limit = Math.min(a.size(), b.size());
         int i = 0;
@@ -248,6 +256,9 @@ public class ChunkPacker {
         return i;
     }
 
+    /**
+     * 仅追加非空正文，已有内容时先补统一分隔符，避免空片段产生多余分隔。
+     */
     private static void appendPart(StringBuilder sb, String part) {
         if (!StringUtils.hasText(part)) {
             return;
@@ -269,6 +280,9 @@ public class ChunkPacker {
         return len;
     }
 
+    /**
+     * 取得草稿有效正文的字符长度，空白正文记为零，用于打包预算计算。
+     */
     private static int contentLength(ChunkDraft draft) {
         return StringUtils.hasText(draft.content()) ? draft.content().length() : 0;
     }

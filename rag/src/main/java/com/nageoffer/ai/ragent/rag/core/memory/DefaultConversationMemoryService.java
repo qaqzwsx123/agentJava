@@ -45,6 +45,9 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
         this.memoryLoadExecutor = memoryLoadExecutor;
     }
 
+    /**
+     * 并行加载会话摘要与历史消息，再把装饰后的摘要放到历史前；参数不全或整体失败时返回空历史。
+     */
     @Override
     public List<ChatMessage> load(String conversationId, String userId) {
         // 参数校验
@@ -103,6 +106,9 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
         }
     }
 
+    /**
+     * 先保存消息，再检查是否触发异步摘要生成，返回已保存的消息 ID。
+     */
     @Override
     public String append(String conversationId, String userId, ChatMessage message) {
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
@@ -113,6 +119,9 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
         return messageId;
     }
 
+    /**
+     * 历史存在时将装饰后的摘要前置；没有历史则返回空列表，没有摘要则直接复用历史。
+     */
     private List<ChatMessage> attachSummary(ChatMessage summary, List<ChatMessage> messages) {
         // 确保返回值不为 null
         if (CollUtil.isEmpty(messages)) {

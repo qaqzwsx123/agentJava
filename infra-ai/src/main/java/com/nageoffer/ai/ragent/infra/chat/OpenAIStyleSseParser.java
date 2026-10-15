@@ -33,6 +33,10 @@ public final class OpenAIStyleSseParser {
     private static final String DATA_PREFIX = "data:";
     private static final String DONE_MARKER = "[DONE]";
 
+    /**
+     * 解析一行兼容 OpenAI 的 SSE 数据，识别 data 前缀、DONE 标志、正文、可选思考内容和结束原因。
+     * 该方法只解析协议，不发送 SSE；解析异常由调用它的读取循环处理。
+     */
     static ParsedEvent parseLine(String line, Gson gson, boolean reasoningEnabled) {
         if (line == null || line.isBlank()) {
             return ParsedEvent.empty();
@@ -60,6 +64,9 @@ public final class OpenAIStyleSseParser {
         return new ParsedEvent(content, reasoning, completed);
     }
 
+    /**
+     * 仅当 finish_reason 字段存在且不为 JSON null 时识别为结束信号。
+     */
     private static boolean hasFinishReason(JsonObject choice) {
         if (choice == null || !choice.has("finish_reason")) {
             return false;
@@ -68,6 +75,9 @@ public final class OpenAIStyleSseParser {
         return finishReason != null && !finishReason.isJsonNull();
     }
 
+    /**
+     * 优先从 delta 读取指定文本，缺少有效增量时兼容 message 结构，均不存在返回 null。
+     */
     private static String extractText(JsonObject choice, String fieldName) {
         if (choice == null) {
             return null;

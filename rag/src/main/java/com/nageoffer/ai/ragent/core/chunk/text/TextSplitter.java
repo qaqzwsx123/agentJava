@@ -87,6 +87,7 @@ public final class TextSplitter {
         if (targetEnd <= start) {
             return targetEnd;
         }
+        // 只在重叠预算允许的回退范围内找边界，依次优先换行、中文句末、英文句末。
         int maxLookback = Math.min(overlap, targetEnd - start);
         if (maxLookback <= 0) {
             return targetEnd;
@@ -192,6 +193,9 @@ public final class TextSplitter {
         return out.toString();
     }
 
+    /**
+     * 结合换行前后字符判断 URL 是否被折断，遇到下一段是编号列表项时禁止拼接。
+     */
     private static boolean shouldJoinBrokenUrl(char prev, char next, String s, int nextIndex) {
         if (isListItemStart(s, nextIndex)) {
             return false;
@@ -206,6 +210,9 @@ public final class TextSplitter {
         return next == '/' || next == '?' || next == '&' || next == '=' || next == '#';
     }
 
+    /**
+     * 跳过空白并识别数字后跟点或括号的列表起点，防止 URL 修复误吞下一条内容。
+     */
     private static boolean isListItemStart(String s, int i) {
         int p = i;
         while (p < s.length() && (s.charAt(p) == ' ' || s.charAt(p) == '\t')) {
@@ -221,10 +228,16 @@ public final class TextSplitter {
         return p < s.length() && (s.charAt(p) == '.' || s.charAt(p) == '）' || s.charAt(p) == ')');
     }
 
+    /**
+     * 判断指定位置是否以 http:// 或 https:// 开始，供文本清理识别链接。
+     */
     private static boolean looksLikeUrlStart(String s, int i) {
         return s.startsWith("http://", i) || s.startsWith("https://", i);
     }
 
+    /**
+     * 按本实现列举的字母、数字和 URL 标点判断字符是否可继续属于链接。
+     */
     private static boolean isUrlChar(char c) {
         if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9') {
             return true;
@@ -237,10 +250,16 @@ public final class TextSplitter {
                 || c == ',' || c == ';' || c == '=' || c == '%';
     }
 
+    /**
+     * 识别断行修复中常见的 URL 连接符，辅助判断应否去掉换行。
+     */
     private static boolean isCommonUrlPunct(char c) {
         return c == '.' || c == '/' || c == '?' || c == '&' || c == '=' || c == '-' || c == '_' || c == '%';
     }
 
+    /**
+     * 排除空白与标点后识别 CJK 或全角文字字符，供断行拼接规则使用。
+     */
     private static boolean isCjkWordChar(char c) {
         if (c == 0 || Character.isWhitespace(c)) {
             return false;
@@ -248,6 +267,9 @@ public final class TextSplitter {
         return isCjkOrFullWidthLetterOrDigit(c) && !isCjkPunctuation(c);
     }
 
+    /**
+     * 按 Unicode 区块判断 CJK 汉字及全角字符范围。
+     */
     private static boolean isCjkOrFullWidthLetterOrDigit(char c) {
         Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
         return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
@@ -257,6 +279,9 @@ public final class TextSplitter {
                 || block == Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS;
     }
 
+    /**
+     * 识别中日韩符号、通用标点区块及显式列出的中文标点，避免将其当成词字符。
+     */
     private static boolean isCjkPunctuation(char c) {
         Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
         return block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION

@@ -50,6 +50,9 @@ public class ChunkIndexWriter {
                 doc.docId(), target.partition(), chunks.size(), sinks.size());
     }
 
+    /**
+     * 在事务回调中依次要求各索引写入端删除文档；外部索引是否参与同一事务取决于具体实现。
+     */
     public void deleteDocument(VectorTarget target, DocumentRef doc) {
         transactionOperations.executeWithoutResult(status ->
                 sinks.forEach(sink -> sink.deleteDocument(target, doc)));

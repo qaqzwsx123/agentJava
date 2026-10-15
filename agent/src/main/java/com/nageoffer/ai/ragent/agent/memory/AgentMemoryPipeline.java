@@ -68,6 +68,7 @@ public class AgentMemoryPipeline {
         if (!memoryProperties.isLongTermEnabled()) {
             return AgentMemoryOutcome.of(Status.DISABLED, 0);
         }
+        // 控制面创建时间界定开始抽取的历史范围，水位决定本会话已经处理到哪条消息。
         AgentMemoryControlDO control = memoryRepository.ensureControl(userId);
         String watermark = memoryRepository.currentWatermark(userId, conversationId);
         List<AgentMessageDO> pending = memoryRepository.loadPending(
@@ -80,6 +81,7 @@ public class AgentMemoryPipeline {
             return AgentMemoryOutcome.of(Status.BELOW_THRESHOLD, pending.size());
         }
 
+        // 先认领本批消息区间，认领成功后才调用模型，避免同会话并发重复抽取。
         AgentMemoryExtractionDO extraction = memoryRepository.claim(userId, conversationId,
                 pending.get(0).getId(), pending.get(pending.size() - 1).getId(), trigger);
         if (extraction == null) {
@@ -139,6 +141,9 @@ public class AgentMemoryPipeline {
         return memoryConsolidator.plan(existing);
     }
 
+    /**
+     * 把提交状态转换为抽取结果：写入、已处理但无新增、或快照冲突，并保留待处理数和变更信息。
+     */
     private AgentMemoryOutcome toOutcome(AgentMemoryCommitResult result, int pending) {
         Status status = switch (result.status()) {
             case WRITTEN -> Status.WRITTEN;
@@ -148,6 +153,9 @@ public class AgentMemoryPipeline {
         return new AgentMemoryOutcome(status, result.applied(), pending, result.mutated());
     }
 
+    /**
+     * 把抽取触发方式映射为记忆来源，区分主动 FLUSH 和后台抽取。
+     */
     private AgentMemorySourceType sourceTypeOf(AgentMemoryTriggerType trigger) {
         return trigger == AgentMemoryTriggerType.FLUSH
                 ? AgentMemorySourceType.FLUSH

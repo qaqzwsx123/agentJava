@@ -113,6 +113,9 @@ public class AgentMcpClients {
         }
     }
 
+    /**
+     * 按工具 ID 从已初始化的客户端工具映射中取出绑定对象；未注册时返回 null。
+     */
     public RemoteTool get(String toolId) {
         return tools.get(toolId);
     }

@@ -68,6 +68,9 @@ public enum SourceType {
         throw new IllegalArgumentException("Unknown source type: " + value);
     }
 
+    /**
+     * 规范文档来源类型的大小写和分隔符，供来源枚举解析使用。
+     */
     private static String normalize(String value) {
         String trimmed = value.trim();
         String lower = trimmed.toLowerCase();

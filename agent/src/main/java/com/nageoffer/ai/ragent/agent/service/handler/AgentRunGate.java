@@ -49,12 +49,17 @@ public class AgentRunGate {
 
     /**
      * 抢运行位，抢不到直接拒绝；返回的释放动作由调用方挂到收尾路上
+     * userId 决定竞争范围，taskId 与 conversationId 组成占用值，用于定位运行及校验释放归属。
+     * 启动失败由 cleanupFailedStart 执行回调；成功启动后由 AgentRunHandle 的释放钩子执行。
+     * Redis 的 TTL 用于无人收尾时的兜底过期，本方法没有启动续期任务。
      */
     public Runnable acquire(String userId, String taskId, String conversationId) {
+        // 值同时记录任务和会话；键只使用 userId，因此该用户跨会话共用一个运行位。
         String slotValue = taskId + SLOT_SEPARATOR + conversationId;
         //是按 userId，不是按 conversationId。也就是一个用户全局只能跑一个 Agent，而不是"每个会话各一个"。
         //拿到 Redis 桶对象
         RBucket<String> slot = redissonClient.getBucket(runningKey(userId));
+        // SET NX 与过期时间一次提交，多个节点竞争时只有一个请求取得名额。
         if (!slot.setIfAbsent(slotValue, ttl())) {
             throw new ClientException("当前会话处理中，请稍后再发起新的对话");
         }
@@ -78,6 +83,7 @@ public class AgentRunGate {
         if (StrUtil.isBlank(slotValue)) {
             return null;
         }
+        // 仅返回属于目标会话的任务，防止删除某个会话时取消同用户的另一个会话。
         int separator = slotValue.indexOf(SLOT_SEPARATOR);
         if (separator < 0 || !slotValue.substring(separator + 1).equals(conversationId)) {
             return null;
@@ -91,17 +97,21 @@ public class AgentRunGate {
      */
     private void release(String userId, String slotValue) {
         RBucket<String> slot = redissonClient.getBucket(runningKey(userId));
+        // 只有当前值仍属于本轮才清空；TTL 后已被下一轮占用时，此处不会释放新任务的名额。
         slot.compareAndSet(slotValue, null);
     }
 
     /**
      * 进程崩溃时没人来释放，TTL 是唯一出路
-     * 取 SSE 超时的两倍：长过任何一条活着的流，又不至于把用户挡到下个小时
+     * 取配置的 SSE 超时时间的两倍作为运行位租期；正常情况下由收尾主动释放。
      */
     private Duration ttl() {
         return Duration.ofMillis(agentProperties.getSseTimeoutMs() * 2);
     }
 
+    /**
+     * 按用户 ID 构造 Redis 运行位键，同一用户的不同会话共用一个运行名额。
+     */
     private String runningKey(String userId) {
         return RUNNING_KEY_PREFIX + userId;
     }

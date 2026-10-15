@@ -65,6 +65,10 @@ public class RoutingVlmService implements VlmService {
         this.syncHttpClient = syncHttpClient;
     }
 
+    /**
+     * 将图片和提示词组装为多模态请求，调用所选 VLM 并解析正文。
+     * 非成功 HTTP 状态与网络异常转换为模型客户端异常，响应体通过 try-with-resources 关闭。
+     */
     @Override
     @RagTraceNode(name = "vlm-describe", type = "VLM")
     public String describeImage(byte[] imageBytes, String mime, String prompt, Integer maxOutputTokens) {
@@ -82,6 +86,7 @@ public class RoutingVlmService implements VlmService {
                 .build();
 
         JsonObject respJson;
+        // 使用同步 HTTP 调用视觉模型，非成功状态保留分类后的模型异常，供上层报告失败。
         try (Response response = syncHttpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String body = HttpResponseHelper.readBody(response.body());
@@ -101,6 +106,9 @@ public class RoutingVlmService implements VlmService {
         return extractContent(respJson);
     }
 
+    /**
+     * 选择当前首个可用 VLM 目标，没有可用模型时提示检查配置；本方法不遍历执行降级。
+     */
     private ModelTarget resolveTarget() {
         List<ModelTarget> targets = selector.selectVlmCandidates();
         if (targets.isEmpty()) {

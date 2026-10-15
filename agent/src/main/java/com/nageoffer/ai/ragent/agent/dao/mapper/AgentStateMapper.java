@@ -30,6 +30,9 @@ import java.util.List;
 @SuppressWarnings({"SqlDialectInspection", "SqlNoDataSourceInspection", "SqlResolve"})
 public interface AgentStateMapper {
     //冲突时，用"新数据的 payload"覆盖"旧数据的 payload"，并刷新 update_time。
+    /**
+     * 按用户、会话和状态键插入 JSON 状态；唯一键冲突时覆盖 payload 并刷新更新时间。
+     */
     @Insert("""
             INSERT INTO t_agent_state (user_id, session_id, state_key, payload, create_time, update_time)
             VALUES (#{userId}, #{sessionId}, #{stateKey}, #{payload}::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -41,6 +44,9 @@ public interface AgentStateMapper {
                 @Param("stateKey") String stateKey,
                 @Param("payload") String payload);
 
+    /**
+     * 同时限定用户、会话和状态键读取 JSON 状态，避免不同用户或状态类型之间串读。
+     */
     @Select("""
             SELECT payload
             FROM t_agent_state
@@ -51,6 +57,9 @@ public interface AgentStateMapper {
                          @Param("stateKey") String stateKey);
 
     //判断会话是否存在状态  用 PG 的 EXISTS 返回布尔，存在任意状态即 true。 比 COUNT(*) > 0 更高效（找到一条就返回）。
+    /**
+     * 判断指定用户会话是否存在任一状态；SQL EXISTS 命中一条即可返回。
+     */
     @Select("""
             SELECT EXISTS (
                 SELECT 1
@@ -60,9 +69,15 @@ public interface AgentStateMapper {
             """)
     boolean exists(@Param("userId") String userId, @Param("sessionId") String sessionId);
 
+    /**
+     * 删除当前用户指定会话的全部状态键，供删除会话及重置上下文使用。
+     */
     @Delete("DELETE FROM t_agent_state WHERE user_id = #{userId} AND session_id = #{sessionId}")
     void deleteBySession(@Param("userId") String userId, @Param("sessionId") String sessionId);
 
+    /**
+     * 仅删除当前用户、会话下指定状态键，保留该会话的其他状态。
+     */
     @Delete("""
             DELETE FROM t_agent_state
             WHERE user_id = #{userId} AND session_id = #{sessionId} AND state_key = #{stateKey}
@@ -72,6 +87,9 @@ public interface AgentStateMapper {
                      @Param("stateKey") String stateKey);
 
     // 列出所有会话 ID   去重并表示顺序
+    /**
+     * 按用户列出不同会话 ID 并排序，供状态存储枚举会话使用。
+     */
     @Select("""
             SELECT DISTINCT session_id
             FROM t_agent_state

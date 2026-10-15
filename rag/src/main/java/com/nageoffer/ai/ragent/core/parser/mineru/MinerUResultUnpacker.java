@@ -142,6 +142,9 @@ public class MinerUResultUnpacker {
     private record ZipContents(String markdown, Map<String, byte[]> images) {
     }
 
+    /**
+     * 在内存中遍历结果 ZIP，取首份 Markdown 并收集图片字节，忽略目录，不直接解压到磁盘。
+     */
     private ZipContents readZip(byte[] zipBytes) {
         String markdown = null;
         Map<String, byte[]> images = new HashMap<>();
@@ -153,6 +156,7 @@ public class MinerUResultUnpacker {
                     continue;
                 }
                 String name = entry.getName();
+                // 读取当前条目后只保留首份 Markdown 和支持的图片，路径仅作为内存映射键。
                 byte[] data = readAll(zin);
 
                 if (name.toLowerCase(Locale.ROOT).endsWith(".md") && markdown == null) {
@@ -167,6 +171,9 @@ public class MinerUResultUnpacker {
         return new ZipContents(markdown, images);
     }
 
+    /**
+     * 读取当前 ZIP 条目的全部字节；不关闭 ZIP 流，以便外层继续读取下一条目。
+     */
     private static byte[] readAll(ZipInputStream zin) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
@@ -177,6 +184,9 @@ public class MinerUResultUnpacker {
         return out.toByteArray();
     }
 
+    /**
+     * 根据文件名扩展名识别支持的图片条目，供结果包中的资产收集使用。
+     */
     private static boolean isImage(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
@@ -233,11 +243,17 @@ public class MinerUResultUnpacker {
         return result;
     }
 
+    /**
+     * 提取路径最后一个点后的扩展名并转小写，缺少扩展名时使用 bin。
+     */
     private static String extractExt(String path) {
         int idx = path.lastIndexOf('.');
         return idx >= 0 ? path.substring(idx + 1).toLowerCase(Locale.ROOT) : "bin";
     }
 
+    /**
+     * 将图片扩展名转换为 MIME，未识别类型按二进制流处理。
+     */
     private static String inferMime(String ext) {
         return switch (ext) {
             case "png" -> "image/png";

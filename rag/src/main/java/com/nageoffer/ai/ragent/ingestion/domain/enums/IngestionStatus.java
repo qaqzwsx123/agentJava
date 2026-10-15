@@ -73,6 +73,9 @@ public enum IngestionStatus {
         throw new IllegalArgumentException("Unknown ingestion status: " + value);
     }
 
+    /**
+     * 规范任务状态文本，统一大小写和分隔符后再匹配枚举。
+     */
     private static String normalize(String value) {
         String trimmed = value.trim();
         String lower = trimmed.toLowerCase();

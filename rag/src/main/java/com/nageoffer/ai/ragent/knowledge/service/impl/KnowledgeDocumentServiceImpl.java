@@ -328,6 +328,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
     }
 
+    /**
+     * 提取文档 ID、知识库 ID 和名称，构成后续索引与处理流程使用的文档引用。
+     */
     private DocumentRef documentRef(KnowledgeDocumentDO documentDO) {
         return new DocumentRef(documentDO.getId(), documentDO.getKbId(), documentDO.getDocName());
     }
@@ -657,6 +660,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return vo;
     }
 
+    /**
+     * 批量找出存在已编辑切片的文档：以切片更新时间超过创建时间一秒作为判定条件。
+     */
     private Set<String> findEditedDocIds(List<String> docIds) {
         if (docIds == null || docIds.isEmpty()) {
             return Collections.emptySet();
@@ -833,6 +839,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return voPage;
     }
 
+    /**
+     * 从总耗时中扣除已单独统计的阶段耗时，计算其他耗时；流水线模式采用不同的阶段口径。
+     */
     private static long getOther(KnowledgeDocumentChunkLogDO each, Long totalDuration) {
         String mode = each.getProcessMode();
         boolean pipelineMode = ProcessMode.PIPELINE.getValue().equalsIgnoreCase(mode);
@@ -845,6 +854,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 : totalDuration - extract - chunk - embed - persist;
     }
 
+    /**
+     * 只有 URL 来源且请求显式开启定时更新时才启用调度。
+     */
     private boolean isScheduleEnabled(SourceType sourceType, KnowledgeDocumentUploadRequest request) {
         return SourceType.URL == sourceType && Boolean.TRUE.equals(request.getScheduleEnabled());
     }
@@ -897,6 +909,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
     }
 
+    /**
+     * 文件来源校验并上传 MultipartFile，其他来源交给远程抓取器下载入库，统一返回存储信息。
+     */
     private StoredFileDTO resolveStoredFile(String bucketName, SourceType sourceType, String sourceLocation, MultipartFile file) {
         if (SourceType.FILE == sourceType) {
             Assert.notNull(file, () -> new ClientException("上传文件不能为空"));

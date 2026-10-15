@@ -43,6 +43,9 @@ public class HttpClientHelper {
     @Qualifier("syncHttpClient")
     private final OkHttpClient client;
 
+    /**
+     * 发起不设置读取大小上限的 GET，完整读取正文并返回媒体类型、文件名等响应信息。
+     */
     public HttpFetchResponse get(String url, Map<String, String> headers) {
         return doGet(url, headers, -1);
     }
@@ -51,6 +54,10 @@ public class HttpClientHelper {
         return doGet(url, headers, maxBytes);
     }
 
+    /**
+     * 发起 GET 并保留响应流，先按 Content-Length 检查大小，再给实际读取流附加限额。
+     * 返回对象持有 HTTP 响应，调用方使用后需要关闭，不能在本方法返回前提前关闭响应。
+     */
     public HttpFetchStream openStream(String url, Map<String, String> headers, long maxBytes) {
         Request.Builder builder = new Request.Builder().url(url);
         if (headers != null) {
@@ -74,6 +81,7 @@ public class HttpClientHelper {
                 response.close();
                 throw new ServiceException("文件大小超过限制: " + maxBytes + " bytes");
             }
+            // 响应长度预检不能覆盖未知或不可信长度，读取包装器继续按实际字节数检查。
             InputStream bodyStream = responseBody == null
                     ? InputStream.nullInputStream()
                     : wrapWithLimit(responseBody.byteStream(), maxBytes);
@@ -83,6 +91,9 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 统一处理 GET 请求头、HTTP 错误与响应元信息，按可选限额读取正文，退出时关闭响应。
+     */
     private HttpFetchResponse doGet(String url, Map<String, String> headers, long maxBytes) {
         Request.Builder builder = new Request.Builder().url(url);
         if (headers != null) {
@@ -103,6 +114,7 @@ public class HttpClientHelper {
                 throw new ServiceException("文件大小超过限制: " + maxBytes + " bytes");
             }
 
+            // 已知长度先预检，真正读取时再次检查限额；没有限额时直接完整读取。
             byte[] bytes;
             if (response.body() == null) {
                 bytes = new byte[0];
@@ -117,6 +129,9 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 通过 HEAD 获取 ETag、修改时间、媒体类型和文件大小，不下载正文，用于远程更新和大小预检。
+     */
     public HttpHeadResponse head(String url, Map<String, String> headers) {
         Request.Builder builder = new Request.Builder().url(url);
         if (headers != null) {
@@ -138,6 +153,9 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 优先解析 Content-Disposition 的 filename 并解码，否则取 URL 路径末段；无法提取返回 null。
+     */
     private String resolveFileName(String disposition, String url) {
         if (disposition != null) {
             String[] parts = disposition.split(";");
@@ -152,6 +170,7 @@ public class HttpClientHelper {
                 }
             }
         }
+        // 未从下载响应头拿到文件名时，再从 URL 路径取最后一段。
         try {
             URL parsed = new URL(url);
             String path = parsed.getPath();
@@ -165,6 +184,9 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 按 UTF-8 对响应文件名做 URL 解码，解码失败保留原文。
+     */
     private String decode(String value) {
         try {
             return java.net.URLDecoder.decode(value, StandardCharsets.UTF_8);
@@ -173,6 +195,9 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 将长度响应头转换为 Long，缺失或非数字时返回 null，不能据此假设文件大小为零。
+     */
     private Long parseContentLength(String header) {
         if (header == null) {
             return null;
@@ -184,6 +209,9 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 分段读取正文，累计实际字节数，超过限额立即抛错；方法负责关闭输入流与缓冲输出。
+     */
     private byte[] readWithLimit(InputStream inputStream, long maxBytes) throws IOException {
         try (InputStream in = inputStream; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
@@ -200,10 +228,15 @@ public class HttpClientHelper {
         }
     }
 
+    /**
+     * 包装输入流，在单字节和批量读取时统一累计实际字节数，超限抛错，close 透传到底层流。
+     * maxBytes 非正时直接返回原流，不施加读取限制。
+     */
     private InputStream wrapWithLimit(InputStream inputStream, long maxBytes) {
         if (maxBytes <= 0) {
             return inputStream;
         }
+        // 两种 read 入口共用 total，单字节或批量读取都必须累计，close 透传到底层流。
         return new InputStream() {
             private long total;
 

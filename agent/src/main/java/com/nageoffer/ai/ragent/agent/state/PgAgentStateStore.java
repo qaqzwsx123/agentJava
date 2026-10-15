@@ -95,12 +95,18 @@ public class PgAgentStateStore implements AgentStateStore {
         return agentStateMapper.exists(safeUser(userId), sessionId);
     }
 
+    /**
+     * 按用户、会话及可选状态键删除 Agent 持久化状态；缺省用户经 safeUser 统一处理。
+     */
     @Override
     public void delete(String userId, String sessionId) {
         // 删除整个会话的全部状态（所有 key）
         agentStateMapper.deleteBySession(safeUser(userId), sessionId);
     }
 
+    /**
+     * 按用户、会话及可选状态键删除 Agent 持久化状态；缺省用户经 safeUser 统一处理。
+     */
     @Override
     public void delete(String userId, String sessionId, String key) {
         // 只删除指定 key 的状态
@@ -118,6 +124,9 @@ public class PgAgentStateStore implements AgentStateStore {
         return agentStateMapper.selectPayload(safeUser(userId), sessionId, key);
     }
 
+    /**
+     * 将空用户映射到匿名用户占位值，统一状态存储的用户键。
+     */
     private String safeUser(String userId) {
         // userId 为空时替换为匿名哨兵，避免 PG 主键列为空
         return StrUtil.isBlank(userId) ? ANONYMOUS_USER : userId;

@@ -153,6 +153,9 @@ public enum AgentPromptSlot {
                 .toList();
     }
 
+    /**
+     * 忽略大小写查找提示词槽位枚举，未知键返回空 Optional。
+     */
     public static Optional<AgentPromptSlot> find(String key) {
         return Arrays.stream(values())
                 .filter(slot -> slot.name().equalsIgnoreCase(key))

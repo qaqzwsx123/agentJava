@@ -36,14 +36,23 @@ public record EmbeddedChunk(Chunk chunk, float[] embedding) {
         }
     }
 
+    /**
+     * 读取所包装切片的稳定 ID，作为各索引后端共享的主键。
+     */
     public String chunkId() {
         return chunk.chunkId();
     }
 
+    /**
+     * 读取所包装切片在文档中的序号。
+     */
     public int index() {
         return chunk.index();
     }
 
+    /**
+     * 读取所包装切片的展示正文，不在这里重新生成嵌入文本。
+     */
     public String content() {
         return chunk.content();
     }
@@ -52,6 +61,9 @@ public record EmbeddedChunk(Chunk chunk, float[] embedding) {
         return chunk.embeddingText();
     }
 
+    /**
+     * 读取所包装切片的结构化元数据，供索引序列化和溯源使用。
+     */
     public ChunkMetadata metadata() {
         return chunk.metadata();
     }

@@ -75,6 +75,9 @@ public class RoutingEmbeddingService implements EmbeddingService {
         );
     }
 
+    /**
+     * 按模型选择结果批量生成向量；指定 modelId 的重载仅尝试该模型，避免隐式切换导致向量空间不兼容。
+     */
     @Override
     public List<List<Float>> embedBatch(List<String> texts) {
         return executor.executeWithFallback(
@@ -85,6 +88,9 @@ public class RoutingEmbeddingService implements EmbeddingService {
         );
     }
 
+    /**
+     * 按模型选择结果批量生成向量；指定 modelId 的重载仅尝试该模型，避免隐式切换导致向量空间不兼容。
+     */
     @Override
     public List<List<Float>> embedBatch(List<String> texts, String modelId) {
         return executor.executeWithFallback(
@@ -95,10 +101,16 @@ public class RoutingEmbeddingService implements EmbeddingService {
         );
     }
 
+    /**
+     * 按提供商标识取得对应的 Embedding 客户端，客户端缺失时由外层执行器跳过。
+     */
     private EmbeddingClient resolveClient(ModelTarget target) {
         return clientsByProvider.get(target.candidate().getProvider());
     }
 
+    /**
+     * 校验 Embedding 模型 ID，并从当前可用候选中精确查找，找不到时返回远程调用异常。
+     */
     private ModelTarget resolveTarget(String modelId) {
         if (!StringUtils.hasText(modelId)) {
             throw new RemoteException("Embedding 模型ID不能为空");

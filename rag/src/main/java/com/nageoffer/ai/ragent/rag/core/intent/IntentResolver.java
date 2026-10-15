@@ -47,6 +47,9 @@ public class IntentResolver {
     private final IntentClassifier intentClassifier;
     private final Executor intentClassifyExecutor;
 
+    /**
+     * 并行识别各子问题的意图，单个识别失败时返回空候选，最后限制整轮意图总量。
+     */
     @RagTraceNode(name = "intent-resolve", type = "INTENT")
     public List<SubQuestionIntent> resolve(RewriteResult rewriteResult) {
         List<String> subQuestions = CollUtil.isNotEmpty(rewriteResult.subQuestions())
@@ -68,9 +71,13 @@ public class IntentResolver {
         List<SubQuestionIntent> subIntents = tasks.stream()
                 .map(CompletableFuture::join)
                 .toList();
+        // 子问题分别识别完毕后再限制整轮意图规模，避免拆分越多候选越失控。
         return capTotalIntents(subIntents);
     }
 
+    /**
+     * 汇总各子问题中的知识库意图，供回答提示词选择可用配置。
+     */
     public List<NodeScore> mergeKbIntents(List<SubQuestionIntent> subIntents) {
         List<NodeScore> kbIntents = new ArrayList<>();
         for (SubQuestionIntent si : subIntents) {
@@ -79,12 +86,18 @@ public class IntentResolver {
         return kbIntents;
     }
 
+    /**
+     * 仅有一个有效候选且类型为 SYSTEM 时判定为纯系统意图。
+     */
     public boolean isSystemOnly(List<NodeScore> nodeScores) {
         return nodeScores.size() == 1
                 && nodeScores.get(0).getNode() != null
                 && nodeScores.get(0).getNode().getKind() == SYSTEM;
     }
 
+    /**
+     * 调用分类器后过滤低分候选，并限制单个问题最多保留的意图数。
+     */
     private List<NodeScore> classifyIntents(String question) {
         List<NodeScore> scores = intentClassifier.classifyTargets(question);
         return scores.stream()

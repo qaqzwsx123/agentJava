@@ -71,6 +71,9 @@ public class AgentSkillRegistry {
                 .orElse(null);
     }
 
+    /**
+     * 把数据库技能记录转换为运行时技能，包含编码、摘要、完整说明及关联工具 ID。
+     */
     private static AgentSkill toSkill(AgentSkillDO record) {
         return new AgentSkill(record.getSkillCode(), record.getName(), record.getDescription(),
                 record.getContent(), record.getToolIds());

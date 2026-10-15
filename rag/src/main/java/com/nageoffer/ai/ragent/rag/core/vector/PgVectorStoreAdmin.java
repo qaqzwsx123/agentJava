@@ -34,6 +34,9 @@ public class PgVectorStoreAdmin implements VectorStoreAdmin {
     private final JdbcTemplate jdbcTemplate;
     private final RAGDefaultProperties ragDefaultProperties;
 
+    /**
+     * 检查共享向量表的 HNSW 索引是否存在，缺失时创建余弦距离索引，已有索引直接复用。
+     */
     @Override
     public void ensureVectorSpace(VectorSpaceSpec spec) {
         String indexName = "idx_kv_embedding_hnsw";
@@ -51,6 +54,9 @@ public class PgVectorStoreAdmin implements VectorStoreAdmin {
         jdbcTemplate.execute(String.format("CREATE INDEX IF NOT EXISTS %s ON t_knowledge_vector USING hnsw (embedding vector_cosine_ops)", indexName));
     }
 
+    /**
+     * 尝试查询共享向量表判断存储结构可用性，查询失败返回 false，并非检查某个逻辑集合是否已有数据。
+     */
     @Override
     public boolean vectorSpaceExists(VectorSpaceId spaceId) {
         try {

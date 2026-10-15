@@ -42,6 +42,9 @@ public final class CitationMarkup {
     private CitationMarkup() {
     }
 
+    /**
+     * 去除正文中的行内引用标记，供历史加载和摘要生成避免携带旧引用编号。
+     */
     public static String strip(String content) {
         if (StrUtil.isBlank(content)) {
             return "";

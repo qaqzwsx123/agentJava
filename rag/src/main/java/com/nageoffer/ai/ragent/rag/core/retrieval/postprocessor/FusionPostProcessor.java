@@ -67,6 +67,9 @@ public class FusionPostProcessor implements SearchResultPostProcessor {
         return "Fusion";
     }
 
+    /**
+     * 返回融合步骤顺序 5，在去重后、重排前合并多通道排名。
+     */
     @Override
     public int getOrder() {
         return 5;

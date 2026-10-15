@@ -242,6 +242,7 @@ public final class ExcelTableNormalizer {
                 if (v == null || v.isEmpty()) {
                     continue;
                 }
+                // 多行或合并表头可能产生连续重复文本，只保留一次，再把不同层级表头拼接。
                 if (v.equals(prev)) {
                     continue;
                 }

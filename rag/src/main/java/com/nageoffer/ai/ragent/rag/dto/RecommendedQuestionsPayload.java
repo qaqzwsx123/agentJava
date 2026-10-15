@@ -29,16 +29,25 @@ public record RecommendedQuestionsPayload(Status status, List<String> questions)
         questions = questions == null ? List.of() : questions;
     }
 
+    /**
+     * 生成推荐成功响应；问题列表为空时统一返回 EMPTY 状态。
+     */
     public static RecommendedQuestionsPayload success(List<String> questions) {
         return questions == null || questions.isEmpty()
                 ? empty()
                 : new RecommendedQuestionsPayload(Status.SUCCESS, questions);
     }
 
+    /**
+     * 构造没有可用推荐问题的响应，与生成失败状态区分。
+     */
     public static RecommendedQuestionsPayload empty() {
         return new RecommendedQuestionsPayload(Status.EMPTY, List.of());
     }
 
+    /**
+     * 构造推荐生成失败响应，问题列表保持为空，供前端决定展示与重试。
+     */
     public static RecommendedQuestionsPayload failed() {
         return new RecommendedQuestionsPayload(Status.FAILED, List.of());
     }

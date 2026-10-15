@@ -46,30 +46,45 @@ public class GraphSyncingVectorStoreService implements VectorStoreService {
         this.lightRagClient = lightRagClient;
     }
 
+    /**
+     * 先写入主向量存储，再通过图谱同步包装逻辑提交整篇正文及文档来源。
+     */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
         delegate.indexDocumentChunks(collectionName, docId, chunks);
         syncGraph(docId, () -> lightRagClient.insertText(concatContent(chunks), fileSource(collectionName, docId)));
     }
 
+    /**
+     * 更新主向量记录；当前阶段不单独同步切片级图谱变更。
+     */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
         delegate.updateChunk(collectionName, docId, chunk);
         // 子文档粒度，Phase1 不单独同步图谱（见类注释）
     }
 
+    /**
+     * 先删除主存储中的文档向量，再调用图谱同步逻辑删除对应文档。
+     */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
         delegate.deleteDocumentVectors(collectionName, docId);
         syncGraph(docId, () -> lightRagClient.deleteByDoc(docId));
     }
 
+    /**
+     * 删除主存储的单个切片；当前阶段不单独同步切片级图谱删除。
+     */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
         delegate.deleteChunkById(collectionName, chunkId);
         // 子文档粒度，Phase1 不单独同步图谱（见类注释）
     }
 
+    /**
+     * 批量删除主存储切片；当前阶段不单独同步切片级图谱删除。
+     */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
         delegate.deleteChunksByIds(collectionName, chunkIds);

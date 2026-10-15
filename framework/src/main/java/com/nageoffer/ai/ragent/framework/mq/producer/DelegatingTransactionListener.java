@@ -60,6 +60,9 @@ public class DelegatingTransactionListener implements RocketMQLocalTransactionLi
     @Autowired
     private ObjectMapper objectMapper;
 
+    /**
+     * 按事务 ID 保存本地事务回调，供 RocketMQ 事务监听器定位本次业务动作。
+     */
     public void registerLocalTransaction(String txId, Consumer<Object> localTransaction) {
         localTransactionMap.put(txId, localTransaction);
     }

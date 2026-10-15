@@ -41,10 +41,16 @@ public record IngestionSpec(int version, ParseProfile parseProfile, ChunkBudget 
         budget = budget == null ? ChunkBudget.defaults() : budget;
     }
 
+    /**
+     * 使用当前协议版本、默认解析档位和默认分块预算构造摄入规格。
+     */
     public static IngestionSpec defaults() {
         return new IngestionSpec(CURRENT_VERSION, ParseProfile.defaultProfile(), ChunkBudget.defaults());
     }
 
+    /**
+     * 将指定解析档位和分块预算绑定到当前规格版本，作为可持久化的摄入配置。
+     */
     public static IngestionSpec of(ParseProfile parseProfile, ChunkBudget budget) {
         return new IngestionSpec(CURRENT_VERSION, parseProfile, budget);
     }

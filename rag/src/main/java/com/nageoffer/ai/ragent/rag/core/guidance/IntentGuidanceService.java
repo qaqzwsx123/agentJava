@@ -64,6 +64,9 @@ public class IntentGuidanceService {
     private final PromptTemplateLoader promptTemplateLoader;
     private final AmbiguityLLMChecker ambiguityLLMChecker;
 
+    /**
+     * 澄清开关开启时检测候选路径歧义；存在歧义则返回带候选选项的提示，否则返回无需澄清。
+     */
     @RagTraceNode(name = "guidance-detect", type = "GUIDANCE")
     public GuidanceDecision detectAmbiguity(String question, List<SubQuestionIntent> subIntents) {
         if (!Boolean.TRUE.equals(guidanceProperties.getEnabled())) {
@@ -79,6 +82,9 @@ public class IntentGuidanceService {
         return GuidanceDecision.prompt(prompt);
     }
 
+    /**
+     * 仅对单子问题检查多个知识库候选，先发现路径冲突，再由模型复核是否确有歧义。
+     */
     private AmbiguityGroup findAmbiguityGroup(String question, List<SubQuestionIntent> subIntents) {
         if (CollUtil.isEmpty(subIntents) || subIntents.size() != 1) {
             return null;
@@ -94,6 +100,7 @@ public class IntentGuidanceService {
             return null;
         }
 
+        // 规则发现重名路径只是初筛，模型复核通过后才向用户发送澄清问题。
         if (!ambiguityLLMChecker.checkAmbiguity(question, conflict.ranked())) {
             log.info("LLM 判定候选路径不构成歧义, 跳过澄清, question={}", question);
             return null;
@@ -102,6 +109,9 @@ public class IntentGuidanceService {
         return new AmbiguityGroup(conflict.topicName(), trimRankedOptions(conflict.ranked()));
     }
 
+    /**
+     * 保留达到最低得分要求的知识库意图，排除系统意图和低分候选。
+     */
     private List<NodeScore> filterCandidates(List<NodeScore> scores) {
         if (CollUtil.isEmpty(scores)) {
             return List.of();
@@ -136,6 +146,7 @@ public class IntentGuidanceService {
         List<NodeScore> conflicts = new ArrayList<>();
         conflicts.add(primary);
         String topicName = null;
+        // 以最高分候选为基准比较其他路径，只收集与用户问题相关的重名冲突。
         for (NodeScore other : ranked.subList(1, ranked.size())) {
             List<IntentNode> otherPath = buildNodePath(other.getNode(), nodeCache);
             String hitName = detectConflictName(primaryPath, otherPath, normalizedQuestion);
@@ -217,10 +228,16 @@ public class IntentGuidanceService {
         return index;
     }
 
+    /**
+     * 使用非空节点 ID 判断是否为同一意图节点。
+     */
     private boolean isSameNode(IntentNode left, IntentNode right) {
         return StrUtil.isNotBlank(left.getId()) && left.getId().equals(right.getId());
     }
 
+    /**
+     * 过滤空或过短的标准化名称，避免用缺少区分度的名称判断路径冲突。
+     */
     private boolean isComparableName(String normalizedName) {
         return StrUtil.isNotBlank(normalizedName) && normalizedName.length() >= MIN_COMPARABLE_NAME_LENGTH;
     }
@@ -237,6 +254,9 @@ public class IntentGuidanceService {
         return node;
     }
 
+    /**
+     * 按配置的最大选项数截取排名靠前的澄清候选，未配置时保留全部。
+     */
     private List<NodeScore> trimRankedOptions(List<NodeScore> ranked) {
         int maxOptions = Optional.ofNullable(guidanceProperties.getMaxOptions()).orElse(ranked.size());
         if (ranked.size() <= maxOptions) {
@@ -245,6 +265,9 @@ public class IntentGuidanceService {
         return ranked.subList(0, maxOptions);
     }
 
+    /**
+     * 将歧义主题与编号候选渲染进澄清提示词模板。
+     */
     private String buildPrompt(String topicName, List<NodeScore> ranked) {
         String options = renderOptions(ranked);
         return promptTemplateLoader.render(
@@ -256,6 +279,9 @@ public class IntentGuidanceService {
         );
     }
 
+    /**
+     * 按候选顺序生成从 1 开始的选项列表，供用户选择具体业务路径。
+     */
     private String renderOptions(List<NodeScore> ranked) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < ranked.size(); i++) {
@@ -266,6 +292,9 @@ public class IntentGuidanceService {
         return sb.toString().trim();
     }
 
+    /**
+     * 优先展示意图完整路径，缺失时使用名称或 ID，空节点返回空字符串。
+     */
     private String resolveOptionDisplay(IntentNode node) {
         if (node == null) {
             return "";
@@ -276,6 +305,9 @@ public class IntentGuidanceService {
         return StrUtil.blankToDefault(node.getName(), node.getId());
     }
 
+    /**
+     * 去除首尾空白、统一小写并移除标点与空白，供意图路径名称比较使用。
+     */
     private String normalizeName(String name) {
         if (name == null) {
             return "";

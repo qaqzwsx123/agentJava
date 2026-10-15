@@ -71,6 +71,10 @@ public class IndexerNode implements IngestionNode {
         return IngestionNodeType.INDEXER.getValue();
     }
 
+    /**
+     * 检查分块与目标分区，附加流水线元数据后按写入开关决定是否真正写向量。
+     * 延迟写入模式只准备产物；直接写入模式先确保向量空间存在，再批量写入。
+     */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         List<EmbeddedChunk> chunks = context.getChunks();
@@ -97,6 +101,9 @@ public class IndexerNode implements IngestionNode {
         return NodeResult.ok("已写入 " + enriched.size() + " 个分块到集合 " + partition);
     }
 
+    /**
+     * 解析索引节点设置，未配置时使用默认对象。
+     */
     private IndexerSettings parseSettings(JsonNode node) {
         if (node == null || node.isNull()) {
             return IndexerSettings.builder().build();
@@ -104,6 +111,9 @@ public class IndexerNode implements IngestionNode {
         return objectMapper.convertValue(node, IndexerSettings.class);
     }
 
+    /**
+     * 依次从向量目标、向量空间标识和系统默认配置中取得逻辑分区名。
+     */
     private String resolvePartition(IngestionContext context) {
         if (context.getVectorTarget() != null) {
             return context.getVectorTarget().partition();
@@ -151,12 +161,18 @@ public class IndexerNode implements IngestionNode {
         return result;
     }
 
+    /**
+     * 仅将非空白字段加入索引元数据，避免保存无效标识。
+     */
     private static void putIfPresent(Map<String, Object> map, String key, String value) {
         if (StringUtils.hasText(value)) {
             map.put(key, value);
         }
     }
 
+    /**
+     * 按逻辑分区检查向量空间，不存在时使用默认规格创建，具体后端由 VectorStoreAdmin 处理。
+     */
     private void ensureVectorSpace(String partition) {
         VectorSpaceId spaceId = VectorSpaceId.builder().logicalName(partition).build();
         if (vectorStoreAdmin.vectorSpaceExists(spaceId)) {

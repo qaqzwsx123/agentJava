@@ -52,6 +52,10 @@ public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
         return HtmlTableBlock.class;
     }
 
+    /**
+     * 按完整表格行分组，重复表头并计入外壳预算，同时限制每块行数。
+     * 无可切行边界时保留整表，避免切坏 HTML；分组时允许单行自身超过字符预算。
+     */
     @Override
     public List<ChunkDraft> chunk(HtmlTableBlock block, ChunkContext ctx) {
         if (block == null || !StringUtils.hasText(block.html())) {
@@ -117,6 +121,9 @@ public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
         return end < 0 ? "<table>" : html.substring(0, end + 1);
     }
 
+    /**
+     * 把表格开始标签、重复表头和当前行组合为独立完整的 HTML 表格。
+     */
     private static String render(String open, String header, List<String> rows) {
         StringBuilder sb = new StringBuilder(open).append(header);
         for (String row : rows) {

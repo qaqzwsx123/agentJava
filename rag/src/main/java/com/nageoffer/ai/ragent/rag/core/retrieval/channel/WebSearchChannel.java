@@ -83,6 +83,9 @@ public class WebSearchChannel implements SearchChannel {
         this.properties = properties;
     }
 
+    /**
+     * 返回 You.com 联网检索通道名称，供通道结果和日志使用。
+     */
     @Override
     public String getName() {
         return "YouComWebSearch";

@@ -252,6 +252,9 @@ public class DefaultFileStorageService implements FileStorageService {
         return namespace + "/" + randomKey(originalFilename);
     }
 
+    /**
+     * 提取文件名最后一个点后的扩展名；无文件名、无点或点位于末尾时返回空字符串。
+     */
     private String extractSuffix(String filename) {
         if (filename == null) return "";
         int idx = filename.lastIndexOf('.');
@@ -267,6 +270,9 @@ public class DefaultFileStorageService implements FileStorageService {
         return suffix.isBlank() ? key : key + "." + suffix;
     }
 
+    /**
+     * 校验对象存储命名空间非空，避免后续对象键缺少业务隔离前缀。
+     */
     private void validateNamespace(String namespace) {
         Assert.notBlank(namespace, "namespace 不能为空");
     }
@@ -289,6 +295,9 @@ public class DefaultFileStorageService implements FileStorageService {
                 .build();
     }
 
+    /**
+     * 优先使用调用方提供的媒体类型，缺失时根据原始文件名探测，无法判断时返回 null。
+     */
     private String resolveContentType(String originalFilename, String contentType) {
         if (contentType != null && !contentType.isBlank()) return contentType;
         if (originalFilename != null && !originalFilename.isBlank()) return TIKA.detect(originalFilename);

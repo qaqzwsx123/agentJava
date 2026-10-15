@@ -27,10 +27,16 @@ package com.nageoffer.ai.ragent.core.parser.model;
  */
 public record Provenance(String sourceFile, String sheetName) {
 
+    /**
+     * 构造文件级溯源信息，不指定工作表。
+     */
     public static Provenance ofFile(String sourceFile) {
         return new Provenance(sourceFile, null);
     }
 
+    /**
+     * 构造包含源文件和工作表名称的溯源信息。
+     */
     public static Provenance ofExcelCell(String sourceFile, String sheetName) {
         return new Provenance(sourceFile, sheetName);
     }

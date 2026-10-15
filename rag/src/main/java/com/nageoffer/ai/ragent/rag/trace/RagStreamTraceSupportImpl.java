@@ -48,6 +48,10 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
     private final RagTraceProperties traceProperties;
     private final RagTraceRecordService traceRecordService;
 
+    /**
+     * 在已启用且存在追踪上下文时创建流节点，记录当前父节点与深度，并压入调用线程节点栈。
+     * 返回的 StreamSpan 负责异步完成或取消时收尾；追踪未启用时使用空操作句柄。
+     */
     @Override
     public StreamSpan beginStreamNode(String name, String type) {
         if (!traceProperties.isEnabled()) {

@@ -39,14 +39,23 @@ public class GuidanceDecision {
         this.prompt = prompt;
     }
 
+    /**
+     * 构造无需澄清的决策，不携带提示正文。
+     */
     public static GuidanceDecision none() {
         return new GuidanceDecision(Action.NONE, null);
     }
 
+    /**
+     * 构造需要向用户发送澄清提示的决策。
+     */
     public static GuidanceDecision prompt(String prompt) {
         return new GuidanceDecision(Action.PROMPT, prompt);
     }
 
+    /**
+     * 判断当前决策是否要求澄清，供对话流水线决定是否短路。
+     */
     public boolean isPrompt() {
         return action == Action.PROMPT;
     }

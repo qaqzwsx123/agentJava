@@ -61,6 +61,9 @@ public class ChunkerNode implements IngestionNode {
         return IngestionNodeType.CHUNKER.getValue();
     }
 
+    /**
+     * 要求上下文已确定向量目标，按分块预算切分结构化块，再使用目标嵌入模型生成向量并回填上下文。
+     */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         VectorTarget target = context.getVectorTarget();
@@ -74,11 +77,15 @@ public class ChunkerNode implements IngestionNode {
             return NodeResult.fail(new ClientException("分块结果为空"));
         }
 
+        // 分块只产生结构化正文，嵌入步骤按已绑定模型和维度补向量，避免任意切换模型。
         List<EmbeddedChunk> embedded = chunkEmbeddingService.embed(chunks, target);
         context.setChunks(embedded);
         return NodeResult.ok("已分块 " + embedded.size() + " 段");
     }
 
+    /**
+     * 解析分块节点设置，转换结果为空时使用默认设置对象。
+     */
     private ChunkerSettings parseSettings(JsonNode node) {
         ChunkerSettings settings = objectMapper.convertValue(node, ChunkerSettings.class);
         return settings == null ? ChunkerSettings.builder().build() : settings;
