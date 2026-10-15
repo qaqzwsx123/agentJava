@@ -76,9 +76,12 @@ public class RAGSettingsController {
 
     /**
      * 获取系统引擎、后端选型、检索管线与 AI 模型等配置信息
+     * 返回管理端需要展示的引擎、存储、检索、模型和上传配置概览。
+     * 这是只读配置接口；模型配置经转换后输出，不直接暴露配置对象中的密钥。
      */
     @GetMapping("/rag/settings")
     public Result<SystemSettingsVO> settings() {
+        // 分别组装后端选择、RAG 参数、AI 模型及上传大小限制。
         SystemSettingsVO response = SystemSettingsVO.builder()
                 .engine(SystemSettingsVO.EngineSettings.builder()
                         .type(orchestrationProperties.getMode().name().toLowerCase(Locale.ROOT))
@@ -94,7 +97,12 @@ public class RAGSettingsController {
         return Results.success(response);
     }
 
+    /**
+     * 构造存储、向量、关键词和图谱后端的展示配置。
+     * 返回的是管理端所需字段，不直接序列化完整的后端连接配置对象。
+     */
     private BackendSettings toBackendSettings() {
+        // 各后端选择独立组装，便于前端解释当前服务使用的实现。
         return BackendSettings.builder()
                 .storage(toStorageBackend(ragStorageProperties))
                 .vector(BackendSettings.VectorBackend.builder()
@@ -116,7 +124,12 @@ public class RAGSettingsController {
                 .build();
     }
 
+    /**
+     * 按当前 OSS 或 S3 配置构造存储后端概要。
+     * 分别返回知识库桶、资源桶、端点、公开地址和区域，不返回访问凭据。
+     */
     private BackendSettings.StorageBackend toStorageBackend(RagStorageProperties props) {
+        // 先判断后端类型，再从相应配置分支取值，避免混用两套地址。
         boolean oss = "oss".equalsIgnoreCase(props.getType());
         return BackendSettings.StorageBackend.builder()
                 .type(props.getType())
@@ -128,7 +141,12 @@ public class RAGSettingsController {
                 .build();
     }
 
+    /**
+     * 汇总 RAG 默认参数、功能开关、检索预算、限流与会话记忆配置。
+     * 只读取当前配置，不通过此接口修改运行参数。
+     */
     private SystemSettingsVO.RagSettings toRagSettings() {
+        // 不同配置对象转换为稳定的响应结构，避免页面依赖配置类内部字段。
         return SystemSettingsVO.RagSettings.builder()
                 .defaultConfig(SystemSettingsVO.DefaultSettings.builder()
                         .collectionName(ragDefaultProperties.getCollectionName())
@@ -163,7 +181,12 @@ public class RAGSettingsController {
                 .build();
     }
 
+    /**
+     * 把多路召回、范围判定和融合排序配置转换为展示结构。
+     * 渠道权重来自融合配置，联网搜索只返回密钥是否已配置，不返回原密钥。
+     */
     private SearchSettings toSearchSettings(SearchChannelProperties props) {
+        // 默认 Top-K、召回预算和精排候选上限分别展示，不能混为同一个数量。
         SearchChannelProperties.Channels channels = props.getChannels();
         SearchChannelProperties.ChannelWeights weights = props.getFusion().getChannelWeights();
         return SearchSettings.builder()
@@ -204,7 +227,12 @@ public class RAGSettingsController {
                 .build();
     }
 
+    /**
+     * 组装模型提供商、候选模型、分层选择和流式配置。
+     * 提供商 API Key 经过 maskApiKey 处理后才进入响应。
+     */
     private AISettings toAISettings(AIModelProperties props) {
+        // 先构造脱敏后的提供商信息，再映射各类型模型组。
         Map<String, AISettings.ProviderConfig> providers = new HashMap<>();
         if (props.getProviders() != null) {
             props.getProviders().forEach((k, v) -> providers.put(k, AISettings.ProviderConfig.builder()
@@ -234,7 +262,12 @@ public class RAGSettingsController {
                 .build();
     }
 
+    /**
+     * 把聊天、嵌入、重排或视觉模型组转换为管理端配置视图。
+     * 模型组未配置时保留 null，候选模型与分层配置分别映射。
+     */
     private AISettings.ModelGroup toModelGroup(AIModelProperties.ModelGroup group) {
+        // 这里只描述候选项，不在读取配置时执行模型调用或健康探测。
         if (group == null) {
             return null;
         }
@@ -260,7 +293,12 @@ public class RAGSettingsController {
                 .build();
     }
 
+    /**
+     * 转换模型层级名称到候选集合和超时预算的映射。
+     * 未配置层级时返回 null，保留未配置与空集合的语义差异。
+     */
     private Map<String, AISettings.TierConfig> toTiers(Map<String, AIModelProperties.TierConfig> tiers) {
+        // 层级候选顺序与原始配置保持一致，实际模型选择由运行时组件决定。
         if (tiers == null) {
             return null;
         }
@@ -273,7 +311,12 @@ public class RAGSettingsController {
                                 .build()));
     }
 
+    /**
+     * 将模型提供商密钥转换为管理端可展示的掩码。
+     * 空值返回 null，短密钥完全遮蔽，较长密钥仅保留前 6 位和后 4 位。
+     */
     private String maskApiKey(String apiKey) {
+        // 响应仅用于判断配置和区分密钥，不包含完整可用密钥。
         if (!StringUtils.hasText(apiKey)) {
             return null;
         }

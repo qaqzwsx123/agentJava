@@ -73,6 +73,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Value("knowledge-base-cleanup_topic${unique-name:}")
     private String cleanupTopic;
 
+    /**
+     * 创建知识库记录，并准备文件目录和对应的逻辑向量空间。
+     * 名称和集合名分别校验重复，数据库记录保存后再初始化底层存储资源。
+     */
     @Transactional
     @Override
     @LogRecord(
@@ -85,6 +89,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(KnowledgeBaseCreateRequest requestParam) {
+        // 先检查业务命名冲突，避免同一逻辑知识库被多个记录重复绑定。
         // 名称重复校验
         String name = requestParam.getName().replaceAll("\\s+", "");
         Long count = knowledgeBaseMapper.selectCount(
@@ -118,6 +123,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         knowledgeBaseMapper.insert(kbDO);
 
         // 在全局知识库桶下建立该知识库目录（幂等），collectionName 即目录名
+        // 记录确定后为该逻辑知识库准备文件目录，随后准备向量空间。
         fileStorageService.createKnowledgeSpace(requestParam.getCollectionName());
 
         VectorSpaceSpec spaceSpec = VectorSpaceSpec.builder()
@@ -132,6 +138,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return String.valueOf(kbDO.getId());
     }
 
+    /**
+     * 修改知识库名称或嵌入模型配置。
+     * 已有向量化文档时禁止切换嵌入模型，避免新旧向量配置不一致。
+     */
     @Override
     @LogRecord(
             success = "更新知识库：{{#requestParam.id}}",
@@ -143,6 +153,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(KnowledgeBaseUpdateRequest requestParam) {
+        // 读取原知识库并保存快照，再按请求字段判断是否需要修改模型。
         KnowledgeBaseDO kb = knowledgeBaseMapper.selectById(requestParam.getId());
         if (kb == null || kb.getDeleted() != null && kb.getDeleted() == 1) {
             throw new ClientException("知识库不存在：" + requestParam.getId());
@@ -174,6 +185,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         bizChangeLogContext.put(requestParam.getId(), before, knowledgeBaseMapper.selectById(requestParam.getId()));
     }
 
+    /**
+     * 只修改指定知识库的展示名称。
+     * 名称必须非空且不能与其他有效知识库重复，审计记录保存修改前后状态。
+     */
     @Override
     @LogRecord(
             success = "重命名知识库：{{#kbId}}",
@@ -185,6 +200,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void rename(String kbId, KnowledgeBaseUpdateRequest requestParam) {
+        // 重命名不会重新创建文件目录或向量空间。
         KnowledgeBaseDO kb = knowledgeBaseMapper.selectById(kbId);
         if (kb == null || kb.getDeleted() != null && kb.getDeleted() == 1) {
             throw new ClientException("知识库不存在");
@@ -215,6 +231,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         log.info("成功重命名知识库, kbId={}, newName={}", kbId, requestParam.getName());
     }
 
+    /**
+     * 提交知识库删除事务消息，由消费者异步回收底层资源。
+     * 有效文档未清空时拒绝删除；本地事务负责删除记录，消息消费负责物理清理。
+     */
     @Override
     @LogRecord(
             success = "删除知识库：{{#kbId}}",
@@ -226,6 +246,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String kbId) {
+        // 先检查知识库是否存在以及是否仍包含未删除文档。
         KnowledgeBaseDO kbDO = knowledgeBaseMapper.selectById(kbId);
         if (kbDO == null || kbDO.getDeleted() != null && kbDO.getDeleted() == 1) {
             throw new ClientException("知识库不存在");
@@ -249,6 +270,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .build();
 
         // 事务消息：本地事务软删知识库，提交后由消费者异步回收底层物理资源（Milvus collection / bucket / 残留向量）
+        // 本地删除与清理事件通过事务消息衔接；外部物理资源清理由消费者异步执行。
         messageQueueProducer.sendInTransaction(
                 cleanupTopic,
                 kbId,
@@ -265,8 +287,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         bizChangeLogContext.put(kbId, before, null);
     }
 
+    /**
+     * 读取有效知识库详情。
+     * 记录不存在或已经删除时抛出业务异常，不返回空的知识库对象。
+     */
     @Override
     public KnowledgeBaseVO queryById(String kbId) {
+        // 查询结果需同时满足记录存在和有效状态。
         KnowledgeBaseDO kbDO = knowledgeBaseMapper.selectById(kbId);
         if (kbDO == null || kbDO.getDeleted() != null && kbDO.getDeleted() == 1) {
             throw new ClientException("知识库不存在");
@@ -274,8 +301,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return BeanUtil.toBean(kbDO, KnowledgeBaseVO.class);
     }
 
+    /**
+     * 按名称分页查询知识库，并批量补充每个库的有效文档数。
+     * 只对当前页知识库做分组统计，没有文档的知识库数量回填为 0。
+     */
     @Override
     public IPage<KnowledgeBaseVO> pageQuery(KnowledgeBasePageRequest requestParam) {
+        // 先查询当前页，再集中收集知识库 ID，避免逐库执行计数查询。
         LambdaQueryWrapper<KnowledgeBaseDO> queryWrapper = Wrappers.lambdaQuery(KnowledgeBaseDO.class)
                 .like(StringUtils.hasText(requestParam.getName()), KnowledgeBaseDO::getName, requestParam.getName())
                 .eq(KnowledgeBaseDO::getDeleted, 0)
@@ -285,6 +317,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         IPage<KnowledgeBaseDO> result = knowledgeBaseMapper.selectPage(page, queryWrapper);
         Map<String, Long> docCountMap = new HashMap<>();
         if (CollUtil.isNotEmpty(result.getRecords())) {
+            // 只聚合当前页知识库的文档数，减少一次列表请求的额外查询范围。
             List<String> kbIds = result.getRecords().stream()
                     .map(KnowledgeBaseDO::getId)
                     .filter(Objects::nonNull)

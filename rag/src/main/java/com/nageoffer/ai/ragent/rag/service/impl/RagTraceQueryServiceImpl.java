@@ -55,8 +55,13 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
     private final RagTraceNodeMapper nodeMapper;
     private final UserMapper userMapper;
 
+    /**
+     * 按追踪 ID、会话、任务和状态分页查询 RAG 运行记录。
+     * 结果补充用户名和首字耗时，按运行开始时间倒序排列。
+     */
     @Override
     public IPage<RagTraceRunVO> pageRuns(RagTraceRunPageRequest request) {
+        // 运行概览和执行节点分开查询，列表阶段批量补充展示字段。
         LambdaQueryWrapper<RagTraceRunDO> wrapper = Wrappers.lambdaQuery(RagTraceRunDO.class)
                 .orderByDesc(RagTraceRunDO::getStartTime);
 
@@ -79,8 +84,13 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
         return pageResult.convert(run -> toRunVO(run, usernameMap, ttftMap));
     }
 
+    /**
+     * 读取一次追踪的运行概览和执行节点。
+     * 找不到运行记录时返回 null，找到后补充用户显示名及首字耗时。
+     */
     @Override
     public RagTraceDetailVO detail(String traceId) {
+        // 先读取运行主记录，再组装节点和派生性能指标。
         RagTraceRunDO run = runMapper.selectOne(Wrappers.lambdaQuery(RagTraceRunDO.class)
                 .eq(RagTraceRunDO::getTraceId, traceId)
                 .last("limit 1"));
@@ -95,8 +105,13 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
                 .build();
     }
 
+    /**
+     * 按追踪 ID 读取执行节点并转换为展示对象。
+     * 按节点开始时间及 ID 排序，使前端执行时间线顺序稳定。
+     */
     @Override
     public List<RagTraceNodeVO> listNodes(String traceId) {
+        // 节点详情读取独立于运行分页，避免列表请求加载全部载荷。
         List<RagTraceNodeDO> nodes = nodeMapper.selectList(Wrappers.lambdaQuery(RagTraceNodeDO.class)
                 .eq(RagTraceNodeDO::getTraceId, traceId)
                 .orderByAsc(RagTraceNodeDO::getStartTime)

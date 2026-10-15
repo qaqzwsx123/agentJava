@@ -47,12 +47,18 @@ public class RAGChatServiceImpl implements RAGChatService {
     private final StreamChatTraceRunner traceRunner;
     private final StreamTaskManager taskManager;
 
+    /**
+     * 准备 Workflow/RAG 流式问答的会话、任务与回调，并交给排队限流器执行。
+     * conversationId 可复用，taskId 每次新建；实际问答由 chatPipeline 处理。
+     */
     @Override
     public void streamChat(String question, String conversationId, Boolean deepThinking, SseEmitter emitter) {
+        // 先生成运行标识并绑定 SSE 回调，再把执行动作交给队列控制入口。
         String actualConversationId = StrUtil.isBlank(conversationId) ? IdUtil.getSnowflakeNextIdStr() : conversationId;
         String taskId = IdUtil.getSnowflakeNextIdStr();
         StreamCallback callback = callbackFactory.createChatEventHandler(emitter, actualConversationId, taskId);
 
+        // 把真正的问答执行放到排队限流入口中，并用 Trace 包装整条编排链路。
         chatQueueLimiter.enqueue(question, actualConversationId, emitter,
                 () -> traceRunner.run(question, actualConversationId, taskId, callback, traceAware -> {
                     StreamChatContext ctx = StreamChatContext.builder()
@@ -67,8 +73,13 @@ public class RAGChatServiceImpl implements RAGChatService {
                 }));
     }
 
+    /**
+     * 向任务管理器提交当前用户的流式问答取消请求。
+     * 属主校验、Redis 标记及跨节点通知由 cancelByUser 统一处理。
+     */
     @Override
     public void stopTask(String taskId) {
+        // 取消一次运行任务，不等同于删除聊天会话或历史消息。
         taskManager.cancelByUser(taskId);
     }
 }

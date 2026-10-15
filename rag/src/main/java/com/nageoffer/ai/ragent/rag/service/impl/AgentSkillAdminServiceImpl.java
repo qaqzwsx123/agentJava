@@ -68,8 +68,13 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
     private final IntentNodeRegistry intentNodeRegistry;
     private final BizChangeLogContext bizChangeLogContext;
 
+    /**
+     * 分页检索技能编码、名称或适用场景。
+     * 列表不返回完整 Markdown 正文，按排序号升序和更新时间倒序展示。
+     */
     @Override
     public IPage<AgentSkillVO> pageQuery(AgentSkillPageRequest requestParam) {
+        // 使用管理视图查询全部有效技能，而非只读运行期启用清单。
         String keyword = StrUtil.trimToNull(requestParam.getKeyword());
         Page<AgentSkillDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
         IPage<AgentSkillDO> result = agentSkillMapper.selectPage(
@@ -87,11 +92,20 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
         return result.convert(record -> toVO(record, false));
     }
 
+    /**
+     * 读取完整技能详情，包括手册正文和解锁工具集合。
+     * 使用数据库记录 ID 定位，和模型加载时使用的 skillCode 区分。
+     */
     @Override
     public AgentSkillVO queryById(String id) {
+        // 详情转换开启正文输出，供编辑页面回填。
         return toVO(loadById(id), true);
     }
 
+    /**
+     * 创建业务技能，校验标识唯一性、场景说明、正文及关联工具。
+     * 缺省排序为 0、缺省启用；保存后清理启用技能缓存。
+     */
     @Override
     @LogRecord(
             success = "创建技能：{{#requestParam.name}}",
@@ -103,6 +117,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(AgentSkillSaveRequest requestParam) {
+        // 先检查请求和技能编码，再组装可供运行时注册表读取的技能记录。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         String skillCode = normalizeSkillCode(requestParam.getSkillCode());
         boolean duplicated = agentSkillMapper.exists(Wrappers.lambdaQuery(AgentSkillDO.class)
@@ -121,11 +136,16 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
                 .enabled(Boolean.FALSE.equals(requestParam.getEnabled()) ? 0 : 1)
                 .build();
         agentSkillMapper.insert(record);
+        // 技能运行期先读缓存，写操作后必须失效缓存才能及时读取新清单。
         cacheManager.clearCache();
         bizChangeLogContext.put(record.getId(), null, record);
         return record.getId();
     }
 
+    /**
+     * 局部更新技能正文、展示信息、关联工具及启用状态。
+     * skillCode 保持不变，避免破坏手册之间按编码建立的引用关系。
+     */
     @Override
     @LogRecord(
             success = "更新技能：{{#id}}",
@@ -137,6 +157,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(String id, AgentSkillSaveRequest requestParam) {
+        // 保留更新前快照，非 null 字段才覆盖原配置。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         AgentSkillDO record = loadById(id);
         AgentSkillDO before = BeanUtil.copyProperties(record, AgentSkillDO.class);
@@ -161,11 +182,16 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
             record.setEnabled(requestParam.getEnabled() ? 1 : 0);
         }
 
+        // 数据库更新与缓存刷新配合，后续每轮推理会重新判断工具遮蔽集合。
         agentSkillMapper.updateById(record);
         cacheManager.clearCache();
         bizChangeLogContext.put(id, before, agentSkillMapper.selectById(id));
     }
 
+    /**
+     * 删除技能配置并使运行时技能缓存失效。
+     * 记录不存在时拒绝操作，删除不会在此处动态注销共享 Toolkit。
+     */
     @Override
     @LogRecord(
             success = "删除技能：{{#id}}",
@@ -177,12 +203,17 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String id) {
+        // 管理层维护配置，运行期工具开放范围由逐轮遮蔽机制判断。
         AgentSkillDO record = loadById(id);
         agentSkillMapper.deleteById(record.getId());
         cacheManager.clearCache();
         bizChangeLogContext.put(id, record, null);
     }
 
+    /**
+     * 修改技能启用标记并清理启用清单缓存。
+     * 缓存失效后注册表重新读取配置，审计保留启停前后状态。
+     */
     @Override
     @LogRecord(
             success = "{{#enabled ? '启用' : '停用'}}技能：{{#id}}",
@@ -194,6 +225,7 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void toggleEnabled(String id, boolean enabled) {
+        // 先加载原记录，避免对不存在的技能执行无效启停。
         AgentSkillDO record = loadById(id);
         AgentSkillDO before = BeanUtil.copyProperties(record, AgentSkillDO.class);
         record.setEnabled(enabled ? 1 : 0);
@@ -202,8 +234,13 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
         bizChangeLogContext.put(id, before, agentSkillMapper.selectById(id));
     }
 
+    /**
+     * 从意图树 MCP 节点构造技能关联工具选项。
+     * 按工具 ID 去重，附带已引用该工具的技能名称，便于管理端选择。
+     */
     @Override
     public List<AgentSkillToolOptionVO> listToolOptions() {
+        // 候选工具来源于业务配置，不允许通过自由输入关联任意工具名。
         Map<String, String> ownerBySkill = referencedToolOwners();
         List<AgentSkillToolOptionVO> options = new ArrayList<>();
         LinkedHashSet<String> seen = new LinkedHashSet<>();
@@ -241,8 +278,11 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
 
     /**
      * 工具必须是意图树里已启用的 MCP 节点：这批工具才是接入方真正开放给 Agent 的
+     * 校验并去重技能需要解锁的 MCP 工具 ID。
+     * 空白 ID 跳过，任何不在意图树 MCP 节点中的工具都会被拒绝。
      */
     private List<String> validateToolIds(List<String> toolIds) {
+        // 先建立业务允许的工具集合，再逐项核对请求中的关联关系。
         if (toolIds == null || toolIds.isEmpty()) {
             return List.of();
         }
@@ -268,7 +308,12 @@ public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
         return List.copyOf(selected);
     }
 
+    /**
+     * 校验模型加载技能所用的稳定编码。
+     * 编码需为小写字母开头的字母、数字或下划线，长度满足规定范围。
+     */
     private String normalizeSkillCode(String skillCode) {
+        // 只去除首尾空白，不自动修改大小写或替换非法字符。
         String trimmed = StrUtil.trimToNull(skillCode);
         Assert.notBlank(trimmed, () -> new ClientException("技能标识不能为空"));
         if (!SKILL_CODE_PATTERN.matcher(trimmed).matches()) {

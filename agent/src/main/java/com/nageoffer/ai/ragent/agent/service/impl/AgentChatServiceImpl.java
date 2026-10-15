@@ -81,8 +81,13 @@ public class AgentChatServiceImpl implements AgentChatService {
     private final AgentMemoryProperties memoryProperties;
     private final AgentMemoryPipeline memoryPipeline;
 
+    /**
+     * 为用户提问准备一次 Agent 运行，并启动异步 SSE 事件流。
+     * 会话 ID 可复用，任务 ID 每次新建；申请运行名额后检查是否还有待确认操作。
+     */
     @Override
     public void streamChat(String question, String conversationId, SseEmitter emitter) {
+        // 用户身份必须在当前请求线程中取得，后续通过 RunScope 显式传给异步链路。
         String userId = UserContext.getUserId();
         String actualConversationId = StrUtil.isBlank(conversationId)
                 ? IdUtil.getSnowflakeNextIdStr()  // 没传 → 新会话，生成雪花 ID
@@ -105,18 +110,39 @@ public class AgentChatServiceImpl implements AgentChatService {
         }
     }
 
+    /**
+     * 确认（批准或拒绝）Agent 挂起的工具调用，并启动对应的任务执行流程。
+     * 把用户的批准或拒绝转换为 Agent 续跑输入。
+     * 每次确认创建新任务并申请运行名额，启动失败时必须释放名额和任务登记。
+     * */
     @Override
     public void confirmPendingTool(String conversationId, String messageId, boolean approved, SseEmitter emitter) {
+        // 先校验会话与消息标识完整，再进入确认卡片的只读校验和续跑准备。
+        // 从当前线程上下文中获取当前操作用户ID，用于权限校验和并发控制
         String userId = UserContext.getUserId();
+
+        // 基础参数校验：会话ID和消息ID不能为空，否则无法定位到具体的挂起请求
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(messageId)) {
             throw new ClientException("确认参数不完整");
         }
+
+        // 生成唯一的任务ID（雪花算法），用于标识本次确认操作对应的运行实例，
+        // 便于后续追踪、日志记录以及在异常时进行精确的资源回收
         String taskId = IdUtil.getSnowflakeNextIdStr();
 
+        // 获取并发控制门控（如用户级限流锁），防止同一用户同时触发过多运行任务。
+        // acquire 会尝试获取资源并返回一个释放句柄 releaseGate，任务结束后必须调用以释放资源
         Runnable releaseGate = runGate.acquire(userId, taskId, conversationId);
+
         try {
+            // 启动实际的确认运行流程：将用户的审批结果（approved）传递给底层 Agent 引擎，
+            // 解除对应 messageId 的挂起状态，Agent 随后继续执行或跳过该工具调用，
+            // 并通过 emitter 持续向客户端推送流式输出
             startConfirmRun(userId, conversationId, messageId, approved, taskId, emitter, releaseGate);
         } catch (RuntimeException | Error e) {
+            // 启动失败时的兜底清理：如果 startConfirmRun 抛出运行时异常或错误（如线程中断、
+            // 内存不足等），必须立即释放之前获取的并发资源，避免死锁或资源泄漏，
+            // 然后将异常向上抛出，由全局异常处理器返回给前端
             cleanupFailedStart(taskId, releaseGate);
             throw e;
         }
@@ -126,8 +152,11 @@ public class AgentChatServiceImpl implements AgentChatService {
      * 只在启动失败时走：闸门不还，这个用户要被锁到 TTL 到期才能再提问
      * 启动成功后闸门归运行句柄的释放钩子管，这里不碰
      * 两步各自兜异常，前一步失败不能连累后一步
+     * 回收尚未成功启动的运行名额和任务登记。
+     * 释放闸门与注销任务分别兜底，防止一个清理异常阻断另一个步骤。
      */
     private void cleanupFailedStart(String taskId, Runnable releaseGate) {
+        // 启动成功后的资源释放由运行句柄接管，只有失败路径调用本方法。
         try {
             releaseGate.run();
         } catch (Exception e) {
@@ -140,6 +169,10 @@ public class AgentChatServiceImpl implements AgentChatService {
         }
     }
 
+    /**
+     * 准备普通提问所需的会话、用户消息和运行范围。
+     * 先建立长期记忆抽取基线，再落本轮提问，避免把新消息误归入历史范围。
+     */
     private void startRun(String question, String userId, String conversationId, String taskId,
                           SseEmitter emitter, Runnable releaseGate) {
         // 取本次要使用的 Agent（按配置选定，单模型无 fallback）
@@ -166,17 +199,32 @@ public class AgentChatServiceImpl implements AgentChatService {
     }
     /**
      * 用户确认/拒绝后继续执行：先只读校验，启动准备完成后才结算卡片
+     * 读取待确认记录及原始工具调用，构造仅携带确认结果的续跑消息。
+     * 空正文避免重复追加用户提问，卡片结算延后到运行句柄真正启动时。
      */
     private void startConfirmRun(String userId, String conversationId, String messageId, boolean approved,
                                  String taskId, SseEmitter emitter, Runnable releaseGate) {
+        // 先取得运行实例和待确认消息的归属信息，再构造确认结果列表。
+        // 获取当前配置对应的缓存 Agent 实例；人设或工具目录变化时由 Provider 按签名懒重建
         ActiveAgent activeAgent = agentProvider.getAgent();
+
+        // 从会话服务中读取挂起的确认结算信息（即前端看到的"确认卡片"），
+        // 包含标题、回复目标消息ID等元数据，用于恢复上下文
         AgentConfirmSettlement settlement = conversationService.getPendingConfirm(conversationId, userId, messageId);
+
+        // 解析确认结果：根据用户批准/拒绝的决议，结合挂起的工具调用，生成 ConfirmResult 列表。
+        // 若服务端状态中已无 ASKING 工具，则将确认卡片标为过期并报错，避免会话持续被阻塞
         List<ConfirmResult> confirmResults = resolveConfirmResultsOrExpire(activeAgent, userId, conversationId, messageId, approved);
 
-        // 空正文消息仅携带确认/拒绝结果，框架不会把它并进对话上下文
+        // 构造恢复消息：正文为空，仅通过 metadata 携带确认结果。
+        // 这样设计是为了让 Agent 框架识别到这是一次"恢复执行"而非新的用户输入，
+        // 不会把该消息追加到对话上下文中作为一轮新的对话
         Msg resumeMsg = UserMessage.builder()
                 .metadata(Map.of(Msg.METADATA_CONFIRM_RESULTS, confirmResults))
                 .build();
+
+        // 启动流式执行：将恢复消息交给 Agent，并通过 RunScope 传入完整的运行时上下文，
+        // 包括 SSE 发射器、任务ID、会话信息、确认结果、以及并发门控释放句柄
         launchStream(resumeMsg, activeAgent, RunScope.builder()
                 .emitter(emitter)
                 .userId(userId)
@@ -184,17 +232,20 @@ public class AgentChatServiceImpl implements AgentChatService {
                 .taskId(taskId)
                 .title(settlement.title())
                 .replyToMessageId(settlement.replyToMessageId())
-                .confirmMessageId(messageId)
-                .confirmApproved(approved)
-                .releaseGate(releaseGate)
+                .confirmMessageId(messageId)      // 记录是哪条消息触发了确认
+                .confirmApproved(approved)        // 记录用户的批准/拒绝决议
+                .releaseGate(releaseGate)         // 任务结束后调用，释放用户级并发锁
                 .build());
     }
 
     /**
      * 工具入参从 Agent 状态取，前端只传同意/拒绝，防止篡改
+     * 从服务端 Agent 状态提取待批准工具，生成同意或拒绝结果。
+     * 找不到 ASKING 工具时先让卡片过期，再报错，防止会话永久停在待确认状态。
      */
     private List<ConfirmResult> resolveConfirmResultsOrExpire(ActiveAgent activeAgent, String userId,
                                                               String conversationId, String messageId, boolean approved) {
+        // 工具名称及入参使用已保存状态中的原件，不接受前端重传工具参数。
         @SuppressWarnings("resource")
         ReActAgent agent = activeAgent.agent();
         List<ToolUseBlock> asking = askingToolCalls(agent.getAgentState(userId, conversationId).getContext());
@@ -208,8 +259,11 @@ public class AgentChatServiceImpl implements AgentChatService {
 
     /**
      * 待批工具只在上下文最后一条 assistant 消息上，与框架内部判据一致
+     * 从最近一条助手消息提取处于 ASKING 状态的工具调用。
+     * 只看最后一条助手消息，与框架识别当前待确认操作的范围保持一致。
      */
     private static List<ToolUseBlock> askingToolCalls(List<Msg> context) {
+        // 逆序定位最近助手消息，避免把更早轮次的确认请求重新执行。
         for (int i = context.size() - 1; i >= 0; i--) {
             Msg msg = context.get(i);
             if (msg.getRole() != MsgRole.ASSISTANT) {
@@ -229,6 +283,10 @@ public class AgentChatServiceImpl implements AgentChatService {
      */
     // 当问题（input）和方法（Agent）都准备好后，如何安全地拉起一条从后端 AI 引擎到前端浏览器的流式管道，
     // launchStream: 负责把一个普通的用户请求（Msg），转化为一条与前端实时通信、可监控、可中断的异步流（Flux<AgentEvent>。
+    /**
+     * 把普通提问或确认结果接入同一条可取消的 Agent SSE 执行链路。
+     * 先绑定生命周期并发送 meta，再登记取消回调、订阅事件流并关联上游中断句柄。
+     */
     private void launchStream(Msg input, ActiveAgent activeAgent, RunScope scope) {
         // 1. 提取上下文信息（用户、会话、任务ID），用于标识本次运行的唯一性
         String userId = scope.userId();
@@ -304,6 +362,8 @@ public class AgentChatServiceImpl implements AgentChatService {
 
     /**
      * 登记流结束后的三件事，注册顺序就是执行顺序，换顺序会出问题
+     * 按固定顺序注册流结束后的状态保存、缓存清理和闸门释放动作。
+     * 先处理旧流状态，再允许同用户下一轮进入，最后安排长期记忆抽取。
      */
     private void bindReleaseHooks(AgentRunHandle runHandle, ReActAgent agent, RunScope scope) {
         String userId = scope.userId();
@@ -442,6 +502,8 @@ public class AgentChatServiceImpl implements AgentChatService {
 
     /**
      * SSE 断开（关页/断网/超时）时触发取消，否则 ReAct 循环会空跑到迭代上限
+     * 把 SSE 超时、错误及完成回调连接到上游任务回收。
+     * 已结算任务跳过取消，AtomicBoolean 限制多个容器回调只触发一次回收。
      */
     private void bindEmitterLifecycle(SseEmitter emitter, AgentRunHandle runHandle, String taskId) {
         AtomicBoolean recycled = new AtomicBoolean(false);
@@ -457,8 +519,13 @@ public class AgentChatServiceImpl implements AgentChatService {
         emitter.onCompletion(recycleUpstream);
     }
 
+    /**
+     * 提交当前用户对指定运行任务的取消请求。
+     * 任务属主验证与跨节点取消由 StreamTaskManager 处理，不在这里直接删除会话。
+     */
     @Override
     public void stopTask(String taskId) {
+        // 委托用户级取消入口，保留任务管理器的属主检查和通知机制。
         taskManager.cancelByUser(taskId);
     }
 }

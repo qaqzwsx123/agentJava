@@ -80,6 +80,10 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
     private final ObjectMapper objectMapper;
     private final BizChangeLogContext bizChangeLogContext;
 
+    /**
+     * 把请求中的文档来源转换为内部对象并同步执行摄入任务。
+     * 返回任务 ID、状态和分块数量，同时保存任务审计快照。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -92,6 +96,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public IngestionResult execute(IngestionTaskCreateRequest request) {
+        // 先验证请求，再读取指定流水线并交给共同的执行入口。
         Assert.notNull(request, () -> new ClientException("请求不能为空"));
         DocumentSource source = toSource(request.getSource());
         IngestionResult result = executeInternal(request.getPipelineId(), source, null, null, request.getVectorSpaceId());
@@ -99,6 +104,10 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return result;
     }
 
+    /**
+     * 读取上传文件字节，探测 MIME 后同步执行指定流水线。
+     * 没有原文件名时使用默认名称，读取或执行异常按当前分支转换为业务异常。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -111,6 +120,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public IngestionResult upload(String pipelineId, MultipartFile file) {
+        // 上传入口与来源请求入口共用 executeInternal，避免重复维护任务落库逻辑。
         Assert.notNull(file, () -> new ClientException("文件不能为空"));
         try {
             byte[] bytes = file.getBytes();
@@ -118,6 +128,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
             if (!StringUtils.hasText(fileName)) {
                 fileName = "upload.bin";
             }
+            // 根据文件实际字节及名称探测类型，再把原始字节直接交给引擎。
             String mimeType = MimeTypeDetector.detect(bytes, fileName);
             DocumentSource source = DocumentSource.builder()
                     .type(SourceType.FILE)
@@ -134,15 +145,25 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 读取摄入任务主记录并还原展示用日志与元数据。
+     * 任务 ID 不存在时抛出业务异常，不创建占位任务。
+     */
     @Override
     public IngestionTaskVO get(String taskId) {
+        // 只查询已有执行结果，不重新运行流水线节点。
         IngestionTaskDO task = taskMapper.selectById(taskId);
         Assert.notNull(task, () -> new ClientException("未找到任务"));
         return toVO(task);
     }
 
+    /**
+     * 按可选状态分页查询有效摄入任务。
+     * 结果按创建时间倒序，状态值先通过枚举归一化再构造条件。
+     */
     @Override
     public IPage<IngestionTaskVO> page(Page<IngestionTaskVO> page, String status) {
+        // 任务主列表不加载全部节点输出，节点详情另行读取。
         Page<IngestionTaskDO> mpPage = new Page<>(page.getCurrent(), page.getSize());
         String normalizedStatus = normalizeStatus(status);
         LambdaQueryWrapper<IngestionTaskDO> qw = new LambdaQueryWrapper<IngestionTaskDO>()
@@ -155,8 +176,13 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return voPage;
     }
 
+    /**
+     * 读取摄入任务的全部有效节点执行明细。
+     * 按节点顺序及 ID 升序返回，展示状态、耗时、错误和输出。
+     */
     @Override
     public List<IngestionTaskNodeVO> listNodes(String taskId) {
+        // 任务 ID 限定执行范围，不混入其他任务的节点日志。
         LambdaQueryWrapper<IngestionTaskNodeDO> qw = new LambdaQueryWrapper<IngestionTaskNodeDO>()
                 .eq(IngestionTaskNodeDO::getDeleted, 0)
                 .eq(IngestionTaskNodeDO::getTaskId, taskId)
@@ -166,11 +192,16 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return nodes.stream().map(this::toNodeVO).toList();
     }
 
+    /**
+     * 统一完成流水线加载、任务登记、引擎执行和结果持久化。
+     * 先保存 RUNNING 任务，再运行引擎，最后写节点日志并回填最终状态。
+     */
     private IngestionResult executeInternal(String pipelineId,
                                             DocumentSource source,
                                             byte[] rawBytes,
                                             String mimeType,
                                             VectorSpaceId vectorSpaceId) {
+        // 任务记录必须先创建，后续所有节点执行信息才能关联同一个 taskId。
         String resolvedPipelineId = resolvePipelineId(pipelineId);
         PipelineDefinition pipeline = pipelineService.getDefinition(resolvedPipelineId);
 
@@ -197,9 +228,11 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 .logs(new ArrayList<>())
                 .build();
 
+        // 引擎执行完成后，分别保存节点明细和任务级结果，供管理端分层查看。
         IngestionContext result = engine.execute(pipeline, context);
         saveNodeLogs(task, pipeline, result.getLogs());
         updateTaskFromContext(task, result);
+        // 业务成功与失败以 result.status 和 error 为准，HTTP 包装成功不替代任务状态。
         return IngestionResult.builder()
                 .taskId(result.getTaskId())
                 .pipelineId(result.getPipelineId())
@@ -217,7 +250,12 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         bizChangeLogContext.put(result.getTaskId(), null, taskMapper.selectById(result.getTaskId()));
     }
 
+    /**
+     * 把引擎返回的上下文结算到任务主记录。
+     * 状态缺失按失败处理，同时保存分块数、错误、完成时间及日志摘要。
+     */
     private void updateTaskFromContext(IngestionTaskDO task, IngestionContext context) {
+        // 结果状态来自引擎上下文，不根据 HTTP 是否成功返回来判断任务成功。
         task.setStatus(context.getStatus() == null ? IngestionStatus.FAILED.getValue() : context.getStatus().getValue());
         task.setChunkCount(context.getChunks() == null ? 0 : context.getChunks().size());
         task.setErrorMessage(context.getError() == null ? null : context.getError().getMessage());
@@ -228,7 +266,12 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         taskMapper.updateById(task);
     }
 
+    /**
+     * 把每个节点的执行日志保存为独立任务明细。
+     * 节点状态区分成功、失败和跳过，过大的输出在写入前截断。
+     */
     private void saveNodeLogs(IngestionTaskDO task, PipelineDefinition pipeline, List<NodeLog> logs) {
+        // 先建立配置节点的执行排序映射，便于查询时还原流水线顺序。
         if (logs == null || logs.isEmpty()) {
             return;
         }
@@ -252,7 +295,12 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 根据后继节点关系为流水线节点建立展示顺序。
+     * 优先从未被引用的入口顺序展开，再补入未覆盖节点，visited 防止重复排序。
+     */
     private Map<String, Integer> buildNodeOrderMap(PipelineDefinition pipeline) {
+        // 排序用于展示日志，不在这里决定引擎真正执行或条件分支选择。
         Map<String, Integer> orderMap = new HashMap<>();
         if (pipeline == null || pipeline.getNodes() == null || pipeline.getNodes().isEmpty()) {
             return orderMap;
@@ -344,7 +392,12 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
+    /**
+     * 把接口文档来源配置转换为内部 DocumentSource。
+     * 来源对象和来源类型必填，地址、文件名及凭据沿请求传入。
+     */
     private DocumentSource toSource(DocumentSourceRequest request) {
+        // 来源配置统一后，后续执行可以复用相同上下文结构。
         Assert.notNull(request, () -> new ClientException("文档来源不能为空"));
         DocumentSource source = DocumentSource.builder()
                 .type(request.getType())
@@ -483,8 +536,11 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
     /**
      * 截断过大的输出 JSON，防止超过数据库的 max_allowed_packet 限制
      * 默认限制为 1MB
+     * 把节点输出序列化并限制保存长度。
+     * 超过当前长度阈值时保留前缀并附加截断提示，无法序列化时返回 null。
      */
     private String truncateOutputJson(Object output) {
+        // 日志输出限长用于控制单节点明细体积，不修改引擎真正使用的原始输出。
         if (output == null) {
             return null;
         }

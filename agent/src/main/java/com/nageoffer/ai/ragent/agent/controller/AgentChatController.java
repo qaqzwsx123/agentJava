@@ -44,15 +44,20 @@ public class AgentChatController {
     private final AgentProperties agentProperties;
     //produces = "text/event-stream;charset=UTF-8" 就是把这个接口标记成 SSE 流式接口，
     // 返回内容是 UTF-8 编码的事件流，供前端用 EventSource 实时接收 AI 逐字输出。
+    /**
+     * 发起或继续 Agent 对话，通过 SSE 持续返回文本与工具执行事件。
+     * question 是本次提问；conversationId 不传时创建新会话，传入时沿用已有会话。
+     */
     @GetMapping(value = "/agent/v1/chat", produces = "text/event-stream;charset=UTF-8")
     public SseEmitter chat(@RequestParam @ChatQuestion String question,
                            @RequestParam(required = false) String conversationId) {
+        // 创建本轮流式响应通道，将实际会话准备和异步执行交给 Agent 服务。
         SseEmitter emitter = new SseEmitter(agentProperties.getSseTimeoutMs());
         agentChatService.streamChat(question, conversationId, emitter);
         return emitter;
     }
 
-    //用户在 Agent 执行过程中收到「工具调用确认」请求后，通过这个接口确认或拒绝（approved = true/false）Agent 继续执行某个操作
+
     /**
      * 处理用户对待确认工具调用的批准或拒绝，并通过新的 SSE 连接继续返回 Agent 执行结果。
      * 例如 Agent 准备提交申请时先展示确认卡片，用户点击“同意”或“拒绝”后调用此接口。
@@ -71,7 +76,7 @@ public class AgentChatController {
         return emitter;
     }
 
-    // 按 taskId 中止正在运行的 Agent 任务（比如用户点了"停止生成"按钮）
+
     /**
      * 用户点击“停止生成”时，根据 taskId 请求取消本轮正在执行的 Agent 任务。
      * taskId 来自本轮 SSE 的 meta 事件，标识一次运行，与会话 ID、消息 ID 含义不同。

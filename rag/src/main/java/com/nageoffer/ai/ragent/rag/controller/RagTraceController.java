@@ -43,25 +43,34 @@ public class RagTraceController {
 
     /**
      * 分页查询链路运行记录
+     * 按筛选条件分页查询 RAG 请求追踪记录。
+     * 查询参数可限定 traceId、conversationId、taskId 和状态，返回运行级概览。
      */
     @GetMapping("/rag/traces/runs")
     public Result<IPage<RagTraceRunVO>> pageRuns(RagTraceRunPageRequest request) {
+        // 详细节点和载荷通过单独接口获取，避免列表携带过多数据。
         return Results.success(ragTraceQueryService.pageRuns(request));
     }
 
     /**
      * 查询链路详情（包含节点）
+     * 查询一次 RAG 请求的完整追踪详情。
+     * traceId 是追踪 ID，服务层按该标识读取运行记录并补充节点信息。
      */
     @GetMapping("/rag/traces/runs/{traceId}")
     public Result<RagTraceDetailVO> detail(@PathVariable String traceId) {
+        // 追踪记录用于查看历史执行情况，不会重新执行原请求。
         return Results.success(ragTraceQueryService.detail(traceId));
     }
 
     /**
      * 仅查询链路节点
+     * 查询指定 RAG 追踪下的执行节点。
+     * traceId 标识一次追踪，节点列表供前端还原执行链路。
      */
     @GetMapping("/rag/traces/runs/{traceId}/nodes")
     public Result<List<RagTraceNodeVO>> nodes(@PathVariable String traceId) {
+        // 追踪查询服务按节点开始时间和 ID 排序，供前端稳定展示执行顺序。
         return Results.success(ragTraceQueryService.listNodes(traceId));
     }
 }

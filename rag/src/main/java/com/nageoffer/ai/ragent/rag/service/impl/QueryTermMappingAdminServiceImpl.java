@@ -47,6 +47,10 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
     private final QueryTermMappingCacheManager queryTermMappingCacheManager;
     private final BizChangeLogContext bizChangeLogContext;
 
+    /**
+     * 校验原始词和目标词后新增术语映射。
+     * 缺省匹配类型为 1、优先级为 0、状态为启用，保存后清理映射缓存。
+     */
     @Override
     @LogRecord(
             success = "创建关键词映射：{{#requestParam.sourceTerm}}",
@@ -58,6 +62,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(QueryTermMappingCreateRequest requestParam) {
+        // 先规范化必填词语，空白映射不允许写入数据库。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         String sourceTerm = StrUtil.trimToNull(requestParam.getSourceTerm());
         String targetTerm = StrUtil.trimToNull(requestParam.getTargetTerm());
@@ -78,6 +83,10 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
         return String.valueOf(record.getId());
     }
 
+    /**
+     * 按非 null 字段局部修改术语映射规则。
+     * 原词和目标词更新时不能为空，修改后刷新缓存并记录审计快照。
+     */
     @Override
     @LogRecord(
             success = "更新关键词映射：{{#id}}",
@@ -89,6 +98,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(String id, QueryTermMappingUpdateRequest requestParam) {
+        // 读取原记录供审计比对，再逐项应用请求中的变更字段。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         QueryTermMappingDO record = loadById(id);
         QueryTermMappingDO before = BeanUtil.copyProperties(record, QueryTermMappingDO.class);
@@ -121,6 +131,10 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
         bizChangeLogContext.put(id, before, queryTermMappingMapper.selectById(id));
     }
 
+    /**
+     * 删除术语映射并清理运行时规则缓存。
+     * 记录不存在时拒绝操作，审计上下文保留删除前配置。
+     */
     @Override
     @LogRecord(
             success = "删除关键词映射：{{#id}}",
@@ -132,6 +146,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String id) {
+        // 先取得有效记录，避免对不存在的规则生成误导性删除快照。
         QueryTermMappingDO record = loadById(id);
         QueryTermMappingDO before = BeanUtil.copyProperties(record, QueryTermMappingDO.class);
         queryTermMappingMapper.deleteById(record.getId());
@@ -139,14 +154,24 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
         bizChangeLogContext.put(id, before, null);
     }
 
+    /**
+     * 加载术语映射记录并转换为编辑视图。
+     * 不存在的规则由 loadById 统一抛出异常。
+     */
     @Override
     public QueryTermMappingVO queryById(String id) {
+        // 详情查询只读，不触发运行时缓存清理。
         QueryTermMappingDO record = loadById(id);
         return toVO(record);
     }
 
+    /**
+     * 按原始词或目标词关键字分页查询映射。
+     * 规则按优先级升序、更新时间倒序返回，便于查看实际匹配先后。
+     */
     @Override
     public IPage<QueryTermMappingVO> pageQuery(QueryTermMappingPageRequest requestParam) {
+        // 关键字条件在同一个 OR 分组内构造，不影响其他过滤范围。
         String keyword = StrUtil.trimToNull(requestParam.getKeyword());
         Page<QueryTermMappingDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
         IPage<QueryTermMappingDO> result = queryTermMappingMapper.selectPage(

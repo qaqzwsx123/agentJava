@@ -39,17 +39,23 @@ public class AuthController {
 
     /**
      * 用户登录接口
+     * 校验用户名密码并创建登录态，返回前端后续请求使用的 Token。
+     * 请求体提供账号密码，响应包含用户 ID、角色、Token 和头像。
      */
     @PostMapping("/auth/login")
     public Result<LoginVO> login(@RequestBody LoginRequest requestParam) {
+        // 认证细节由 AuthService 处理，失败通过统一异常响应返回。
         return Results.success(authService.login(requestParam));
     }
 
     /**
      * 用户登出接口，清除用户的认证信息和会话
+     * 注销当前登录态，使当前会话的认证信息失效。
+     * 无需提交用户 ID，操作对象由认证上下文确定。
      */
     @PostMapping("/auth/logout")
     public Result<Void> logout() {
+        // 委托 Sa-Token 注销当前登录会话，再返回普通 JSON 成功响应。
         authService.logout();
         return Results.success();
     }

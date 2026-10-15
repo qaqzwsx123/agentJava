@@ -84,8 +84,13 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     private final TransactionOperations transactionOperations;
     private final BizChangeLogContext bizChangeLogContext;
 
+    /**
+     * 分页读取指定文档的知识分块，可按启用状态过滤。
+     * 先检查文档存在，结果按 chunkIndex 升序排列以保持原文顺序。
+     */
     @Override
     public IPage<KnowledgeChunkVO> pageQuery(String docId, KnowledgeChunkPageRequest requestParam) {
+        // 分块查询显式限定文档 ID，不跨文档混合分页。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
 
@@ -99,6 +104,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return result.convert(each -> BeanUtil.toBean(each, KnowledgeChunkVO.class));
     }
 
+    /**
+     * 新增人工分块，计算内容摘要及长度，并同步写入向量索引。
+     * 文档必须启用且不在分块处理中；未传 index 时追加到当前最大序号之后。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -111,6 +120,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public KnowledgeChunkVO create(String docId, KnowledgeChunkCreateRequest requestParam) {
+        // 先检查文档状态和分块正文，避免人工编辑与自动分块互相覆盖。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
         if (DocumentStatus.RUNNING.getCode().equals(documentDO.getStatus())) {
@@ -123,6 +133,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         String content = requestParam.getContent();
         Assert.notBlank(content, () -> new ClientException("Chunk 内容不能为空"));
 
+        // 未指定序号时追加到最后，人工块的 embeddingText 明确保存为正文。
         KnowledgeChunkDO latest = chunkMapper.selectOne(
                 Wrappers.lambdaQuery(KnowledgeChunkDO.class)
                         .eq(KnowledgeChunkDO::getDocId, docId)
@@ -170,6 +181,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return BeanUtil.toBean(chunkDO, KnowledgeChunkVO.class);
     }
 
+    /**
+     * 修改人工分块正文、摘要、统计值及对应向量。
+     * 先验证分块属于该文档；正文没有变化时跳过数据库更新与审计记录。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -182,6 +197,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(String docId, String chunkId, KnowledgeChunkUpdateRequest requestParam) {
+        // 运行中的文档不允许编辑分块，避免编辑结果随后被自动分块覆盖。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
         if (DocumentStatus.RUNNING.getCode().equals(documentDO.getStatus())) {
@@ -196,6 +212,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         String newContent = requestParam.getContent();
         Assert.notBlank(newContent, () -> new ClientException("Chunk 内容不能为空"));
 
+        // 正文未变化则无需重新计算嵌入，也不产生空的审计变更。
         if (newContent.equals(chunkDO.getContent())) {
             bizChangeLogContext.skip();
             return;
@@ -222,6 +239,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         bizChangeLogContext.put(chunkId, before, chunkMapper.selectById(chunkId));
     }
 
+    /**
+     * 删除指定分块，并同步减少文档分块数及清理对应向量。
+     * 操作前检查文档运行状态和分块归属，分块数不会减成负值。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -234,6 +255,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void delete(String docId, String chunkId) {
+        // 先加载文档和分块，保证后续清理使用正确知识库的向量集合。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
         if (DocumentStatus.RUNNING.getCode().equals(documentDO.getStatus())) {
@@ -261,6 +283,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         bizChangeLogContext.put(chunkId, before, null);
     }
 
+    /**
+     * 切换单个分块状态，启用时重建向量，停用时移除向量。
+     * 启用分块前文档本身必须启用；状态未变时跳过写入和审计。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -273,6 +299,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void enableChunk(String docId, String chunkId, boolean enabled) {
+        // 分块启用条件与文档状态保持一致，避免停用文档下出现可检索分块。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
         if (DocumentStatus.RUNNING.getCode().equals(documentDO.getStatus())) {
@@ -309,6 +336,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         bizChangeLogContext.put(chunkId, before, chunkMapper.selectById(chunkId));
     }
 
+    /**
+     * 批量启停明确选择的分块，并同步对应向量数据。
+     * 必须提供 chunkIds，单次不超过 500 个，所有 ID 都必须存在且属于指定文档。
+     */
     @Override
     @LogRecord(
             success = "批量{{#enabled ? '启用' : '禁用'}} Chunk：{{#docId}}",
@@ -320,6 +351,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void batchToggleEnabled(String docId, KnowledgeChunkBatchRequest requestParam, boolean enabled) {
+        // 空选择不是全量操作，全量启停应走文档级启用接口。
         if (requestParam == null || CollUtil.isEmpty(requestParam.getChunkIds())) {
             throw new ClientException("请指定需要操作的 Chunk，全量启用/禁用请使用文档启用接口");
         }
@@ -335,6 +367,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         }
         validateDocumentEnabledForChunkEnable(documentDO, enabled);
 
+        // 一次读取全部选择项，数量和归属全部校验通过后才执行批量修改。
         List<KnowledgeChunkDO> found = chunkMapper.selectByIds(requestedIds);
         if (found.size() != requestedIds.size()) {
             throw new ClientException("存在无效的 Chunk ID，请求 " + requestedIds.size() + " 个，实际找到 " + found.size() + " 个");
@@ -352,6 +385,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         }
 
         int enabledValue = enabled ? 1 : 0;
+        // 只更新状态确有变化的分块；全部已是目标状态时向前端说明无需重复操作。
         List<KnowledgeChunkDO> needUpdateChunks = chunkMapper.selectList(
                 new LambdaQueryWrapper<KnowledgeChunkDO>()
                         .in(KnowledgeChunkDO::getId, targetIds)
@@ -370,6 +404,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         String collectionName = kbDO.getCollectionName();
 
         if (enabled) {
+            // 耗时嵌入先在事务外完成，减少数据库事务占用连接和锁的时间。
             List<EmbeddedChunk> vectorChunks = embedPersisted(needUpdateChunks, vectorTargetResolver.resolve(kbDO));
 
             transactionOperations.executeWithoutResult(status -> {
@@ -398,9 +433,14 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         bizChangeLogContext.put(docId, before, chunkMapper.selectByIds(needUpdateIds));
     }
 
+    /**
+     * 在文档级启停过程中统一更新该文档全部分块的状态。
+     * 本方法只修改关系库标记，向量重建或删除由调用方协调。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateEnabledByDocId(String docId, String kbId, boolean enabled) {
+        // 与选中分块批量接口不同，这里按文档范围执行全量状态更新。
         int enabledValue = enabled ? 1 : 0;
         chunkMapper.update(
                 Wrappers.lambdaUpdate(KnowledgeChunkDO.class)
@@ -411,8 +451,13 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         log.info("根据文档ID更新所有Chunk启用状态, kbId={}, docId={}, enabled={}", kbId, docId, enabled);
     }
 
+    /**
+     * 读取文档已经持久化的分块并重新生成向量。
+     * 使用保存的 embeddingText，而不是根据展示正文重拼，以保留结构化信息。
+     */
     @Override
     public List<EmbeddedChunk> embedPersistedChunks(String docId, VectorTarget target) {
+        // 先验证文档存在，再按分块顺序读取原始向量文本来源。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));
 
@@ -427,9 +472,14 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return embedPersisted(chunkDOList, target);
     }
 
+    /**
+     * 按文档 ID 删除关系库中的分块记录。
+     * docId 为 null 时直接返回；本方法本身不删除外部向量。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteByDocId(String docId) {
+        // 分块索引扇出链路可复用此方法清理关系库存储落点。
         if (docId == null) {
             return;
         }
@@ -440,8 +490,11 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
 
     /**
      * 启用 chunk 前必须保证所属文档为启用状态
+     * 约束分块只能在文档启用时被启用。
+     * 停用分块不受此条件限制；启用请求命中停用文档时抛出异常。
      */
     private void validateDocumentEnabledForChunkEnable(KnowledgeDocumentDO documentDO, boolean enableChunk) {
+        // 避免文档级与分块级启用状态产生互相矛盾的检索结果。
         if (!enableChunk) {
             return;
         }
@@ -452,9 +505,12 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
 
     /**
      * 将单个 chunk 同步到向量库
+     * 将一个已保存分块的向量表示写入目标集合。
+     * 向量生成沿用持久化文本，集合名与文档 ID 决定索引范围。
      */
     private void syncChunkToVector(String collectionName, String docId, KnowledgeChunkDO chunkDO,
                                    VectorTarget target) {
+        // 关系库记录与检索侧向量写入是两个步骤，这里只处理向量落点。
         EmbeddedChunk chunk = embedPersisted(List.of(chunkDO), target).get(0);
         vectorStoreService.indexDocumentChunks(collectionName, docId, List.of(chunk));
 
@@ -473,8 +529,11 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
      * 已入库块重新向量化：向量文本取库里那一份，块 ID 沿用关系库主键
      * <p>
      * 全系统"行 → 向量"的唯一入口，见 {@link ChunkAssembler#restore}
+     * 批量将数据库分块转换为嵌入输入并计算向量。
+     * 没有分块时返回空列表，输入文本沿用保存的 embeddingText。
      */
     private List<EmbeddedChunk> embedPersisted(List<KnowledgeChunkDO> rows, VectorTarget target) {
+        // 统一人工修改和文档重建的嵌入入口，避免两条路径使用不同文本。
         List<Chunk> chunks = rows.stream()
                 .map(each -> ChunkAssembler.restore(each.getId(),
                         each.getChunkIndex() == null ? 0 : each.getChunkIndex(),

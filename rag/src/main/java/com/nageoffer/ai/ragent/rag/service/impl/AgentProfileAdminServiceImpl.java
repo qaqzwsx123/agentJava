@@ -66,8 +66,13 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
     private final OrchestrationProperties orchestrationProperties;
     private final BizChangeLogContext bizChangeLogContext;
 
+    /**
+     * 查询人设列表并计算每个人设在当前编排模式下的有效槽位数。
+     * 内置人设优先展示，响应同时包含激活标记与当前模式。
+     */
     @Override
     public AgentProfileListVO list() {
+        // 先加载各人设实际配置的槽位，再按模式区分生效和未生效项。
         OrchestrationMode mode = orchestrationProperties.getMode();
         Map<String, List<AgentPromptSlot>> configuredSlots = loadConfiguredSlots();
 
@@ -121,6 +126,10 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         return configured;
     }
 
+    /**
+     * 创建未激活的自定义 Agent 人设。
+     * 名称必须可用，内置与激活标记均设为 0，返回新的人设 ID。
+     */
     @Override
     @LogRecord(
             success = "创建智能体：{{#requestParam.name}}",
@@ -132,6 +141,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(AgentProfileSaveRequest requestParam) {
+        // 人设基本信息与提示词正文分开维护，创建时不复制全部默认提示词。
         String name = trimmedName(requestParam);
         assertNameAvailable(name, null);
 
@@ -147,6 +157,10 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         return profile.getId();
     }
 
+    /**
+     * 修改可编辑人设的名称、描述和头像。
+     * 使用显式 set 支持把描述或头像清空，避免 NOT_NULL 更新策略忽略 null。
+     */
     @Override
     @LogRecord(
             success = "更新智能体：{{#id}}",
@@ -158,6 +172,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(String id, AgentProfileSaveRequest requestParam) {
+        // 先拒绝编辑内置人设，再校验新名称未被其他人设占用。
         AgentProfileDO before = mustLoadEditable(id);
         String name = trimmedName(requestParam);
         assertNameAvailable(name, id);
@@ -171,6 +186,10 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         bizChangeLogContext.put(id, before, agentProfileMapper.selectById(id));
     }
 
+    /**
+     * 删除未激活的自定义人设及其提示词记录。
+     * 内置人设不可编辑，当前激活人设必须先切换后才能删除。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -182,6 +201,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
             extra = BizChangeLogContext.SNAPSHOT_EXPRESSION
     )
     public void delete(String id) {
+        // 删除人设前先读取原配置，用于校验和审计快照。
         AgentProfileDO profile = mustLoadEditable(id);
         if (isTrue(profile.getActive())) {
             throw new ClientException("该智能体正在激活中，请先激活其他智能体再删除");
@@ -193,6 +213,10 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         cacheManager.clearCache();
     }
 
+    /**
+     * 把指定人设切换为当前激活项。
+     * 先清除原激活标记再激活目标，完成后清理提示词解析缓存。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -203,6 +227,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
             bizNo = "{{#id}}"
     )
     public void activate(String id) {
+        // 激活目标必须存在，配置切换由本方法统一处理。
         AgentProfileDO target = mustLoad(id);
 
         // 显式 set 清零，不依赖 Builder + update(entity, wrapper) 的 NOT_NULL 策略
@@ -211,13 +236,19 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
                         .set(AgentProfileDO::getActive, 0)
                         .eq(AgentProfileDO::getActive, 1));
 
+        // 将目标设为唯一激活项，随后让运行期提示词缓存失效。
         target.setActive(1);
         agentProfileMapper.updateById(target);
         cacheManager.clearCache();
     }
 
+    /**
+     * 组装人设各提示词槽位的内容、用途和当前模式生效情况。
+     * 响应包含必需占位符与编辑提示；未自定义内容保持为空，以表达默认回落。
+     */
     @Override
     public AgentPromptConfigVO loadPrompts(String id) {
+        // 本接口读取人设自身的提示词，不把默认正文误写成用户自定义内容。
         AgentProfileDO profile = mustLoad(id);
         AgentProfileDO builtin = loadBuiltin();
         OrchestrationMode mode = orchestrationProperties.getMode();
@@ -247,6 +278,10 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
                 .build();
     }
 
+    /**
+     * 保存一个可编辑人设的提示词槽位，并刷新提示词缓存。
+     * 非空内容需包含要求的占位符，清空内容表示恢复默认回落。
+     */
     @Override
     @LogRecord(
             success = "更新智能体提示词：{{#id}} / {{#slotKey}}",
@@ -256,6 +291,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
             bizNo = "{{#id}}"
     )
     public void savePrompt(String id, String slotKey, AgentPromptSaveRequest requestParam) {
+        // 先校验人设可编辑性和槽位名称，避免写入未知用途的提示词。
         mustLoadEditable(id);
         AgentPromptSlot slot = AgentPromptSlot.find(slotKey)
                 .orElseThrow(() -> new ClientException("未知的提示词：" + slotKey));
@@ -263,6 +299,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         String content = requestParam == null ? null : requestParam.getContent();
         assertPlaceholdersPresent(slot, content);
 
+        // 已有槽位可写 null 恢复回落；不存在的槽位只有非空内容才需要新增。
         boolean existed = agentPromptMapper.exists(Wrappers.lambdaQuery(AgentPromptDO.class)
                 .eq(AgentPromptDO::getAgentId, id)
                 .eq(AgentPromptDO::getSlotKey, slot.name()));
@@ -282,8 +319,13 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         cacheManager.clearCache();
     }
 
+    /**
+     * 读取内置人设指定槽位的默认正文。
+     * 槽位未知时拒绝读取，内置人设不存在时返回空字符串。
+     */
     @Override
     public String defaultPrompt(String slotKey) {
+        // 默认提示词只供回落或编辑器参考，不修改当前激活配置。
         AgentPromptSlot slot = AgentPromptSlot.find(slotKey)
                 .orElseThrow(() -> new ClientException("未知的提示词：" + slotKey));
         AgentProfileDO builtin = loadBuiltin();
@@ -303,8 +345,11 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
 
     /**
      * 占位符缺失会让下游规则静默失效，症状难以归因，故在保存时就拒绝
+     * 校验自定义提示词保留槽位要求的模板占位符。
+     * 空内容允许走默认回落，非空内容缺少必需变量时拒绝保存。
      */
     private void assertPlaceholdersPresent(AgentPromptSlot slot, String content) {
+        // 避免提示词编辑后丢失编排阶段需要注入的上下文位置。
         if (StrUtil.isBlank(content) || slot.getRequiredPlaceholders().isEmpty()) {
             return;
         }
@@ -354,7 +399,12 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
         return profile;
     }
 
+    /**
+     * 加载人设并限制只编辑自定义配置。
+     * 内置人设用于默认回落，修改或删除时统一拒绝。
+     */
     private AgentProfileDO mustLoadEditable(String id) {
+        // 更新基本信息、删除和保存提示词时复用相同的内置人设保护规则。
         AgentProfileDO profile = mustLoad(id);
         if (isTrue(profile.getBuiltin())) {
             throw new ClientException("内置智能体不可编辑或删除，如需调整请复制一份新建");

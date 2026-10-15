@@ -40,9 +40,12 @@ public class RecommendedQuestionController {
 
     /**
      * 生成推荐追问问题
+     * 为指定回答生成或读取推荐追问。
+     * messageId 指定回答，当前登录用户 ID 用于校验消息归属。
      */
     @PostMapping("/conversations/messages/{messageId}/recommended-questions")
     public Result<RecommendedQuestionsPayload> generate(@PathVariable String messageId) {
+        // 推荐服务优先复用已生成内容，避免每次打开消息都重新调用模型。
         return Results.success(recommendedQuestionService.generate(messageId, UserContext.getUserId()));
     }
 }

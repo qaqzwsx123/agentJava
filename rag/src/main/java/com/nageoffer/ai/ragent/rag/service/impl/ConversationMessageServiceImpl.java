@@ -49,15 +49,25 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
     private final ConversationMapper conversationMapper;
     private final MessageFeedbackService feedbackService;
 
+    /**
+     * 将编排链路产生的消息业务对象转换为数据库记录。
+     * 返回落库后的消息 ID，供回复关联、反馈和推荐追问使用。
+     */
     @Override
     public String addMessage(ConversationMessageBO conversationMessage) {
+        // 业务对象与持久化对象分开，保存时使用当前传入的完整消息信息。
         ConversationMessageDO messageDO = BeanUtil.toBean(conversationMessage, ConversationMessageDO.class);
         conversationMessageMapper.insert(messageDO);
         return messageDO.getId();
     }
 
+    /**
+     * 按用户和会话读取历史消息，并补充当前用户的评价状态。
+     * 倒序加限量用于取最近消息，取出后反转为前端按时间阅读的顺序。
+     */
     @Override
     public List<ConversationMessageVO> listMessages(String conversationId, String userId, Integer limit, ConversationMessageOrder order) {
+        // 先验证会话归属，再执行消息查询，空范围直接返回空列表。
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
             return List.of();
         }
@@ -86,6 +96,7 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
             return List.of();
         }
 
+        // 倒序只用于挑出最近的记录；返回前反转，使前端始终按会话先后阅读。
         if (!asc) {
             Collections.reverse(records);
         }
@@ -94,6 +105,7 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
                 .filter(record -> "assistant".equalsIgnoreCase(record.getRole()))
                 .map(ConversationMessageDO::getId)
                 .toList();
+        // 只为本批助手回复批量查询当前用户评价，避免每条消息各查一次反馈表。
         Map<String, Integer> votesByMessageId = feedbackService.getUserVotes(userId, assistantMessageIds);
 
         List<ConversationMessageVO> result = new ArrayList<>();
@@ -117,8 +129,13 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
         return result;
     }
 
+    /**
+     * 保存一次会话历史压缩产生的摘要。
+     * 摘要与普通消息分别存储，供后续会话记忆加载使用。
+     */
     @Override
     public void addMessageSummary(ConversationSummaryBO conversationSummary) {
+        // 只负责持久化传入摘要，不在此方法调用模型生成摘要。
         ConversationSummaryDO conversationSummaryDO = BeanUtil.toBean(conversationSummary, ConversationSummaryDO.class);
         conversationSummaryMapper.insert(conversationSummaryDO);
     }

@@ -50,6 +50,8 @@ public class GraphController {
      * @param doc        文档 id，限定只看该文档子图，优先级高于 collection，空则不限
      * @param depth      子图深度，默认 2
      * @param limit      节点上限，默认 200
+     * 按实体及文档范围查询知识图谱的局部子图。
+     * entity 是中心实体，collection/doc 限定范围，depth 默认 2、limit 默认 200。
      */
     @GetMapping("/graph")
     public Result<GraphViewVO> graph(@RequestParam(required = false) String entity,
@@ -57,15 +59,19 @@ public class GraphController {
                                      @RequestParam(required = false) String doc,
                                      @RequestParam(defaultValue = "2") int depth,
                                      @RequestParam(defaultValue = "200") int limit) {
+        // 深度与规模约束交给图谱查询服务，避免一次返回无界关系网络。
         return Results.success(graphQueryService.getGraph(entity, collection, doc, depth, limit));
     }
 
     /**
      * 检索实体标签，供可视化搜索框；keyword 为空取热门标签
+     * 按关键字查找图谱实体名称，供搜索框联想。
+     * keyword 可选，limit 默认 50，返回实体名称列表。
      */
     @GetMapping("/labels")
     public Result<List<String>> labels(@RequestParam(required = false) String keyword,
                                        @RequestParam(defaultValue = "50") int limit) {
+        // 此接口只查候选实体名称，不展开关系图。
         return Results.success(graphQueryService.searchEntities(keyword, limit));
     }
 }

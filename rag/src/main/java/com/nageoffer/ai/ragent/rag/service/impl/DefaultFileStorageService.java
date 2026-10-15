@@ -67,9 +67,14 @@ public class DefaultFileStorageService implements FileStorageService {
         this.assetBucket = properties.getAssetBucket();
     }
 
+    /**
+     * 把表单上传文件流式写入知识库共享桶下的指定命名空间。
+     * 先用独立输入流探测 MIME，再重新打开文件流上传，返回对象 key 和检测元信息。
+     */
     @Override
     @SneakyThrows
     public StoredFileDTO upload(String namespace, MultipartFile file) {
+        // 校验命名空间和文件有效性，避免把空文件写入知识库存储。
         validateNamespace(namespace);
         Assert.isFalse(file == null || file.isEmpty(), "上传文件不能为空");
 
@@ -90,9 +95,14 @@ public class DefaultFileStorageService implements FileStorageService {
         }
     }
 
+    /**
+     * 将已知大小的输入流写入知识库命名空间。
+     * 调用方提供长度和类型，未提供类型时按文件名补充推断。
+     */
     @Override
     @SneakyThrows
     public StoredFileDTO upload(String namespace, InputStream content, long size, String originalFilename, String contentType) {
+        // 本重载不把全部输入流读进内存，实际流式写入交给存储客户端。
         validateNamespace(namespace);
         Assert.notNull(content, "上传内容不能为空");
         Assert.isTrue(size >= 0, "上传内容大小不能小于 0");
@@ -102,9 +112,14 @@ public class DefaultFileStorageService implements FileStorageService {
         return buildStoredFileDTO(key, originalFilename, detected, size);
     }
 
+    /**
+     * 把已经位于内存中的字节数组写入知识库命名空间。
+     * ByteArrayInputStream 只包装现有字节，不额外复制完整文件。
+     */
     @Override
     @SneakyThrows
     public StoredFileDTO upload(String namespace, byte[] content, String originalFilename, String contentType) {
+        // 统一生成随机对象 key，返回数据保存该 key 供后续文件读取。
         validateNamespace(namespace);
         Assert.notNull(content, "上传内容不能为空");
         String detected = resolveContentType(originalFilename, contentType);
@@ -114,9 +129,14 @@ public class DefaultFileStorageService implements FileStorageService {
         return buildStoredFileDTO(key, originalFilename, detected, content.length);
     }
 
+    /**
+     * 使用存储客户端的可靠写入路径保存输入流。
+     * 流大小和命名空间必填，具体写入保障由 reliablePut 实现。
+     */
     @Override
     @SneakyThrows
     public StoredFileDTO reliableUpload(String namespace, InputStream content, long size, String originalFilename, String contentType) {
+        // 与普通上传共用 key 和 MIME 生成方式，但选择不同的客户端写入入口。
         validateNamespace(namespace);
         Assert.notNull(content, "上传内容不能为空");
         Assert.isTrue(size >= 0, "上传内容大小不能小于 0");
@@ -126,9 +146,14 @@ public class DefaultFileStorageService implements FileStorageService {
         return buildStoredFileDTO(key, originalFilename, detected, size);
     }
 
+    /**
+     * 把头像等公共资源写入独立资源桶。
+     * 对象使用随机 key，和知识库文档桶分开保存。
+     */
     @Override
     @SneakyThrows
     public StoredFileDTO uploadAsset(byte[] content, String originalFilename, String contentType) {
+        // 公共资源不使用知识库命名空间，其访问地址通过 getPublicUrl 生成。
         Assert.notNull(content, "上传内容不能为空");
         String detected = resolveContentType(originalFilename, contentType);
         String key = randomKey(originalFilename);
@@ -136,26 +161,46 @@ public class DefaultFileStorageService implements FileStorageService {
         return buildStoredFileDTO(key, originalFilename, detected, content.length);
     }
 
+    /**
+     * 按知识库桶内的对象 key 打开读取流。
+     * 返回的 InputStream 由调用方负责关闭，文档预览和文件响应均复用此入口。
+     */
     @Override
     public InputStream openStream(String key) {
+        // 参数虽然来自文档 fileUrl 字段，这里的实际语义是对象 key。
         Assert.notBlank(key, "对象 key 不能为空");
         return objectStorageClient.getObject(kbBucket, key);
     }
 
+    /**
+     * 按保存的对象 key 删除知识库原文件。
+     * 方法名沿用 URL 命名，但当前实现直接把 key 交给知识库桶删除接口。
+     */
     @Override
     public void deleteByUrl(String key) {
+        // 先校验 key 非空，不在这里解析任意外部下载地址。
         Assert.notBlank(key, "对象 key 不能为空");
         objectStorageClient.deleteObject(kbBucket, key);
     }
 
+    /**
+     * 为资源桶中的对象 key 构造公开访问地址。
+     * 仅生成地址，不读取文件内容，也不把资源复制到其他存储空间。
+     */
     @Override
     public String getPublicUrl(String key) {
+        // 知识库文档文件读取与公共资源链接生成使用不同的桶。
         Assert.notBlank(key, "对象 key 不能为空");
         return objectStorageClient.buildPublicUrl(assetBucket, key);
     }
 
+    /**
+     * 在共享知识库桶中幂等建立命名空间目录标记。
+     * 采用分布式锁加双重检查，只有不存在标记对象时才写入零字节目录标记。
+     */
     @Override
     public void createKnowledgeSpace(String namespace) {
+        // 这是创建逻辑目录，不是为每个知识库再创建一个物理桶。
         validateNamespace(namespace);
         String markerKey = namespace + "/";
         if (objectStorageClient.objectExists(kbBucket, markerKey)) {
@@ -189,8 +234,13 @@ public class DefaultFileStorageService implements FileStorageService {
         }
     }
 
+    /**
+     * 按命名空间前缀清理一个知识库的全部对象。
+     * 命名空间后拼接斜杠，避免前缀相近的其他知识库被误匹配。
+     */
     @Override
     public void deleteKnowledgeSpace(String namespace) {
+        // 底层删除范围交给对象存储客户端的前缀删除方法。
         validateNamespace(namespace);
         objectStorageClient.deleteByPrefix(kbBucket, namespace + "/");
     }
@@ -221,8 +271,13 @@ public class DefaultFileStorageService implements FileStorageService {
         Assert.notBlank(namespace, "namespace 不能为空");
     }
 
+    /**
+     * 构造上传结果，分别保存展示类型与真实 MIME 信息。
+     * 展示标签由文件名和类型归一得出，解析路由使用 mimeType，二者用途不同。
+     */
     private StoredFileDTO buildStoredFileDTO(String url, String originalFilename,
                                              String contentType, long size) {
+        // url 字段保存存储对象 key，文档后续通过文件服务读取该对象。
         // 展示标签唯一产生点：扩展名优先，取值集合封闭
         String detectedType = DisplayType.of(originalFilename, contentType).getCode();
         return StoredFileDTO.builder()

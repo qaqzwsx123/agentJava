@@ -72,8 +72,13 @@ public class DashboardServiceImpl implements DashboardService {
     private final ConversationMessageMapper messageMapper;
     private final RagTraceRunMapper traceRunMapper;
 
+    /**
+     * 统计 Workflow/RAG 用户、会话、消息和活跃度概览。
+     * 默认窗口为 24 小时，并计算前一等长窗口的对比值；这里不聚合 Agent 独立会话表。
+     */
     @Override
     public DashboardOverviewVO loadOverview(String window) {
+        // 先统一当前与对比时间范围，再对相同口径的业务表分别计数。
         WindowRange range = resolveWindowRange(window, Duration.ofHours(24));
 
         long totalUsers = userMapper.selectCount(Wrappers.lambdaQuery(UserDO.class));
@@ -92,6 +97,7 @@ public class DashboardServiceImpl implements DashboardService {
         long activeSessions = countActiveSessions(range.start, range.end);
         long activeSessionsPrev = countActiveSessions(range.prevStart, range.prevEnd);
 
+        // 累计值、窗口新增量及活跃度对比使用不同口径，组装时保留各自含义。
         DashboardOverviewGroupVO group = DashboardOverviewGroupVO.builder()
                 .totalUsers(buildKpi(totalUsers, usersInWindow, null))
                 .activeUsers(buildKpi(activeUsers, activeUsers - activeUsersPrev, calcPct(activeUsers, activeUsersPrev)))
@@ -111,8 +117,13 @@ public class DashboardServiceImpl implements DashboardService {
                 .build();
     }
 
+    /**
+     * 根据运行追踪及助手回复统计延迟、成功率、错误率和无知识率。
+     * 默认窗口为 24 小时；空样本的比例和耗时返回 0，避免除零。
+     */
     @Override
     public DashboardPerformanceVO loadPerformance(String window) {
+        // 耗时样本、终态运行样本和助手消息样本使用各自的统计分母。
         WindowRange range = resolveWindowRange(window, Duration.ofHours(24));
         List<Long> durations = listDurations(range.start, range.end);
         long avgLatency = average(durations);
@@ -125,6 +136,7 @@ public class DashboardServiceImpl implements DashboardService {
         long noDocCount = countNoDocMessages(range.start, range.end);
         long slowCount = durations.stream().filter(duration -> duration > SLOW_LATENCY_THRESHOLD_MS).count();
 
+        // 没有样本时用 0 展示，避免把空窗口误写成 100% 成功。
         double successRate = total == 0 ? 0.0 : round1((success * 100.0) / total);
         double errorRate = total == 0 ? 0.0 : round1((error * 100.0) / total);
         double noDocRate = assistantCount == 0 ? 0.0 : round1((noDocCount * 100.0) / assistantCount);
@@ -142,8 +154,13 @@ public class DashboardServiceImpl implements DashboardService {
                 .build();
     }
 
+    /**
+     * 按指标和时间粒度组装看板趋势序列。
+     * 默认窗口为 7 天；支持会话、消息、活跃用户、延迟及质量指标，未知指标返回空序列。
+     */
     @Override
     public DashboardTrendsVO loadTrends(String metric, String window, String granularity) {
+        // 先解析时间窗口和粒度，再进入小时或天两种聚合路径。
         String normalizedMetric = metric == null ? "" : metric.trim().toLowerCase();
         Duration windowDuration = parseWindow(window, Duration.ofDays(7));
         WindowRange range = resolveWindowRange(window, Duration.ofDays(7));
@@ -151,6 +168,7 @@ public class DashboardServiceImpl implements DashboardService {
         ZoneId zoneId = ZoneId.systemDefault();
         List<DashboardTrendSeriesVO> series = new ArrayList<>();
 
+        // 小时聚合先按小时对齐边界，再为所选指标构造连续时间点。
         if (GRANULARITY_HOUR.equals(resolvedGranularity)) {
             LocalDateTime endHourExclusive = toLocalDateTime(range.end, zoneId)
                     .truncatedTo(ChronoUnit.HOURS)
@@ -208,6 +226,7 @@ public class DashboardServiceImpl implements DashboardService {
                         .build());
             }
         } else {
+            // 日粒度使用自然日期边界，后续补点让没有数据的日期也保留在序列中。
             LocalDate startDay = toLocalDate(range.start, zoneId);
             LocalDate endExclusiveDay = toLocalDate(range.end, zoneId).plusDays(1);
 
@@ -263,6 +282,7 @@ public class DashboardServiceImpl implements DashboardService {
             }
         }
 
+        // 将实际使用的窗口与粒度一并返回，便于前端解释统计口径。
         return DashboardTrendsVO.builder()
                 .metric(metric)
                 .window(range.windowLabel)
@@ -661,7 +681,12 @@ public class DashboardServiceImpl implements DashboardService {
         return Math.round(sum / (double) values.size());
     }
 
+    /**
+     * 计算耗时样本的 P95，返回毫秒值。
+     * 复制样本后排序，按 ceil(n*0.95)-1 取值，不改变调用方列表顺序。
+     */
     private long percentile(List<Long> values) {
+        // 空样本返回 0，索引经过边界限制后再访问排序列表。
         if (values == null || values.isEmpty()) {
             return 0L;
         }
@@ -720,7 +745,12 @@ public class DashboardServiceImpl implements DashboardService {
         return date.toInstant().atZone(zoneId).toLocalDateTime();
     }
 
+    /**
+     * 把时间窗口解析为当前区间及前一等长对比区间。
+     * 统计终点取当前时刻，前一窗口终点与当前窗口起点相接。
+     */
     private WindowRange resolveWindowRange(String window, Duration fallback) {
+        // 统一生成范围，避免同一看板不同指标各自取时造成边界漂移。
         Duration duration = parseWindow(window, fallback);
         Instant now = Instant.now();
         Instant start = now.minus(duration);
@@ -729,7 +759,12 @@ public class DashboardServiceImpl implements DashboardService {
                 window == null ? formatDuration(fallback) : window, "prev_" + (window == null ? formatDuration(fallback) : window));
     }
 
+    /**
+     * 解析以 h 或 d 结尾的窗口字符串。
+     * 空值或未知后缀使用传入 fallback，数值部分交给 parseNumber 处理。
+     */
     private Duration parseWindow(String window, Duration fallback) {
+        // 只在这里转换窗口表达，不直接执行数据库统计。
         if (window == null || window.isBlank()) {
             return fallback;
         }
@@ -745,7 +780,12 @@ public class DashboardServiceImpl implements DashboardService {
         return fallback;
     }
 
+    /**
+     * 确定趋势按小时还是按天聚合。
+     * 认可显式 hour/day；未提供有效粒度时，48 小时以内按小时，其余按天。
+     */
     private String resolveTrendGranularity(String granularity, Duration windowDuration) {
+        // 粒度先归一再使用，避免前端拼写差异影响时间桶选择。
         if (granularity != null && !granularity.isBlank()) {
             String normalized = granularity.trim().toLowerCase();
             if (GRANULARITY_HOUR.equals(normalized) || GRANULARITY_DAY.equals(normalized)) {

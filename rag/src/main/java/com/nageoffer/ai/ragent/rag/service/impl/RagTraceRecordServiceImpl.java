@@ -38,13 +38,23 @@ public class RagTraceRecordServiceImpl implements RagTraceRecordService {
     private final RagTraceRunMapper runMapper;
     private final RagTraceNodeMapper nodeMapper;
 
+    /**
+     * 插入一次 RAG 请求的追踪主记录。
+     * 参数已由追踪上游构造，包含运行标识与初始状态。
+     */
     @Override
     public void startRun(RagTraceRunDO run) {
+        // 在请求启动阶段保存主记录，供结束时按 traceId 回写结果。
         runMapper.insert(run);
     }
 
+    /**
+     * 按 traceId 回写请求级追踪结果。
+     * 更新状态、错误、结束时间及总耗时，不新建第二条运行记录。
+     */
     @Override
     public void finishRun(String traceId, String status, String errorMessage, Date endTime, long durationMs) {
+        // 结束回写通过条件更新定位原主记录。
         RagTraceRunDO update = RagTraceRunDO.builder()
                 .status(status)
                 .errorMessage(errorMessage)
@@ -55,13 +65,23 @@ public class RagTraceRecordServiceImpl implements RagTraceRecordService {
                 .eq(RagTraceRunDO::getTraceId, traceId));
     }
 
+    /**
+     * 保存一个执行阶段的初始追踪节点。
+     * 节点承载所属 traceId 与自身 nodeId，供阶段结束时定位。
+     */
     @Override
     public void startNode(RagTraceNodeDO node) {
+        // 节点开始与节点结束分开落库，便于观察执行中的链路。
         nodeMapper.insert(node);
     }
 
+    /**
+     * 更新指定追踪中的一个执行节点的结束结果。
+     * 条件同时包含 traceId 和 nodeId，防止跨运行更新同名节点。
+     */
     @Override
     public void finishNode(String traceId, String nodeId, String status, String errorMessage, Date endTime, long durationMs) {
+        // 只补充当前节点的终态和耗时，不影响同一追踪中的其他节点。
         RagTraceNodeDO update = RagTraceNodeDO.builder()
                 .status(status)
                 .errorMessage(errorMessage)

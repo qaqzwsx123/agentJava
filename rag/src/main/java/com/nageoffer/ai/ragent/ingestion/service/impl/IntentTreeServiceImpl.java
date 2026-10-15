@@ -67,8 +67,13 @@ public class IntentTreeServiceImpl implements IntentTreeService {
 
     private static final Gson GSON = new Gson();
 
+    /**
+     * 查询全部有效意图节点并按 parentCode 组装层级树。
+     * 节点先按排序号和 ID 排序，parentCode 为空的节点作为根节点。
+     */
     @Override
     public List<IntentNodeTreeVO> getFullTree() {
+        // 管理端读取完整配置树，运行期是否启用另由节点 enabled 属性决定。
         List<IntentNodeDO> list = intentNodeMapper.selectList(new LambdaQueryWrapper<IntentNodeDO>()
                 .eq(IntentNodeDO::getDeleted, 0)
                 .orderByAsc(IntentNodeDO::getSortOrder, IntentNodeDO::getId));
@@ -108,6 +113,10 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return result;
     }
 
+    /**
+     * 创建 KB 或 MCP 意图节点，保存类型对应的配置字段。
+     * intentCode 不能重复；TOPIC 级 KB 节点必须至少绑定一个有效知识库。
+     */
     @Override
     @LogRecord(
             success = "创建意图节点：{{#requestParam.name}}",
@@ -119,6 +128,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String createNode(IntentNodeCreateRequest requestParam) {
+        // 先校验标识并解析知识库绑定，MCP 节点不保存 KB 专属提示词字段。
         // 简单重复校验：intentCode 不允许重复
         long count = intentNodeMapper.selectCount(new LambdaQueryWrapper<IntentNodeDO>()
                 .eq(IntentNodeDO::getIntentCode, requestParam.getIntentCode())
@@ -176,6 +186,10 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         return String.valueOf(node.getId());
     }
 
+    /**
+     * 按非 null 请求字段修改意图节点，并清理与节点类型不匹配的配置。
+     * 非 MCP 节点清空工具和确认配置，非 KB 节点清空知识库绑定。
+     */
     @Override
     @LogRecord(
             success = "更新意图节点：{{#id}}",
@@ -187,6 +201,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void updateNode(String id, IntentNodeUpdateRequest req) {
+        // 读取原记录并保留快照，更新完成后统一让意图树缓存失效。
         IntentNodeDO node = intentNodeMapper.selectById(id);
         if (node == null || Objects.equals(node.getDeleted(), 1)) {
             throw new ServiceException("节点不存在或已删除: id=" + id);
@@ -212,6 +227,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             node.setMcpToolId(StrUtil.trim(req.getMcpToolId()));
         }
 
+        // 同时兼容多集合配置和旧的单集合字段，只有明确提交绑定值时才覆盖。
         CollectionBinding collectionBinding = null;
         if (req.getCollectionNames() != null) {
             collectionBinding = resolveCollectionBinding(req.getCollectionNames());
@@ -233,6 +249,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             node.setRequireConfirm(normalizeRequireConfirm(req.getRequireConfirm(), node.getKind()));
         }
         if (!Objects.equals(node.getKind(), IntentKind.MCP.getCode())) {
+            // 切换节点类型时清除不再适用的工具与确认配置，避免残留旧类型参数。
             node.setMcpToolId(null);
             node.setRequireConfirm(0);
         }
@@ -266,6 +283,10 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         bizChangeLogContext.put(id, before, intentNodeMapper.selectById(id));
     }
 
+    /**
+     * 删除指定有效节点并刷新意图树缓存。
+     * 此单节点方法只删除当前 ID，不自动收集或级联删除子树。
+     */
     @Override
     @LogRecord(
             success = "删除意图节点：{{#id}}",
@@ -277,6 +298,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void deleteNode(String id) {
+        // 节点不存在或已删除时拒绝操作，避免生成无效的审计记录。
         IntentNodeDO node = intentNodeMapper.selectById(id);
         if (node == null || Objects.equals(node.getDeleted(), 1)) {
             throw new ServiceException("节点不存在或已删除: id=" + id);
@@ -289,6 +311,10 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         bizChangeLogContext.put(id, before, null);
     }
 
+    /**
+     * 对明确选中的有效节点统一设置启用状态。
+     * 先规范化、去重并校验所有 ID 存在，完成后刷新意图树缓存。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -301,6 +327,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void batchEnableNodes(List<String> ids) {
+        // 批量启用不会自动追加未选择的父节点或子节点。
         List<IntentNodeDO> targetNodes = listAndValidateTargetNodes(ids);
         List<IntentNodeDO> before = copyNodes(targetNodes);
         String operator = UserContext.getUsername();
@@ -313,6 +340,10 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         bizChangeLogContext.put("BATCH", before, targetNodes);
     }
 
+    /**
+     * 停用所选节点，要求其仍启用的后代也包含在选择集合中。
+     * 缺少启用子节点时拒绝整次操作，不擅自把未选择的子节点一起停用。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -325,6 +356,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void batchDisableNodes(List<String> ids) {
+        // 先读取目标快照和当前节点树，再验证停用后是否留下未选中的启用后代。
         List<IntentNodeDO> targetNodes = listAndValidateTargetNodes(ids);
         List<IntentNodeDO> before = copyNodes(targetNodes);
         List<IntentNodeDO> allActiveNodes = listActiveNodes();
@@ -345,6 +377,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
                 );
             }
         }
+        // 所有后代范围校验完成后才执行实际停用，未选中的节点不会被自动加入。
         String operator = UserContext.getUsername();
         targetNodes.forEach(node -> {
             node.setEnabled(0);
@@ -355,6 +388,10 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         bizChangeLogContext.put("BATCH", before, targetNodes);
     }
 
+    /**
+     * 删除显式选择的节点，要求每个目标的所有后代都被选中。
+     * 不完整子树直接报错，只有通过检查后才批量删除所选 ID。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @LogRecord(
@@ -367,6 +404,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void batchDeleteNodes(List<String> ids) {
+        // 完整子树校验用于避免父节点删除后遗留无父级的有效配置。
         List<IntentNodeDO> targetNodes = listAndValidateTargetNodes(ids);
         List<IntentNodeDO> before = copyNodes(targetNodes);
         List<IntentNodeDO> allActiveNodes = listActiveNodes();
@@ -399,6 +437,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
                 );
             }
         }
+        // 完整选择校验全部通过，才集中删除请求中的目标并失效意图树缓存。
         intentNodeMapper.deleteByIds(targetIdSet);
         intentTreeCacheManager.clearIntentTreeCache();
         bizChangeLogContext.put("BATCH", before, null);
@@ -408,8 +447,11 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 规范化节点级 TopK：
      * - null 表示未配置，回退全局默认
      * - 仅允许正整数
+     * 校验节点级检索条数配置。
+     * null 表示未指定覆盖值，显式设置时必须大于 0。
      */
     private Integer normalizeTopK(Integer topK) {
+        // 不把未配置强行变成固定数值，以便下游继续采用默认预算。
         if (topK == null) {
             return null;
         }
@@ -421,8 +463,11 @@ public class IntentTreeServiceImpl implements IntentTreeService {
 
     /**
      * 非 MCP 节点一律落 0：确认标志只在工具调用链路上被读取，留在别的类型上是无效数据
+     * 规范化 MCP 节点的执行前确认开关。
+     * 只有 MCP 类型可以开启确认，其他节点类型统一返回 0。
      */
     private Integer normalizeRequireConfirm(Integer requireConfirm, Integer kind) {
+        // 避免 KB 检索节点残留没有业务意义的工具确认配置。
         if (!Objects.equals(kind, IntentKind.MCP.getCode())) {
             return 0;
         }
@@ -448,8 +493,11 @@ public class IntentTreeServiceImpl implements IntentTreeService {
 
     /**
      * 校验 Collection 均来自有效知识库，并保持前端选择顺序
+     * 校验知识库集合列表并形成兼容单库字段的绑定结构。
+     * 所有集合必须存在且有效，列表第一项对应主知识库 ID。
      */
     private CollectionBinding resolveCollectionBinding(List<String> requestedCollectionNames) {
+        // 先去重归一集合名，再一次查询有效知识库并指出缺失项。
         List<String> collectionNames = normalizeCollectionNames(requestedCollectionNames);
         if (collectionNames.isEmpty()) {
             return CollectionBinding.empty();
@@ -514,7 +562,12 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         }
     }
 
+    /**
+     * 归一批量节点 ID 并验证每个目标都存在且未删除。
+     * null ID 被过滤、重复 ID 去重，缺失目标会返回明确的业务错误。
+     */
     private List<IntentNodeDO> listAndValidateTargetNodes(List<String> ids) {
+        // 整批目标校验通过后才允许后续批量更新，避免默默跳过无效 ID。
         Assert.notEmpty(ids, () -> new ClientException("请至少选择一个节点"));
         List<String> normalizedIds = ids.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
         Assert.notEmpty(normalizedIds, () -> new ClientException("节点ID不能为空"));
@@ -544,7 +597,12 @@ public class IntentTreeServiceImpl implements IntentTreeService {
         }));
     }
 
+    /**
+     * 按意图编码和父子映射展开全部后代节点。
+     * 返回集合不包含起始节点本身，用于批量停用和删除的完整子树校验。
+     */
     private List<IntentNodeDO> collectDescendants(String intentCode, Map<String, List<IntentNodeDO>> childrenMap) {
+        // 使用显式栈遍历子节点，校验结果随后与请求选择的 ID 集合对比。
         if (StrUtil.isBlank(intentCode)) {
             return Collections.emptyList();
         }

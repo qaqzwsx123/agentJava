@@ -48,14 +48,20 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
     private final ConversationMessageMapper conversationMessageMapper;
     private final RecommendedQuestionGenerator generator;
 
+    /**
+     * 为用户自己的助手回答读取缓存或生成推荐追问。
+     * 停用场景返回空结果；SUCCESS 和 EMPTY 都缓存，FAILED 不写入缓存。
+     */
     @Override
     public RecommendedQuestionsPayload generate(String messageId, String userId) {
+        // 先验证目标消息的角色与归属，避免使用他人回答生成推荐。
         ConversationMessageDO message = loadAssistantMessage(messageId, userId);
         if (isRecommendationDisabled(message)) {
             return RecommendedQuestionsPayload.empty();
         }
 
         List<String> cached = message.getRecommendedQuestions();
+        // 空列表也是有效的已生成结果，只有 null 才表示尚未生成。
         if (cached != null) {
             return RecommendedQuestionsPayload.success(cached);
         }
@@ -63,6 +69,7 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
         String question = loadQuestion(message);
         RecommendedQuestionsPayload generated =
                 generator.generate(question, CitationMarkup.strip(message.getContent()), message.getRetrievedChunks());
+        // 生成失败保留可重试空间，不把失败误缓存成没有推荐问题。
         if (generated.status() == RecommendedQuestionsPayload.Status.FAILED) {
             return generated;
         }
@@ -77,6 +84,8 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
 
     /**
      * 定位 assistant 消息并校验归属（他人消息或非 assistant 消息一律视为不存在）
+     * 读取属于指定用户的有效助手回复。
+     * 消息 ID、用户、assistant 角色及有效状态同时匹配，否则报告消息不存在。
      */
     private ConversationMessageDO loadAssistantMessage(String messageId, String userId) {
         ConversationMessageDO message = conversationMessageMapper.selectOne(
@@ -94,6 +103,8 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
 
     /**
      * 通过明确的 replyToMessageId 获取当前答案对应的用户提问
+     * 根据助手回复关联的提问 ID 读取原用户问题。
+     * 查询同时匹配会话、用户和 user 角色，缺失关联或原问题时返回 null。
      */
     private String loadQuestion(ConversationMessageDO message) {
         if (StrUtil.isBlank(message.getReplyToMessageId())) {
@@ -110,6 +121,10 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
         return question == null ? null : question.getContent();
     }
 
+    /**
+     * 判断该条回答是否禁止生成推荐追问。
+     * 有明确消息状态且不是 NORMAL 时停用推荐，避免对失败或中断结果继续生成。
+     */
     private boolean isRecommendationDisabled(ConversationMessageDO message) {
         return StrUtil.isNotBlank(message.getMessageStatus())
                 && !ChatMessage.MessageStatus.NORMAL.name().equals(message.getMessageStatus());

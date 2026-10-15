@@ -52,8 +52,11 @@ public class GraphQueryService {
      * @param doc        文档 id，限定只看该文档子图，优先级高于 collection，空则不限
      * @param depth      子图深度，非正取默认 2
      * @param limit      节点上限，非正取默认 200，上限 1000
+     * 查询知识图谱并按文档或知识库来源过滤为展示子图。
+     * 文档范围优先于知识库范围，节点显示数限制不超过 1000。
      */
     public GraphViewVO getGraph(String entity, String collection, String doc, int depth, int limit) {
+        // 先要求图谱客户端已启用，再归一深度与节点数量。
         LightRagClient client = requireClient();
         int maxDepth = depth > 0 ? depth : 2;
         int maxNodes = limit > 0 ? Math.min(limit, 1000) : 200;
@@ -67,18 +70,27 @@ public class GraphQueryService {
             token = collection + "_";
         }
         // 有范围过滤时向 LightRAG 拉宽到服务端上限，保证按 file_path 过滤后仍有足量节点
+        // 指定范围时扩大远端拉取上限，再在本地按来源过滤，减少过滤后节点过少的情况。
         int fetchNodes = token != null ? 1000 : maxNodes;
         return mapGraph(client.fetchGraph(label, maxDepth, fetchNodes), token, maxNodes);
     }
 
     /**
      * 检索实体标签，供可视化搜索框；keyword 为空取热门标签
+     * 通过图谱客户端搜索实体名称候选。
+     * 图谱通道未启用时抛出明确异常，不把不可用通道伪装成没有匹配实体。
      */
     public List<String> searchEntities(String keyword, int limit) {
+        // 客户端可用性检查与图谱主查询共用 requireClient。
         return requireClient().fetchLabels(keyword, limit);
     }
 
+    /**
+     * 取得当前配置启用的 LightRAG 客户端。
+     * 组件未注册时报告图谱通道未启用，而不是继续执行空客户端调用。
+     */
     private LightRagClient requireClient() {
+        // 客户端采用延迟获取，允许关闭图谱能力时其他后端功能仍能启动。
         LightRagClient client = lightRagClientProvider.getIfAvailable();
         if (client == null) {
             throw new ServiceException("知识图谱通道未启用（rag.graph.type=none）");
@@ -97,8 +109,11 @@ public class GraphQueryService {
      *
      * @param token 来源过滤 token，null 表示不过滤
      * @param limit 展示节点上限
+     * 将远端图谱 JSON 转换为前端节点和边列表。
+     * 按来源过滤、按上限截断节点，只保留两端都在展示集合内的边。
      */
     private GraphViewVO mapGraph(JsonNode root, String token, int limit) {
+        // 远端已有截断标记与本地截断情况共同决定最终 truncated 字段。
         List<GraphViewVO.Node> nodes = new ArrayList<>();
         List<GraphViewVO.Edge> edges = new ArrayList<>();
         boolean truncated = false;

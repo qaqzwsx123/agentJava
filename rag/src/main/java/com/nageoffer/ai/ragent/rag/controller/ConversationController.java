@@ -49,36 +49,48 @@ public class ConversationController {
 
     /**
      * 获取会话列表
+     * 查询当前用户的 Workflow/RAG 会话列表。
+     * 该列表与 Agent 引擎会话分开维护，返回标题和最近活跃信息。
      */
     @GetMapping("/conversations")
     public Result<List<ConversationVO>> listConversations() {
+        // 使用登录上下文限定会话所属用户。
         return Results.success(conversationService.listByUserId(UserContext.getUserId()));
     }
 
     /**
      * 重命名会话
+     * 修改 Workflow/RAG 会话标题。
+     * conversationId 指定会话，请求体提供新标题。
      */
     @PutMapping("/conversations/{conversationId}")
     public Result<Void> rename(@PathVariable String conversationId,
                                @RequestBody ConversationUpdateRequest request) {
+        // 具体会话状态和修改规则由会话服务负责。
         conversationService.rename(conversationId, request);
         return Results.success();
     }
 
     /**
      * 删除会话
+     * 删除 Workflow/RAG 会话及关联历史数据。
+     * conversationId 是待删除会话 ID，具体关联清理由会话服务完成。
      */
     @DeleteMapping("/conversations/{conversationId}")
     public Result<Void> delete(@PathVariable String conversationId) {
+        // 删除会话数据与停止某一次流式运行是不同操作。
         conversationService.delete(conversationId);
         return Results.success();
     }
 
     /**
      * 获取会话消息列表
+     * 读取当前用户在指定 Workflow/RAG 会话中的历史消息。
+     * conversationId 限定会话，消息按升序返回；这里不限制查询条数。
      */
     @GetMapping("/conversations/{conversationId}/messages")
     public Result<List<ConversationMessageVO>> listMessages(@PathVariable String conversationId) {
+        // 同时传入 userId，避免混入其他用户的聊天记录。
         return Results.success(conversationMessageService.listMessages(conversationId, UserContext.getUserId(), null, ConversationMessageOrder.ASC));
     }
 }

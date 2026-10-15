@@ -41,8 +41,13 @@ public class AgentMetaController {
     private final AgentProperties agentProperties;
     private final AgentToolCatalog toolCatalog;
 
+    /**
+     * 返回 Agent 引擎名称、模型及实际可用能力，供聊天页展示引擎状态。
+     * 不返回模型密钥；MCP 能力是否展示取决于当前可用的 MCP 工具数量。
+     */
     @GetMapping("/agent/v1/meta")
     public Result<AgentMetaVO> meta() {
+        // 先检查工具目录的实际 MCP 绑定数量，再组装能力清单。
         boolean mcpConfigured = toolCatalog.mcpToolCount() > 0;
         // 能力清单随实况增删，否则会与 mcpConfigured 各说各话，前端只能自己对齐
         List<String> capabilities = new ArrayList<>(List.of("react", "knowledge-base"));
