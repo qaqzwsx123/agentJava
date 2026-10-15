@@ -75,9 +75,21 @@ public class AgentToolCatalog {
      * @param prompts 本轮提示词快照，由调用方一次读出
      */
     public ResolvedCatalog resolve(Map<String, String> prompts) {
-        McpResolution mcp = resolveMcpTools();
-        return new ResolvedCatalog(resolveKnowledgeToolDescription(prompts), resolveMemoryToolDescription(prompts),
-                mcp.bindings, mcp.unavailableToolIds, skillRegistry.listEnabled());
+            // 1. 解析 MCP 工具：拿到可用的 MCP 工具绑定列表，以及不可用的工具 ID 列表
+            McpResolution mcp = resolveMcpTools();
+            // 2. 组装 ResolvedCatalog，最终返回的 ResolvedCatalog 就是本次解析出的工具配置快照。 包含四部分：
+            return new ResolvedCatalog(
+                // 2.1 知识库工具的描述：由 prompts 决定，不同提示词可能对应不同的描述
+                resolveKnowledgeToolDescription(prompts),
+                // 2.2 记忆工具的描述：由 prompts 决定，同理
+                resolveMemoryToolDescription(prompts),
+                // 2.3 MCP 工具的绑定列表：当前可用的 MCP 工具 （已经完成绑定，可以被 Agent 调用）
+                mcp.bindings,
+                // 2.4 MCP 工具的不可用列表：当前不可用的 MCP 工具 ID （比如被权限拦截、被技能遮蔽）
+                mcp.unavailableToolIds,
+                // 2.5 当前启用的技能列表：由 skillRegistry 提供，影响工具的可选范围
+                skillRegistry.listEnabled()
+        );
     }
 
     /**
@@ -85,21 +97,29 @@ public class AgentToolCatalog {
      * 由技能解锁的工具照常注册，遮蔽交给 AgentSkillMaskingMiddleware 按会话逐轮判定
      */
     public Toolkit buildToolkit(ResolvedCatalog catalog) {
+        // 新建工具集，本次构建的所有工具都注册到这里
         Toolkit toolkit = new Toolkit();
+        // 知识检索工具：总是挂载，描述来自目录解析结果
         toolkit.registerAgentTool(new KnowledgeSearchTool(
                 catalog.knowledgeToolDescription, knowledgeSearchFacade));
+        // 记忆工具：目录里有描述才挂
         if (catalog.memoryToolDescription != null) {
             toolkit.registerAgentTool(new MemoryFlushTool(catalog.memoryToolDescription, memoryPipeline));
         } else if (memoryProperties.isLongTermEnabled()) {
+            // 开了长期记忆但提示词为空 → 挂不了，告警提示，便于排查配置遗漏
             log.warn("AGENT_MEMORY_TOOL_DESCRIPTION 提示词为空, 本次不挂载 {}", MemoryFlushTool.TOOL_NAME);
         }
+        // 技能工具：目录标记有技能时才挂
         if (catalog.hasSkills) {
             toolkit.registerAgentTool(new SkillLoadTool(skillRegistry));
         }
+        // MCP 工具：遍历目录里的每个绑定，逐个用代理包装后注册
         catalog.bindings.forEach(binding -> toolkit.registerAgentTool(new McpToolProxy(binding)));
         // 只在构建实例时记，不随每次 resolve 刷日志
+        // 意图树里配了但实际没挂上的 MCP 工具，逐个告警（服务端没有或与内置工具重名）
         catalog.unavailableToolIds.forEach(toolId ->
                 log.warn("意图树配置的 MCP 工具未挂载: 服务端未发现或与内置工具重名, toolId: {}", toolId));
+        // 返回装好的工具集，供 ReActAgent 使用
         return toolkit;
     }
 
@@ -134,41 +154,68 @@ public class AgentToolCatalog {
      * 两处排序都为了指纹稳定，只排组内不够：分组序取决于各组最小的节点 id
      */
     private McpResolution resolveMcpTools() {
+        // 1. 从 intentNodeRegistry 取出所有 MCP 工具节点，按工具 ID 分组
+        //    - listMcpToolNodes()：获取所有与 MCP 工具相关的意图节点 - sorted(...)：按节点 ID 排序，保证分组时的顺序稳定
+        //    - groupingBy(...)：按 mcpToolId 分组，同一个工具可能有多个意图节点 - LinkedHashMap::new：使用 LinkedHashMap 保持插入顺序（即排序后的顺序）
         Map<String, List<IntentNode>> nodesByToolId = intentNodeRegistry.listMcpToolNodes().stream()
                 .sorted(Comparator.comparing(IntentNode::getId))
                 .collect(Collectors.groupingBy(
-                        node -> node.getMcpToolId().trim(),
-                        LinkedHashMap::new,
-                        Collectors.toList()));
-
+                        node -> node.getMcpToolId().trim(),  // 按工具 ID 分组（trim 去除空白）
+                        LinkedHashMap::new,                  // 保持插入顺序
+                        Collectors.toList()));               // 每个工具 ID 对应一个 IntentNode 列表
+        // 2. 准备两个列表：可用的绑定列表、不可用的工具 ID 列表
         List<McpToolBinding> bindings = new ArrayList<>();
         List<String> unavailableToolIds = new ArrayList<>();
+        // 3. 遍历每个工具 ID，判断是否可用
         nodesByToolId.forEach((toolId, nodes) -> {
+            // 3.1 从 mcpClients 中获取该工具对应的远程工具（RemoteTool）
             RemoteTool remote = mcpClients.get(toolId);
+            // 3.2 如果远程工具不存在，或者工具 ID 在保留名单中，则标记为不可用
+            //     - remote == null：说明该工具没有对应的远程实现（比如服务未启动、配置缺失）
+            //     - RESERVED_TOOL_NAMES.contains(toolId)：工具 ID 被系统保留，不允许外部使用
             if (remote == null || RESERVED_TOOL_NAMES.contains(toolId)) {
                 unavailableToolIds.add(toolId);
                 return;
             }
+            // 3.3 否则，组装成 McpToolBinding（绑定对象），加入可用列表
+            //     - toBinding(...)：把工具 ID、意图节点列表、远程工具组装成一个绑定对象
             bindings.add(toBinding(toolId, nodes, remote));
         });
+        // 4. 对可用列表和不可用列表分别排序，保证输出顺序稳定
+        //    - bindings 按 toolId 排序  - unavailableToolIds 按自然顺序排序
         bindings.sort(Comparator.comparing(McpToolBinding::toolId));
         unavailableToolIds.sort(Comparator.naturalOrder());
+        // 5. 返回解析结果
         return new McpResolution(bindings, unavailableToolIds);
     }
 
     private McpToolBinding toBinding(String toolId, List<IntentNode> nodes, RemoteTool remote) {
+        // 1. 提取展示名称（displayName）
+        //    从所有意图节点中取出名称，过滤掉空白，取第一个非空名称作为展示名
+        //    如果所有节点都没有名称，则退化为使用 toolId 作为展示名
         String displayName = nodes.stream()
-                .map(IntentNode::getName)
-                .filter(StrUtil::isNotBlank)
-                .findFirst()
-                .orElse(toolId);
+                .map(IntentNode::getName)          // 取出每个节点的名称
+                .filter(StrUtil::isNotBlank)       // 过滤掉空白名称
+                .findFirst()                       // 取第一个非空名称
+                .orElse(toolId);                   // 如果都没有，用 toolId 兜底
+
+        // 2. 提取描述（description）
+        //    从所有意图节点中取出描述，过滤掉空白，去重后拼接成一个多行字符串
+        //    为什么要去重？因为不同意图节点可能有相同的描述，去重后避免重复展示
+        //    为什么要拼接？因为同一个工具可能对应多个意图，每个意图的描述可能不同，拼接后能完整表达工具的能力
         String description = nodes.stream()
-                .map(IntentNode::getDescription)
-                .filter(StrUtil::isNotBlank)
-                .distinct()
-                .collect(Collectors.joining("\n"));
-        // 同一工具挂在多个意图下，任一节点勾选即需确认
+                .map(IntentNode::getDescription)   // 取出每个节点的描述
+                .filter(StrUtil::isNotBlank)       // 过滤掉空白描述
+                .distinct()                        // 去重，避免重复描述
+                .collect(Collectors.joining("\n")); // 用换行符拼接成一个多行字符串
+
+        // 3. 判断是否需要用户确认（confirmConfigured）
+        //    同一个工具可能挂在多个意图下，只要任意一个意图节点要求确认，就认为这个工具需要确认
+        //    比如“查天气”不需要确认，但“下单”需要确认，如果同一个工具同时挂在两个意图下，那就需要确认
         boolean confirmConfigured = nodes.stream().anyMatch(IntentNode::isRequireConfirm);
+
+        // 4. 组装成 McpToolBinding 并返回
+        //    把工具 ID、展示名、描述、是否需要确认、远程工具打包成一个绑定对象
         return McpToolBinding.of(toolId, displayName, description, confirmConfigured, remote);
     }
 

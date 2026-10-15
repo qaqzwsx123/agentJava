@@ -20,7 +20,7 @@ spring:
     url: jdbc:postgresql://192.168.137.100:5432/ragent?client_encoding=UTF8
     hikari:
       connection-timeout: 5000
-      idle-timeout: 600000
+      idle-timeout: 600000 #空闲连接超过 10 分钟（600000ms）被回收
       max-lifetime: 1800000
       maximum-pool-size: 10
       minimum-idle: 5

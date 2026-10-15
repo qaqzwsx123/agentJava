@@ -85,16 +85,19 @@ public class AgentChatServiceImpl implements AgentChatService {
     public void streamChat(String question, String conversationId, SseEmitter emitter) {
         String userId = UserContext.getUserId();
         String actualConversationId = StrUtil.isBlank(conversationId)
-                ? IdUtil.getSnowflakeNextIdStr()
-                : conversationId;
+                ? IdUtil.getSnowflakeNextIdStr()  // 没传 → 新会话，生成雪花 ID
+                : conversationId; // 传了 → 续用旧会话
         String taskId = IdUtil.getSnowflakeNextIdStr();
-
+        //申请一个运行名额（按 userId/conversationId 限流），拿不到就拒绝。
         Runnable releaseGate = runGate.acquire(userId, taskId, actualConversationId);
         try {
             if (StrUtil.isNotBlank(conversationId)
                     && conversationService.hasPendingConfirm(actualConversationId, userId)) {
                 throw new ClientException("上一步操作还在等你确认，请先确认或取消");
             }
+            // 转交执行：同步完成准备（取 Agent、建会话、落消息、组 RunScope），
+            // 真正的异步流式执行在其内部的 launchStream 中触发；
+            // releaseGate 一并传下去，由异步收尾时释放运行名额
             startRun(question, userId, actualConversationId, taskId, emitter, releaseGate);
         } catch (RuntimeException | Error e) {
             cleanupFailedStart(taskId, releaseGate);
@@ -139,24 +142,28 @@ public class AgentChatServiceImpl implements AgentChatService {
 
     private void startRun(String question, String userId, String conversationId, String taskId,
                           SseEmitter emitter, Runnable releaseGate) {
+        // 取本次要使用的 Agent（按配置选定，单模型无 fallback）
         ActiveAgent activeAgent = agentProvider.getAgent();
 
+        // 建/更新会话：新会话落库，已存在的刷新活跃时间；返回会话标题
         String title = conversationService.touchConversation(conversationId, userId, question);
         // 必须在 addUserMessage 之前建立基线，否则本轮消息会被划进历史、漏抽
         memoryPipeline.ensureExtractionBaseline(userId);
+        // 落库用户提问，返回消息 ID，供 AI 回复关联（replyToMessageId）
         String questionMessageId = conversationService.addUserMessage(conversationId, userId, question);
 
+        // 交给 launchStream 执行：input + agent + 本次运行上下文
+        // RunScope 打包异步线程所需的一切（线程内取不到 ThreadLocal，必须显式传）
         launchStream(new UserMessage(question), activeAgent, RunScope.builder()
-                .emitter(emitter)
-                .userId(userId)
-                .conversationId(conversationId)
-                .taskId(taskId)
-                .title(title)
-                .replyToMessageId(questionMessageId)
-                .releaseGate(releaseGate)
+                .emitter(emitter)                    // SSE 推送通道
+                .userId(userId)                      // 用户标识（异步线程无法从 ThreadLocal 获取）
+                .conversationId(conversationId)      // 会话标识
+                .taskId(taskId)                      // 任务标识，用于登记/取消/追踪
+                .title(title)                        // 会话标题
+                .replyToMessageId(questionMessageId) // AI 回复挂在这条用户消息下
+                .releaseGate(releaseGate)            // 释放运行名额的回调，收尾时调用
                 .build());
     }
-
     /**
      * 用户确认/拒绝后继续执行：先只读校验，启动准备完成后才结算卡片
      */
@@ -220,43 +227,78 @@ public class AgentChatServiceImpl implements AgentChatService {
     /**
      * 首问与确认后继续执行共用的流式启动逻辑
      */
+    // 当问题（input）和方法（Agent）都准备好后，如何安全地拉起一条从后端 AI 引擎到前端浏览器的流式管道，
+    // launchStream: 负责把一个普通的用户请求（Msg），转化为一条与前端实时通信、可监控、可中断的异步流（Flux<AgentEvent>。
     private void launchStream(Msg input, ActiveAgent activeAgent, RunScope scope) {
+        // 1. 提取上下文信息（用户、会话、任务ID），用于标识本次运行的唯一性
         String userId = scope.userId();
         String conversationId = scope.conversationId();
         String taskId = scope.taskId();
         ReActAgent agent = activeAgent.agent();
 
-        // 事实源：桥、上下文与句柄共用，ID 与时刻只在这里产生
+        // 2. 事实记录器AgentToolExecutionFacts
+        // 这里的 Clock 用于记录事件发生的时间戳
         Clock clock = Clock.systemDefaultZone();
+        //为本次运行（taskId）创建一个全新的、专属的事实记录器，并用传入的 clock 作为唯一的时间基准。”
         AgentToolExecutionFacts facts = new AgentToolExecutionFacts(taskId, clock);
-        // 上下文传到底，中断时句柄从这里取根 span
+
+        // 构建运行时上下文，贯穿整个流处理过程。中断时需要从这里获取根 Span 用于追踪
         RuntimeContext runtimeContext = buildRuntimeContext(scope, facts);
+        //给底层的 SSE 连接安装一个‘生命状态监听器’，并把它控制起来
         SseEmitterSender sender = new SseEmitterSender(scope.emitter());
+        //一次 AI 运行的操作把手
         AgentRunHandle runHandle = new AgentRunHandle(taskId, sender, taskManager, facts, runtimeContext);
+
+        // 3. 绑定释放钩子（例如：流结束、异常、取消时，清理资源或状态）
         bindReleaseHooks(runHandle, agent, scope);
         try {
+            // 4. 绑定 SSE 生命周期，确保前端连接断开时能触发相应的清理逻辑
             bindEmitterLifecycle(scope.emitter(), runHandle, taskId);
+
+            // 5. 在 AI 正式开始生成内容之前, 发送初始 META 事件给前端，告知本次会话和任务 ID
             sender.sendEvent(AgentSSEEventType.META.value(), new AgentMetaPayload(conversationId, taskId));
+
+            // 6. 构建事件桥接器：将 Agent 内部的事件（Event）转换并推送到前端 SSE
             AgentStreamEventBridge bridge = buildBridge(activeAgent, scope, runHandle, facts, clock);
+
+            // 7. 注册任务到任务管理器，并绑定取消时的回调（finishCancelledStream）
             taskManager.register(taskId, userId, bridge::finishCancelledStream);
-            // 预埋取消标记会让 register 当场跑完收尾，此时不再启动 Agent
+
+            // 8. 关键检查点：如果任务在注册瞬间就被标记为“已结算”（例如：在注册前就被取消）
+            // 这种情况下不需要再启动 Agent 流，直接返回即可
             if (runHandle.isSettled()) {
                 return;
             }
 
+            // 9. 启动 Agent 的事件流（Flux） ,调用 streamEvents()，模型开始准备工具调用
+            // Flux<AgentEvent> 就是：一条会不断传来“AI 思考过程”的传送带
             Flux<AgentEvent> events = agent.streamEvents(input, runtimeContext)
-                    // 让 runHandle 知道框架流已结束，取消时不必再强行断流
+                    // 给这条流加一个监听器：无论它是因为正常结束、报错还是被取消而停止，都要通知 runHandle 标记‘上游已终止’，
+                    // 以避免后续的取消操作产生死锁或重复断流
                     .doFinally(signal -> runHandle.markUpstreamTerminated());
+
+            // 10. 在 runHandle 中正式启动流处理
             runHandle.start(() -> {
+                // 结算确认卡片（通常是 UI 层面的预操作）
                 settleConfirmCard(scope);
+
+                // events.subscribe(...)：按下启动按钮。这时候 AI 才真正开始干活，事件开始一个接一个地产生。
+               // bridge::onEvent → 接收模型输出、工具调用和确认等事件 bridge::onError：如果流报错了，交给 bridge 处理
+               // bridge::onComplete→ 执行结束后保存消息、发送终止事件
+                //events.subscribe(...) 返回 Disposable：这是一个“订阅凭证”。有了它，就可以随时取消订阅（也就是“断流”）。
                 Disposable disposable = events.subscribe(bridge::onEvent, bridge::onError, bridge::onComplete);
+
+                // 绑定流资源与中断逻辑：把 Disposable 和“中断动作”绑定。用户点取消时，通过 disposable.dispose() 强制切断流。调用 agent.interrupt 停止生成
                 runHandle.bindStream(disposable, () -> agent.interrupt(userId, conversationId));
+
+                // 将句柄绑定到任务管理器，允许通过任务ID直接中断上游流
                 taskManager.bindHandle(taskId, runHandle::interruptUpstream);
             });
         } catch (RuntimeException | Error e) {
-            // 启动失败时释放钩子不会执行，手动清掉缓存里的坏状态
+            // 11. 异常兜底：如果启动过程中抛出异常或错误，释放钩子可能不会被执行
+            // 因此必须手动清理 Agent 的状态缓存，防止残留坏状态影响下一次请求
             agent.clearStateCache(userId, conversationId);
-            throw e;
+            throw e; // 重新抛出异常，让上层调用者感知启动失败
         }
     }
 
@@ -291,18 +333,28 @@ public class AgentChatServiceImpl implements AgentChatService {
     private AgentStreamEventBridge buildBridge(ActiveAgent activeAgent, RunScope scope, AgentRunHandle runHandle,
                                                AgentToolExecutionFacts facts, Clock clock) {
         return AgentStreamEventBridge.builder()
+                // 1. 绑定运行控制器：桥接器需要感知任务是否被取消/结束，并在必要时中断上游流
                 .runHandle(runHandle)
+                // 2. 绑定会话服务：AI 生成完最终回复后，桥接器需要调用它把回复落库（存进数据库）
                 .conversationService(conversationService)
+                // 3. 绑定事件目录/配置：catalog 决定了如何将 Agent 内部事件翻译成前端 SSE 事件
+                //    比如：工具调用事件怎么展示、思考过程怎么展示、文本流怎么展示
                 .catalog(activeAgent.catalog())
+                // 4. 绑定会话 ID：所有事件都要带上它，前端才能把消息渲染到正确的会话窗口
                 .conversationId(scope.conversationId())
+                // 5. 绑定用户 ID：用于权限校验、个性化处理、以及后续的记忆抽取
                 .userId(scope.userId())
+                // 6. 绑定会话标题：可能用于在生成回复时携带标题信息，或用于日志记录
                 .title(scope.title())
+                // 7. 绑定被回复的消息 ID：AI 的回复要挂在这条用户消息下面，确保对话链路正确
                 .replyToMessageId(scope.replyToMessageId())
+                // 8. 绑定统一时钟：保证所有事件的时间戳基于同一时间基准，避免时间不一致
                 .clock(clock)
+                // 9. 绑定事实记录器：桥接器在处理工具调用事件时，需要调用 facts 记录起止时间和批次
                 .facts(facts)
+                // 10. 构建并返回桥接器实例
                 .build();
     }
-
     /**
      * 把确认卡片改写成终态，首问路径没有卡片可结算，直接跳过
      * 只能在启动互斥区里做：先结算后订阅，取消才不会漏掉这次工具执行
@@ -319,20 +371,47 @@ public class AgentChatServiceImpl implements AgentChatService {
      * 事实源在构建时就位，中间件从上下文取它；其余 key 建完再 put——底层 ConcurrentHashMap 不接受 null
      */
     private static RuntimeContext buildRuntimeContext(RunScope scope, AgentToolExecutionFacts facts) {
+        // 1. 使用 Builder 模式构建基础上下文
         RuntimeContext runtimeContext = RuntimeContext.builder()
+                // 1.1 设置用户 ID：用于权限校验、限流、个性化等
                 .userId(scope.userId())
+                // 1.2 设置会话 ID：用于关联多轮对话、加载历史记忆
                 .sessionId(scope.conversationId())
+
+                // 1.3 放入 MCP 元数据（McpMeta）
+                // MCP (Model Context Protocol) 是模型上下文协议，这里封装了用户级别的 MCP 信息
+                // 后续工具或中间件可以通过 RuntimeContext.get(McpMeta.class) 取出使用
                 .put(McpMeta.class, new McpMeta(AgentMcpMeta.ofUser(scope.userId())))
+
+                // 1.4 放入事实记录器（AgentToolExecutionFacts）
+                // 使用静态常量 RUNTIME_CONTEXT_KEY 作为键，确保全局唯一
+                // 这样在任何地方都可以通过 AgentToolExecutionFacts.from(ctx) 取出同一个实例
                 .put(AgentToolExecutionFacts.RUNTIME_CONTEXT_KEY, facts)
                 .build();
+
+        // 2. 补充链路追踪相关的上下文键值（Trace Context Keys）
+        // 这些信息用于日志追踪、监控、问题排查，确保一次请求的所有日志都能串联起来
+
+        // 2.1 放入任务 ID（taskId）
+        // 用于在日志中标识本次运行，方便通过 taskId 搜索所有相关日志
         runtimeContext.put(AgentTraceContextKeys.TASK_ID, scope.taskId());
+
+        // 2.2 放入被回复的消息 ID（replyToMessageId）
+        // 用于关联 AI 回复与用户提问，方便追踪对话链路
         runtimeContext.put(AgentTraceContextKeys.REPLY_TO_MESSAGE_ID, scope.replyToMessageId());
+
+        // 2.3 放入确认卡片的消息 ID（confirmMessageId）
+        // 如果本次运行涉及用户确认操作（如工具调用前需用户授权），
+        // 这个 ID 用于定位具体的确认消息，方便后续处理确认/取消逻辑
         runtimeContext.put(AgentTraceContextKeys.CONFIRM_MESSAGE_ID, scope.confirmMessageId());
+
+        // 3. 返回构建好的完整上下文
         return runtimeContext;
     }
 
     /**
      * 单次运行的上下文参数，在 startRun/startConfirmRun 与 launchStream 之间传递
+     * 使用java14 record 关键字 进行 类的创建
      */
     @Builder
     private record RunScope(SseEmitter emitter, String userId, String conversationId,

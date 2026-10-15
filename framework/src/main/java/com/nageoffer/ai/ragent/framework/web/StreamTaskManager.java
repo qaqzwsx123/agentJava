@@ -99,17 +99,16 @@ public class StreamTaskManager {
      * 若任务已被属主或系统标记取消，回调立即执行
      */
     public void register(String taskId, String ownerUserId, Runnable onCancelFinalizer) {
+        // 1. 获取或创建本地任务信息
         StreamTaskInfo taskInfo = getOrCreate(taskId);
-        // 属主必须先于收尾回调落地：反过来的话，两条赋值之间到达的广播能拿本地回调杀掉一条无主的流
+        // 2. 记录属主和收尾回调
         taskInfo.ownerUserId = ownerUserId;
         taskInfo.finalizer = onCancelFinalizer;
-        // 属主进 Redis 而非只留本地：停止请求可能落在没跑这条流的节点上
-        if (StrUtil.isNotBlank(ownerUserId)) {
-            RBucket<String> owner = redissonClient.getBucket(ownerKey(taskId));
-            owner.set(ownerUserId, CANCEL_TTL);
-        }
+        // 3. 把属主写进 Redis，供跨节点权限校验
+        redissonClient.getBucket(ownerKey(taskId)).set(ownerUserId, CANCEL_TTL);
+        // 4. 检查 Redis 里是否已有取消标记（预埋取消）
         if (isTaskCancelledInRedis(taskId, taskInfo)) {
-            onCancelFinalizer.run();
+            onCancelFinalizer.run(); // 如果已被取消，立刻执行收尾
         }
     }
 

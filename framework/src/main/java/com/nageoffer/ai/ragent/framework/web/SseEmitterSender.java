@@ -46,10 +46,11 @@ public class SseEmitterSender {
      * Spring 的 SseEmitter 实例，用于实际的 SSE 通信
      */
     public SseEmitterSender(SseEmitter emitter) {
-        this.emitter = emitter;
-        emitter.onCompletion(() -> closed.set(true));
-        emitter.onTimeout(() -> closed.set(true));
-        emitter.onError(e -> closed.set(true));
+        this.emitter = emitter; // 1. 保存底层的通信管道
+        // 2. 注册三个回调，本质上是为了维护一个叫 closed 的开关
+        emitter.onCompletion(() -> closed.set(true)); // 当流正常结束时，标记为“已关闭”
+        emitter.onTimeout(() -> closed.set(true));    // 当连接超时时，标记为“已关闭”
+        emitter.onError(e -> closed.set(true));       // 当发生网络错误时，标记为“已关闭”
     }
 
     /**

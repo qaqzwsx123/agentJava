@@ -52,10 +52,19 @@ public class AgentRunGate {
      */
     public Runnable acquire(String userId, String taskId, String conversationId) {
         String slotValue = taskId + SLOT_SEPARATOR + conversationId;
+        //是按 userId，不是按 conversationId。也就是一个用户全局只能跑一个 Agent，而不是"每个会话各一个"。
+        //拿到 Redis 桶对象
         RBucket<String> slot = redissonClient.getBucket(runningKey(userId));
         if (!slot.setIfAbsent(slotValue, ttl())) {
             throw new ClientException("当前会话处理中，请稍后再发起新的对话");
         }
+        //完全等价
+        // return new Runnable() {
+        //    @Override
+        //    public void run() {
+        //        release(userId, slotValue);
+        //    }
+        //};
         return () -> release(userId, slotValue);
     }
 
