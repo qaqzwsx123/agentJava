@@ -48,6 +48,7 @@ public class ModelRoutingExecutor {
             List<ModelTarget> targets,
             Function<ModelTarget, C> clientResolver,
             ModelCaller<C, T> caller) {
+        // 1. 先确认至少有一个候选；没有目标时直接报告远程能力不可用，不尝试构造客户端。
         String label = capability.getDisplayName();
         if (targets == null || targets.isEmpty()) {
             throw new RemoteException("No " + label + " model candidates available");
@@ -60,6 +61,7 @@ public class ModelRoutingExecutor {
                 log.warn("{} provider client missing: provider={}, modelId={}", label, target.candidate().getProvider(), target.id());
                 continue;
             }
+            // 2. 候选选择之后健康状态仍可能变化，执行前必须再原子取得许可，不能只相信预筛结果。
             ModelHealthStore.CallPermit permit = healthStore.allowCall(target.id());
             if (permit == null) {
                 continue;
@@ -76,12 +78,14 @@ public class ModelRoutingExecutor {
                     healthStore.releaseHalfOpenPermit(permit);
                     throw TaskCancellation.asCancellation(e);
                 }
+                // 3. 只有非取消异常才计模型失败并切换下一候选；保留最后原因以构造最终错误链。
                 last = e;
                 healthStore.markFailure(target.id());
                 log.warn("{} model failed, fallback to next. modelId={}, provider={}", label, target.id(), target.candidate().getProvider(), e);
             }
         }
 
+        // 4. 所有候选均失败、无客户端或被熔断时统一报告不可用，避免返回一个看似成功的空值。
         throw new RemoteException(
                 "All " + label + " model candidates failed: " + (last == null ? "unknown" : last.getMessage()),
                 last,

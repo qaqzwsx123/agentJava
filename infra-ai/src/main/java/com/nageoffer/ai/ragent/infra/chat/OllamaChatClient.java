@@ -30,17 +30,20 @@ public class OllamaChatClient extends AbstractOpenAIStyleChatClient {
 
     @Override
     public String provider() {
+        // 返回本地 Ollama 的配置 ID，模型名和服务地址仍从本次目标中读取。
         return ModelProvider.OLLAMA.getId();
     }
 
     @Override
     protected boolean requiresApiKey() {
+        // 关闭 API Key 必填检查与 Bearer 请求头添加，供本地无鉴权的 Ollama 端点使用。
         return false;
     }
 
     @Override
     @RagTraceNode(name = "ollama-chat", type = "LLM_PROVIDER")
     public String chat(ChatRequest request, ModelTarget target) {
+        // 通过 OpenAI 兼容模板调用本地模型，其余响应校验和错误转换与远程供应商共用。
         return doChat(request, target);
     }
 
@@ -49,6 +52,7 @@ public class OllamaChatClient extends AbstractOpenAIStyleChatClient {
      */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
+        // 复用通用 HTTP/SSE 流实现，无需为本地模型另写线程池或取消逻辑。
         return doStreamChat(request, callback, target);
     }
 }

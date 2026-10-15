@@ -54,6 +54,7 @@ public class ModelSelector {
      * 档位解析：深度思考走 deepThinkingTier，否则兜底 defaultTier
      */
     public List<ModelTarget> selectChatCandidates(boolean thinking) {
+        // 未显式给档位和优先模型时复用完整入口，思考开关仍传入统一选择逻辑。
         return selectChatCandidates(thinking, null, null);
     }
 
@@ -63,6 +64,7 @@ public class ModelSelector {
      * override 语义：非空时使用该档位（想要更快/更强模型时由调用点传入），为空走默认解析
      */
     public List<ModelTarget> selectChatCandidates(boolean thinking, Tier override) {
+        // 保留显式档位覆盖，把优先模型留空，所有过滤和目标构建共用完整重载。
         return selectChatCandidates(thinking, override, null);
     }
 
@@ -75,6 +77,7 @@ public class ModelSelector {
      * @param preferredModelId 优先模型 id，为空时等同于无 preferred
      */
     public List<ModelTarget> selectChatCandidates(boolean thinking, Tier override, String preferredModelId) {
+        // 1. 读取 chat 模型组，缺失时返回空候选；随后统一解析思考、显式覆盖与默认档位的优先级。
         AIModelProperties.ModelGroup group = properties.getChat();
         if (group == null) {
             return List.of();
@@ -88,10 +91,12 @@ public class ModelSelector {
      * 从 Embedding 模型组筛选、排序并构造当前可用的调用目标。
      */
     public List<ModelTarget> selectEmbeddingCandidates() {
+        // 从 embedding 组按默认模型、优先级和健康状态选择目标，不使用 chat 档位配置。
         return selectCandidates(properties.getEmbedding());
     }
 
     public List<ModelTarget> selectRerankCandidates() {
+        // 从 rerank 组生成有序候选，允许配置 NOOP 作为无需远程调用的回退。
         return selectCandidates(properties.getRerank());
     }
 
@@ -99,6 +104,7 @@ public class ModelSelector {
      * 从视觉模型组筛选、排序并构造当前可用的调用目标。
      */
     public List<ModelTarget> selectVlmCandidates() {
+        // 按 VLM 组的默认模型与优先级排序并过滤当前不可用项，实际执行由视觉服务选择首项。
         return selectCandidates(properties.getVlm());
     }
 
@@ -108,6 +114,7 @@ public class ModelSelector {
      * 思考模式优先采用深度思考档位，其次采用显式指定档位，最后使用模型组默认档位。
      */
     private String resolveTierName(AIModelProperties.ModelGroup group, boolean thinking, Tier override) {
+        // 思考开启且配置了深度档时优先使用深度档；其次显式覆盖，最后才采用默认档。
         if (thinking && StrUtil.isNotBlank(group.getDeepThinkingTier())) {
             return group.getDeepThinkingTier();
         }
@@ -127,8 +134,10 @@ public class ModelSelector {
      */
     private List<ModelTarget> buildTierTargets(AIModelProperties.ModelGroup group, String tierName,
                                                   String preferredModelId, boolean requireThinking) {
+        // 1. 先建立物理模型注册表，档位只引用 ID；优先模型也必须经过相同注册与思考能力检查。
         Map<String, AIModelProperties.ModelCandidate> registry = buildRegistry(group.getCandidates());
 
+        // 2. 优先模型可不属于该档位，但必须已注册；随后再拼接档位候选，并通过 ID 去重。
         List<String> orderedIds = new ArrayList<>();
         if (StrUtil.isNotBlank(preferredModelId)) {
             AIModelProperties.ModelCandidate preferred = registry.get(preferredModelId);
@@ -181,6 +190,7 @@ public class ModelSelector {
      * 仅当候选明确声明 supportsThinking 为 true 时允许进入思考模式选择。
      */
     private boolean supportsThinking(AIModelProperties.ModelCandidate candidate) {
+        // 仅显式 true 才视为支持思考，null 和 false 都会在思考请求下被过滤。
         return Boolean.TRUE.equals(candidate.getSupportsThinking());
     }
 
@@ -188,6 +198,7 @@ public class ModelSelector {
      * 以解析后的模型 ID 建立配置映射，跳过空候选，相同 ID 后出现的配置覆盖前值。
      */
     private Map<String, AIModelProperties.ModelCandidate> buildRegistry(List<AIModelProperties.ModelCandidate> candidates) {
+        // 按统一解析出的 ID 建表，跳过 null 候选；此处同 ID 后值覆盖前值，启动校验器另行拒绝重复配置。
         Map<String, AIModelProperties.ModelCandidate> registry = new LinkedHashMap<>();
         if (candidates == null) {
             return registry;
@@ -206,6 +217,7 @@ public class ModelSelector {
      * 处理缺失模型组，按启用及默认模型规则筛选排序，再过滤不可用的调用目标。
      */
     private List<ModelTarget> selectCandidates(AIModelProperties.ModelGroup group) {
+        // 非聊天能力没有档位规则：先处理空配置，再排序启用候选，最后构建当前可用目标。
         if (group == null || group.getCandidates() == null) {
             return List.of();
         }
@@ -219,6 +231,7 @@ public class ModelSelector {
      */
     private List<AIModelProperties.ModelCandidate> filterAndSortCandidates(List<AIModelProperties.ModelCandidate> candidates,
                                                                            String firstChoiceModelId) {
+        // 先剔除停用或空候选，再按默认模型优先、priority 升序、原始 ID 升序排序，缺失排序值放后面。
         return candidates.stream()
                 .filter(c -> c != null && !Boolean.FALSE.equals(c.getEnabled()))
                 .sorted(Comparator
@@ -235,6 +248,7 @@ public class ModelSelector {
      * 为非聊天档位场景构建目标，过滤不可用项；超时参数留空，使用 HTTP 客户端默认设置。
      */
     private List<ModelTarget> buildAvailableTargets(List<AIModelProperties.ModelCandidate> candidates) {
+        // 为非聊天能力逐个构建目标，超时预算传 null 以沿用客户端默认配置，构建失败的项直接过滤。
         Map<String, AIModelProperties.ProviderConfig> providers = properties.getProviders();
 
         // embedding/rerank/vlm 无档位预算，超时走 HTTP 客户端默认
@@ -252,12 +266,14 @@ public class ModelSelector {
     private ModelTarget buildModelTarget(AIModelProperties.ModelCandidate candidate,
                                          Map<String, AIModelProperties.ProviderConfig> providers,
                                          Long timeoutMs) {
+        // 1. 先解析模型 ID 并做健康预筛；这一步不占用半开名额，调用执行器还会再次取得许可。
         String modelId = resolveId(candidate);
 
         if (healthStore.isUnavailable(modelId)) {
             return null;
         }
 
+        // 2. 普通目标必须有供应商配置；NOOP 不发 HTTP，允许不配置连接信息。
         AIModelProperties.ProviderConfig provider = providers.get(candidate.getProvider());
         if (provider == null && !ModelProvider.NOOP.matches(candidate.getProvider())) {
             log.warn("Provider配置缺失: provider={}, modelId={}", candidate.getProvider(), modelId);
@@ -271,6 +287,7 @@ public class ModelSelector {
      * 优先使用显式模型 ID，缺失时用 provider 与 model 拼接，供健康记录和配置索引共用。
      */
     private String resolveId(AIModelProperties.ModelCandidate candidate) {
+        // 有显式 ID 就直接使用，否则用 provider 与模型名拼接，缺失分量以 unknown 占位。
         if (StrUtil.isNotBlank(candidate.getId())) {
             return candidate.getId();
         }

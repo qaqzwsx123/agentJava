@@ -25,16 +25,19 @@ import org.springframework.stereotype.Service;
 public class SiliconFlowEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
 
     public SiliconFlowEmbeddingClient(OkHttpClient syncHttpClient) {
+        // 把共享同步客户端传给向量协议模板，保留连接池与超时等公共配置。
         super(syncHttpClient);
     }
 
     @Override
     public String provider() {
+        // 返回硅基流动配置 ID，路由层按它查找适配器。
         return ModelProvider.SILICON_FLOW.getId();
     }
 
     @Override
     protected int maxBatchSize() {
+        // 限制单次向量请求为 32 条，输入更多时由父类依次切片请求。
         return 32;
     }
 }

@@ -38,6 +38,7 @@ public final class LLMResponseCleaner {
      * 有开头围栏截到最后一道收尾围栏为止，没有则只削末尾那道
      */
     public static String stripMarkdownCodeFence(String raw) {
+        // 1. null 原样返回；其余先去首尾空白，区分是否存在开头代码围栏。
         if (raw == null) {
             return null;
         }
@@ -45,6 +46,7 @@ public final class LLMResponseCleaner {
         if (!cleaned.startsWith(FENCE)) {
             return TRAILING_CODE_FENCE.matcher(cleaned).replaceFirst("").trim();
         }
+        // 2. 有开头围栏时先移除语言标签，再截到最后一道收尾围栏；找不到收尾则保留剩余内容。
         cleaned = LEADING_CODE_FENCE.matcher(cleaned).replaceFirst("");
         int closing = cleaned.lastIndexOf(FENCE);
         return (closing < 0 ? cleaned : cleaned.substring(0, closing)).trim();

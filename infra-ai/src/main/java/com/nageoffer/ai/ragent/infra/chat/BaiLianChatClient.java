@@ -30,17 +30,20 @@ public class BaiLianChatClient extends AbstractOpenAIStyleChatClient {
 
     @Override
     public String provider() {
+        // 返回百炼配置键，供路由层把候选模型关联到该客户端。
         return ModelProvider.BAI_LIAN.getId();
     }
 
     @Override
     protected boolean supportsEnableThinkingParam() {
+        // 声明本适配器允许发送 enable_thinking，父类会据请求显式开启或关闭思考。
         return true;
     }
 
     @Override
     @RagTraceNode(name = "bailian-chat", type = "LLM_PROVIDER")
     public String chat(ChatRequest request, ModelTarget target) {
+        // 复用同步聊天模板，并由本类的思考参数钩子补充百炼请求差异。
         return doChat(request, target);
     }
 
@@ -49,6 +52,7 @@ public class BaiLianChatClient extends AbstractOpenAIStyleChatClient {
      */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
+        // 复用父类的 SSE 读取和取消逻辑，提供商思考开关仍在请求构建时生效。
         return doStreamChat(request, callback, target);
     }
 }

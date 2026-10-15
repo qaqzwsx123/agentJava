@@ -28,12 +28,14 @@ public final class StreamSpanCallback extends ForwardingStreamCallback {
     private final StreamSpan span;
 
     public StreamSpanCallback(StreamCallback delegate, StreamSpan span) {
+        // 先把业务回调交给转发父类，再绑定跨线程 span，让流终态对应真正的请求结束。
         super(delegate);
         this.span = span;
     }
 
     @Override
     protected void onFinish(boolean success, Throwable error) {
+        // 依据父类统一结算的成功标记结束追踪节点，失败时保留原异常交给追踪实现。
         if (success) {
             span.finishSuccess();
         } else {
@@ -45,6 +47,7 @@ public final class StreamSpanCallback extends ForwardingStreamCallback {
      * 取消时由调用方触发：若 span 仍 RUNNING，按取消语义结束，避免 trace 行悬挂
      */
     public void onCancel() {
+        // 先按取消语义结束仍运行的 span，再标记装饰器已收尾，避免后续完成或错误回调二次结算。
         span.finishCancelledIfRunning();
         finishExternally(false, null);
     }

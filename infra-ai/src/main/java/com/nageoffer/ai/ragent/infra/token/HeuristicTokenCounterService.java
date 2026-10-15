@@ -32,6 +32,7 @@ public class HeuristicTokenCounterService implements TokenCounterService {
      */
     @Override
     public Integer countTokens(String text) {
+        // 1. 无有效文本时返回 0，其他文本按 Java char 分类计数，这是字符启发式而非模型精确分词。
         if (!StringUtils.hasText(text)) {
             return 0;
         }
@@ -40,6 +41,7 @@ public class HeuristicTokenCounterService implements TokenCounterService {
         int cjkCount = 0;
         int otherCount = 0;
 
+        // 2. 跳过空白后分别统计 ASCII、列举的中日韩字符和其他字符，各类使用不同估算比例。
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
             if (Character.isWhitespace(ch)) {
@@ -57,6 +59,7 @@ public class HeuristicTokenCounterService implements TokenCounterService {
         int asciiTokens = (asciiCount + 3) / 4; // 英文等按 4 字符约 1 token
         int otherTokens = (otherCount + 1) / 2; // 其他字符按 2 字符约 1 token
         int total = asciiTokens + cjkCount + otherTokens;
+        // 3. 含有效文本时至少返回 1，避免极短输入因比例折算成 0；这里不能替代模型 tokenizer。
         return Math.max(total, 1);
     }
 
@@ -64,6 +67,7 @@ public class HeuristicTokenCounterService implements TokenCounterService {
      * 判断字符是否属于配置列举的中日韩文字、假名、韩文及相关符号 Unicode 区块。
      */
     private boolean isCjk(char ch) {
+        // 根据当前 char 所属 Unicode 区块识别列举的中日韩文字及符号，供估算器选择每字符一 token 的口径。
         Character.UnicodeBlock block = Character.UnicodeBlock.of(ch);
         return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
                 || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A

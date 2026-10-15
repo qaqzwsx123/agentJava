@@ -30,12 +30,14 @@ public class AIHubMixChatClient extends AbstractOpenAIStyleChatClient {
 
     @Override
     public String provider() {
+        // 返回与 ai.providers 配置一致的提供商 ID，路由器以它索引本客户端。
         return ModelProvider.AI_HUB_MIX.getId();
     }
 
     @Override
     @RagTraceNode(name = "aihubmix-chat", type = "LLM_PROVIDER")
     public String chat(ChatRequest request, ModelTarget target) {
+        // AIHubMix 的同步聊天复用兼容协议模板，目标模型、超时和鉴权由传入目标与父类处理。
         return doChat(request, target);
     }
 
@@ -44,6 +46,7 @@ public class AIHubMixChatClient extends AbstractOpenAIStyleChatClient {
      */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
+        // 委托父类提交流式读取任务，并把可取消 HTTP 上游的句柄交还路由层。
         return doStreamChat(request, callback, target);
     }
 }

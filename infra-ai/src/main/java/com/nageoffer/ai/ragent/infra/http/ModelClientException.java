@@ -45,6 +45,7 @@ public class ModelClientException extends RuntimeException {
      * @param cause      原始异常
      */
     public ModelClientException(String message, ModelClientErrorType errorType, Integer statusCode, Throwable cause) {
+        // 保留原始消息与原因链，并单独记录错误类别和可空 HTTP 状态，便于上层统一处理模型失败。
         super(message, cause);
         this.errorType = errorType;
         this.statusCode = statusCode;
@@ -58,6 +59,7 @@ public class ModelClientException extends RuntimeException {
      * @param statusCode HTTP状态码
      */
     public ModelClientException(String message, ModelClientErrorType errorType, Integer statusCode) {
+        // 没有底层原因时只保存协议错误信息、类别和 HTTP 状态，例如已收到明确的非成功响应。
         super(message);
         this.errorType = errorType;
         this.statusCode = statusCode;

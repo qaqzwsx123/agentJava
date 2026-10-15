@@ -25,16 +25,19 @@ import org.springframework.stereotype.Service;
 public class AIHubMixEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
 
     public AIHubMixEmbeddingClient(OkHttpClient syncHttpClient) {
+        // 将共享同步客户端交给父类，批量协议、鉴权和响应解析全部沿用模板。
         super(syncHttpClient);
     }
 
     @Override
     public String provider() {
+        // 返回 AIHubMix 的配置 ID，供向量路由定位本客户端。
         return ModelProvider.AI_HUB_MIX.getId();
     }
 
     @Override
     protected int maxBatchSize() {
+        // 将本适配器每次请求限制为 32 条，超出时父类按顺序拆批并合并结果。
         return 32;
     }
 }

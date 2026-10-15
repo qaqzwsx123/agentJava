@@ -44,6 +44,7 @@ public class ModelUrlResolver {
             AIModelProperties.ProviderConfig provider,
             AIModelProperties.ModelCandidate candidate,
             ModelCapability capability) {
+        // 1. 候选显式填写的 URL 是完整请求地址，优先使用它，不再追加供应商端点。
         if (candidate != null && candidate.getUrl() != null && !candidate.getUrl().isBlank()) {
             return candidate.getUrl();
         }
@@ -51,6 +52,7 @@ public class ModelUrlResolver {
             throw new IllegalStateException("Provider baseUrl is missing");
         }
 
+        // 2. 没有模型级地址时，按能力的小写键读取端点，再与供应商基础地址拼接。
         Map<String, String> endpoints = provider.getEndpoints();
         String key = capability.name().toLowerCase();
         String path = endpoints == null ? null : endpoints.get(key);
@@ -70,6 +72,7 @@ public class ModelUrlResolver {
      * @return 拼接后的完整URL
      */
     private static String joinUrl(String baseUrl, String path) {
+        // 只调整基础地址和路径交界处的斜杠：重复时去掉一个，缺失时补一个，其余情况直接连接。
         if (baseUrl.endsWith("/") && path.startsWith("/")) {
             return baseUrl + path.substring(1);
         }

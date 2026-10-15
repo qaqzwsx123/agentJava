@@ -30,17 +30,20 @@ public class SiliconFlowChatClient extends AbstractOpenAIStyleChatClient {
 
     @Override
     public String provider() {
+        // 返回硅基流动的配置 ID，供模型路由选择该供应商适配器。
         return ModelProvider.SILICON_FLOW.getId();
     }
 
     @Override
     protected boolean supportsEnableThinkingParam() {
+        // 允许父类写入 enable_thinking，并以请求的 thinking 标志决定具体布尔值。
         return true;
     }
 
     @Override
     @RagTraceNode(name = "siliconflow-chat", type = "LLM_PROVIDER")
     public String chat(ChatRequest request, ModelTarget target) {
+        // 同步聊天交给父类模板，保留本适配器声明的思考参数差异。
         return doChat(request, target);
     }
 
@@ -49,6 +52,7 @@ public class SiliconFlowChatClient extends AbstractOpenAIStyleChatClient {
      */
     @Override
     public StreamCancellationHandle streamChat(ChatRequest request, StreamCallback callback, ModelTarget target) {
+        // 复用父类 SSE 读取实现，返回句柄供首包失败切换或用户停止时取消上游。
         return doStreamChat(request, callback, target);
     }
 }

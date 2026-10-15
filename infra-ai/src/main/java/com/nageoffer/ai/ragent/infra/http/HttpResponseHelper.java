@@ -40,6 +40,7 @@ public final class HttpResponseHelper {
      * 读取响应体原始字符串
      */
     public static String readBody(ResponseBody body) throws IOException {
+        // 响应体缺失时返回空串，存在时一次性读取字节并按 UTF-8 解码，通常用于记录错误响应。
         if (body == null) {
             return "";
         }
@@ -54,6 +55,7 @@ public final class HttpResponseHelper {
      * @return 解析后的 JsonObject
      */
     public static JsonObject parseJson(ResponseBody body, String label) throws IOException {
+        // 先拒绝缺失的响应体，再消费正文并交给 Gson 解析；这里只处理 JSON 语法，业务字段由各客户端校验。
         if (body == null) {
             throw new ModelClientException(label + " 响应为空", ModelClientErrorType.INVALID_RESPONSE, null);
         }
@@ -65,6 +67,7 @@ public final class HttpResponseHelper {
      * 校验并返回提供商配置
      */
     public static AIModelProperties.ProviderConfig requireProvider(ModelTarget target, String label) {
+        // 目标或其供应商配置缺失就立即抛配置异常，否则返回本次调用绑定的配置。
         if (target == null || target.provider() == null) {
             throw new IllegalStateException(label + " 提供商配置缺失");
         }
@@ -75,6 +78,7 @@ public final class HttpResponseHelper {
      * 校验提供商 API 密钥
      */
     public static void requireApiKey(AIModelProperties.ProviderConfig provider, String label) {
+        // 密钥为 null 或空白都拒绝，避免把无效 Bearer 凭据发给供应商。
         if (provider.getApiKey() == null || provider.getApiKey().isBlank()) {
             throw new IllegalStateException(label + " API密钥缺失");
         }
@@ -84,6 +88,7 @@ public final class HttpResponseHelper {
      * 校验并返回模型名称
      */
     public static String requireModel(ModelTarget target, String label) {
+        // 检查目标、候选和模型名是否为 null，返回配置原值；本方法没有额外过滤空字符串。
         if (target == null || target.candidate() == null || target.candidate().getModel() == null) {
             throw new IllegalStateException(label + " 模型名称缺失");
         }

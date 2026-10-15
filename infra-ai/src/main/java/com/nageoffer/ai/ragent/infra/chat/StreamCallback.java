@@ -48,6 +48,7 @@ public interface StreamCallback {
      * @param messageId 用户消息 ID
      */
     default void onReplyToMessageId(String messageId) {
+        // 默认忽略消息关联扩展，让只关心正文的实现无需额外实现这个回调。
     }
 
     /**
@@ -73,6 +74,7 @@ public interface StreamCallback {
      * @param content 当前推送的思考内容
      */
     default void onThinking(String content) {
+        // 默认不处理思考增量，不影响正文、完成和错误这三个核心回调。
     }
 
     /**
@@ -83,6 +85,7 @@ public interface StreamCallback {
      * @param sources 文档级来源列表
      */
     default void onSources(List<SourceRef> sources) {
+        // 不需要来源面板的实现可沿用空行为，来源的暂存和展示交给具体业务回调。
     }
 
     /**
@@ -93,6 +96,7 @@ public interface StreamCallback {
      * @param chunks grounding 片段列表
      */
     default void onGroundingChunks(List<GroundingChunk> chunks) {
+        // 默认忽略追问证据片段，只有需要消息落库或推荐问题的实现才覆写。
     }
 
     /**

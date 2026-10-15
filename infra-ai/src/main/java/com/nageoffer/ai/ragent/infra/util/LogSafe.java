@@ -36,6 +36,7 @@ public final class LogSafe {
      * 按默认长度截断
      */
     public static String preview(String raw) {
+        // 默认只预览前 500 个字符，统一复用可指定上限的实现。
         return preview(raw, DEFAULT_MAX);
     }
 
@@ -43,6 +44,7 @@ public final class LogSafe {
      * 把原始文本截断到 max 字符，超出部分以省略号与总长度提示替代
      */
     public static String preview(String raw, int max) {
+        // 短文本保持原样，长文本只保留前 max 个字符并附原始总长；这里只截长，不做字段级脱敏。
         if (raw == null) {
             return null;
         }

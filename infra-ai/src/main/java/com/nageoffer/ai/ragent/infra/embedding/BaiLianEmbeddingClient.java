@@ -25,11 +25,13 @@ import org.springframework.stereotype.Service;
 public class BaiLianEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
 
     public BaiLianEmbeddingClient(OkHttpClient syncHttpClient) {
+        // 通过父类复用同步客户端与 OpenAI 兼容向量协议，避免重复维护网络逻辑。
         super(syncHttpClient);
     }
 
     @Override
     public String provider() {
+        // 返回百炼配置 ID，与候选模型的 provider 字段对应。
         return ModelProvider.BAI_LIAN.getId();
     }
 
@@ -39,6 +41,7 @@ public class BaiLianEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
      */
     @Override
     protected int maxBatchSize() {
+        // 本适配器设置每批最多 10 条；父类据此拆分长文档产生的大量切片。
         return 10;
     }
 }

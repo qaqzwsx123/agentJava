@@ -44,6 +44,7 @@ public class RoutingRerankService implements RerankService {
     private final Map<String, RerankClient> clientsByProvider;
 
     public RoutingRerankService(ModelSelector selector, ModelRoutingExecutor executor, List<RerankClient> clients) {
+        // 按 provider 汇集重排序客户端，共用模型选择器和失败回退执行器。
         this.selector = selector;
         this.executor = executor;
         this.clientsByProvider = clients.stream()
@@ -52,6 +53,7 @@ public class RoutingRerankService implements RerankService {
 
     @Override
     public List<RetrievedChunk> rerank(String query, List<RetrievedChunk> candidates, int topN) {
+        // 将同一问题、候选列表和 topN 交给有序目标尝试，具体重排或 NOOP 行为由匹配的客户端决定。
         return executor.executeWithFallback(
                 ModelCapability.RERANK,
                 selector.selectRerankCandidates(),

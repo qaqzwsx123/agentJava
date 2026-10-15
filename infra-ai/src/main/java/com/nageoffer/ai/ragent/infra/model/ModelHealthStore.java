@@ -50,6 +50,7 @@ public class ModelHealthStore {
      * 判断模型是否处于未到期熔断或已有探测请求的半开状态，供候选筛选使用。
      */
     public boolean isUnavailable(String id) {
+        // 候选筛选只读取当前状态，不在此认领半开探测名额；真正调用前仍要执行 allowCall。
         ModelHealth health = healthById.get(id);
         if (health == null) {
             return false;
@@ -64,6 +65,7 @@ public class ModelHealthStore {
      * 返回 null 表示拒绝调用
      */
     public CallPermit allowCall(String id) {
+        // 1. 空 ID 不放行；其余调用按模型 ID 进入原子 compute，避免多个线程同时取得半开探测权。
         if (id == null) {
             return null;
         }
@@ -94,6 +96,7 @@ public class ModelHealthStore {
                 granted.set(new CallPermit(id, v.halfOpenToken));
                 return v;
             }
+            // CLOSED 正常放行但不占半开名额，因此令牌设为 0，后续取消无需归还探测槽位。
             granted.set(new CallPermit(id, 0L));
             return v;
         });
@@ -104,6 +107,7 @@ public class ModelHealthStore {
      * 调用成功后关闭熔断、清空连续失败次数及半开占用；未知模型创建初始健康记录。
      */
     public void markSuccess(String id) {
+        // 成功后原子重置为 CLOSED，清空连续失败、熔断截止时间和半开占用，让后续请求恢复正常调用。
         if (id == null) {
             return;
         }
@@ -123,6 +127,7 @@ public class ModelHealthStore {
      * 普通失败累加计数，达到阈值后打开熔断；半开探测失败立即重新熔断并设置恢复时间。
      */
     public void markFailure(String id) {
+        // 1. 失败记录按模型 ID 原子更新，未知模型先建立正常初始记录，再累计本次失败。
         if (id == null) {
             return;
         }
@@ -139,6 +144,7 @@ public class ModelHealthStore {
                 v.halfOpenInFlight = false;
                 return v;
             }
+            // 2. 普通连续失败达到配置阈值才熔断；半开失败已在上一个分支立即重新打开。
             v.consecutiveFailures++;
             if (v.consecutiveFailures >= properties.getSelection().getFailureThreshold()) {
                 v.state = State.OPEN;
@@ -153,10 +159,12 @@ public class ModelHealthStore {
      * 仅释放当前凭证持有的半开探测名额
      */
     public void releaseHalfOpenPermit(CallPermit permit) {
+        // 只归还带正数令牌的半开许可，普通 CLOSED 调用没有探测名额可释放。
         if (permit == null || permit.halfOpenToken() <= 0L) {
             return;
         }
         healthById.computeIfPresent(permit.modelId(), (k, v) -> {
+            // 只有状态、占用和令牌都仍匹配才归还，旧请求的取消不能释放新一轮探测的名额。
             if (v.state == State.HALF_OPEN && v.halfOpenInFlight && v.halfOpenToken == permit.halfOpenToken()) {
                 v.halfOpenInFlight = false;
             }
@@ -172,6 +180,7 @@ public class ModelHealthStore {
         private State state;
 
         private ModelHealth() {
+            // 新模型默认 CLOSED 且无失败或探测占用，只有实际失败才逐步触发熔断。
             this.consecutiveFailures = 0;
             this.openUntil = 0L;
             this.halfOpenInFlight = false;

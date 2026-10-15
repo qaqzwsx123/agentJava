@@ -66,6 +66,7 @@ public class RoutingLLMService implements LLMService {
             ModelRoutingExecutor executor,
             LlmFirstPacketProbe firstPacketProbe,
             List<ChatClient> clients) {
+        // 保存模型选择、健康状态和执行器依赖，再以 provider 建立客户端索引；重复 provider 会在建表时暴露。
         this.selector = selector;
         this.healthStore = healthStore;
         this.executor = executor;
@@ -80,6 +81,7 @@ public class RoutingLLMService implements LLMService {
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
     public String chat(ChatRequest request) {
+        // 使用默认档位规则选择候选，thinking 显式开启时仍优先走深度思考档，再交统一执行器切换失败候选。
         return executor.executeWithFallback(
                 ModelCapability.CHAT,
                 selector.selectChatCandidates(Boolean.TRUE.equals(request.getThinking())),
@@ -94,6 +96,7 @@ public class RoutingLLMService implements LLMService {
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
     public String chat(ChatRequest request, Tier tier) {
+        // 传入显式档位覆盖，但思考请求的档位选择仍由选择器统一决定，避免调用点各自实现优先级。
         return executor.executeWithFallback(
                 ModelCapability.CHAT,
                 selector.selectChatCandidates(Boolean.TRUE.equals(request.getThinking()), tier),
@@ -108,6 +111,7 @@ public class RoutingLLMService implements LLMService {
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
     public String chat(ChatRequest request, Tier tier, String preferredModelId) {
+        // 未指定优先模型时直接复用档位重载；指定后先尝试该模型，再保留同档位的其余候选作为回退。
         if (!StringUtils.hasText(preferredModelId)) {
             return chat(request, tier);
         }
@@ -190,6 +194,7 @@ public class RoutingLLMService implements LLMService {
      * 按候选模型的 provider 查找聊天客户端，缺失时记录日志并返回 null，让外层跳过该候选。
      */
     private ChatClient resolveClient(ModelTarget target, String label) {
+        // 按当前目标的 provider 查客户端；缺失时返回 null 并记录配置问题，外层跳过这个候选。
         ChatClient client = clientsByProvider.get(target.candidate().getProvider());
         if (client == null) {
             log.warn("{} 提供商客户端缺失: provider：{}，modelId：{}",
@@ -206,9 +211,11 @@ public class RoutingLLMService implements LLMService {
                                                            StreamCallback callback,
                                                            long firstPacketBudgetMs,
                                                            ModelHealthStore.CallPermit permit) {
+        // 1. 通过独立探测 Bean 记录首包等待耗时；成功会由桥接器提交已缓存的事件。
         try {
             return firstPacketProbe.awaitFirstPacket(bridge, firstPacketBudgetMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
+            // 2. 中断属于本次调用被停止，不记模型失败；保留中断标记，取消上游并归还半开许可。
             Thread.currentThread().interrupt();
             try {
                 handle.cancel();
@@ -225,6 +232,7 @@ public class RoutingLLMService implements LLMService {
      * 将首包探测的错误、超时或无正文结果转为具体异常，保留失败原因供最终异常链使用。
      */
     private Throwable buildLastErrorAndLog(ProbeStreamBridge.ProbeResult result, ModelTarget target, String label) {
+        // 按探测结果区分上游报错、等待超时和无内容结束；保留具体原因，交给最终统一异常关联。
         switch (result.getType()) {
             case ERROR -> {
                 Throwable error = result.getError() != null
@@ -259,6 +267,7 @@ public class RoutingLLMService implements LLMService {
      * 构造所有候选失败的统一异常，通知流式回调并返回该异常供调用方抛出。
      */
     private RemoteException notifyAllFailed(StreamCallback callback, Throwable lastError) {
+        // 用最后一次失败构造统一远程异常，先通知流式下游，再把同一异常返回给调用处抛出。
         RemoteException finalException = new RemoteException(
                 STREAM_ALL_FAILED_MESSAGE,
                 lastError,

@@ -45,14 +45,17 @@ public final class StreamAsyncExecutor {
                                            Call call,
                                            StreamCallback callback,
                                            Consumer<AtomicBoolean> streamTask) {
+        // 1. 为本次读取任务创建共享取消标记，再把实际的流读取循环提交到指定 Executor。
         AtomicBoolean cancelled = new AtomicBoolean(false);
         try {
             CompletableFuture.runAsync(() -> streamTask.accept(cancelled), executor);
         } catch (RejectedExecutionException ex) {
+            // 2. 线程池拒绝意味着无人读取这个请求，立即取消 Call 并通知错误，避免悬挂连接。
             call.cancel();
             callback.onError(new ModelClientException(STREAM_BUSY_MESSAGE, ModelClientErrorType.SERVER_ERROR, null, ex));
             return StreamCancellationHandles.noop();
         }
+        // 3. 正常提交后返回幂等句柄，同时置取消标记并取消底层 HTTP，以终止循环与阻塞读取。
         return StreamCancellationHandles.fromOkHttp(call, cancelled);
     }
 }
