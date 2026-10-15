@@ -65,6 +65,10 @@ public class AgentContextCompactor {
 
     /**
      * 就地压缩，返回 context 是否被改写；任何前置条件不满足就整次放弃
+     * <p>
+     * 先寻找安全切点，再合并旧摘要与新增历史素材生成新摘要。
+     * 只有素材占比足够、保留段工具配对完整且摘要非空时，才用“新摘要 + 最近原文”替换上下文。
+     * @return true 表示上下文已替换；false 表示前置检查未通过或没有可用摘要
      */
     public boolean compactInPlace(List<Msg> context, String userId, String sessionId) {
         int sizeBefore = context.size();
@@ -75,6 +79,7 @@ public class AgentContextCompactor {
             return false;
         }
 
+        // 将上一代摘要与本次待压缩原文分开，交给摘要器增量更新。
         List<Msg> material = new ArrayList<>();
         String existingSummary = null;
         for (Msg msg : context.subList(0, cutoff)) {
@@ -97,12 +102,14 @@ public class AgentContextCompactor {
             return false;
         }
 
+        // 最近原文完整保留；切点之后不能留下找不到调用来源的工具结果。
         List<Msg> tail = new ArrayList<>(context.subList(cutoff, context.size()));
         if (hasOrphanToolResult(tail)) {
             log.warn("上下文压缩放弃, 保留段存在无配对的工具结果, 切点: {}, 总字符: {}", cutoff, totalChars);
             return false;
         }
 
+        // 先拿到可用摘要，再改写 context，避免模型失败时丢失历史。
         String summaryText = summarizer.summarize(material, existingSummary);
         if (StrUtil.isBlank(summaryText)) {
             return false;
@@ -123,6 +130,8 @@ public class AgentContextCompactor {
 
     /**
      * 摘要每代覆盖，这张表是唯一的存档；落库失败只报警不回滚
+     * <p>
+     * 记录摘要代数、素材数量和压缩前后字符数，便于追溯被替换的历史内容。
      */
     private void audit(String userId, String sessionId, String summaryText,
                        int materialMsgCount, int materialChars, int charsBefore, int charsAfter) {
@@ -148,6 +157,8 @@ public class AgentContextCompactor {
 
     /**
      * 从尾部保留够量后，往前找最近的用户轮起点作为切点
+     * <p>
+     * 从尾部累计需要保留的字符数，再向前对齐真实用户消息；返回保留段起始索引，无安全切点返回 -1。
      */
     private int findSafeCutoff(List<Msg> context, int keepRecentChars) {
         int kept = 0;
@@ -173,6 +184,8 @@ public class AgentContextCompactor {
 
     /**
      * 孤儿 tool_result 会被供应商判 400，保留段必须配对完整
+     * <p>
+     * 按顺序收集工具调用 ID，检查每个工具结果在保留段中是否已有对应调用；存在孤儿结果返回 true。
      */
     private boolean hasOrphanToolResult(List<Msg> tail) {
         Set<String> toolUseIds = new HashSet<>();
@@ -194,6 +207,8 @@ public class AgentContextCompactor {
 
     /**
      * 用 USER 不用 SYSTEM：context 中间插 SYSTEM 有供应商会拒
+     * <p>
+     * 生成带专用名称和唯一 ID 的摘要消息，并在正文说明这是历史背景，供后续压缩识别与复用。
      */
     private Msg buildSummaryMsg(String summaryText) {
         return Msg.builder()
@@ -204,12 +219,17 @@ public class AgentContextCompactor {
                 .build();
     }
 
+    /**
+     * 通过专用消息名称识别自动生成的摘要，避免把它当成新的用户轮次或普通原文。
+     */
     private static boolean isSummary(Msg msg) {
         return SUMMARY_NAME.equals(msg.getName());
     }
 
     /**
      * 取回上一份摘要正文，标记找不到就整段回传
+     * <p>
+     * 去掉摘要的身份说明和收尾标签，提取可再次参与摘要生成的正文；空正文返回 null。
      */
     private String unwrap(Msg msg) {
         String text = msg.getTextContent();

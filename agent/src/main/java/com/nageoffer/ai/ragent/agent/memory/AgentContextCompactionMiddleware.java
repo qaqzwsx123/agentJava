@@ -53,12 +53,20 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
     private final AgentContextCompactor compactor;
     private final AgentMemoryProperties memoryProperties;
 
+    /**
+     * 在每次模型推理前接入上下文治理，订阅事件流时才执行裁剪或压缩。
+     * 使用本次调用的运行上下文取得状态，不在共享中间件实例中缓存会话数据。
+     */
     @Override
     public Flux<AgentEvent> onReasoning(Agent agent, RuntimeContext runtimeContext, ReasoningInput input,
                                         Function<ReasoningInput, Flux<AgentEvent>> next) {
         return Flux.defer(() -> dispatch(agent, runtimeContext, input, next));
     }
 
+    /**
+     * 读取当前会话的可变上下文，按摘要开关、字符水位和消息引用关系选择处理方式。
+     * 状态不可用时透传原输入；不满足压缩条件时尝试轻量的工具结果裁剪。
+     */
     private Flux<AgentEvent> dispatch(Agent agent, RuntimeContext runtimeContext, ReasoningInput input,
                                       Function<ReasoningInput, Flux<AgentEvent>> next) {
         List<Msg> context;
@@ -72,6 +80,7 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
         if (context == null) {
             return next.apply(input);
         }
+        // 未到摘要水位仍可尝试较低水位的工具结果裁剪。
         if (!memoryProperties.isSummaryEnabled() || !shouldCompact(context)) {
             return next.apply(trim(context, input, runtimeContext));
         }
@@ -86,6 +95,8 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
 
     /**
      * 末条是用户消息才压缩，保证工具循环已闭合
+     * <p>
+     * 只有最后一条为用户消息且字符数超过压缩水位时才返回 true，避免在工具执行中途压缩。
      */
     private boolean shouldCompact(List<Msg> context) {
         if (context.isEmpty() || context.get(context.size() - 1).getRole() != MsgRole.USER) {
@@ -96,6 +107,8 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
 
     /**
      * 压缩含同步模型调用，切到 boundedElastic 避免占推理线程
+     * <p>
+     * 异步调度同步摘要调用，成功后保留框架前缀并重建输入；未压缩或出现异常时退回工具结果裁剪。
      */
     private Mono<ReasoningInput> compact(List<Msg> context, ReasoningInput input, List<Msg> prefix,
                                          RuntimeContext runtimeContext) {
@@ -111,6 +124,8 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
 
     /**
      * 裁剪失败走原列表
+     * <p>
+     * 将裁剪生成的旧消息到新消息映射同步到本次推理输入；没有变化时复用原输入。
      */
     private ReasoningInput trim(List<Msg> context, ReasoningInput input, RuntimeContext runtimeContext) {
         try {
@@ -118,6 +133,7 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
             if (!result.changed()) {
                 return input;
             }
+            // 上下文已替换消息对象，上行副本也必须换成同一批新对象。
             List<Msg> messages = input.messages().stream()
                     .map(msg -> result.replacements().getOrDefault(msg, msg))
                     .toList();
@@ -130,6 +146,9 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
 
     /**
      * 按引用逐条比对，取出上行列表头部的框架前缀；失配返回 null
+     * <p>
+     * 把上行消息视为“框架前缀 + 会话上下文”，逐项按对象引用验证后返回前缀副本。
+     * 长度不足或任一引用不同都返回 null，避免压缩后拼接错误的消息列表。
      */
     private List<Msg> resolvePrefix(List<Msg> messages, List<Msg> context) {
         int offset = messages.size() - context.size();
@@ -146,6 +165,8 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
 
     /**
      * 压缩改了消息条数，需整段重建上行列表
+     * <p>
+     * 将框架前缀与压缩后的上下文重新拼接，同时沿用原输入的工具定义和模型选项。
      */
     private ReasoningInput rebuild(ReasoningInput input, List<Msg> context, List<Msg> prefix) {
         List<Msg> rebuilt = new ArrayList<>(prefix.size() + context.size());
@@ -154,10 +175,16 @@ public class AgentContextCompactionMiddleware implements MiddlewareBase {
         return new ReasoningInput(rebuilt, input.tools(), input.options());
     }
 
+    /**
+     * 从本次运行上下文读取会话 ID；上下文缺失时返回 null，供日志和压缩审计使用。
+     */
     private String sessionId(RuntimeContext runtimeContext) {
         return runtimeContext == null ? null : runtimeContext.getSessionId();
     }
 
+    /**
+     * 从本次运行上下文读取用户 ID；上下文缺失时返回 null，供压缩审计记录归属。
+     */
     private String userId(RuntimeContext runtimeContext) {
         return runtimeContext == null ? null : runtimeContext.getUserId();
     }

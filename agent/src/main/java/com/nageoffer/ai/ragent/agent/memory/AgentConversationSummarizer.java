@@ -83,8 +83,12 @@ public class AgentConversationSummarizer {
 
     /**
      * 生成失败返回 null，调用方据此放弃本次压缩
+     * <p>
+     * 把历史消息转成笔录，结合上一份摘要构造提示词，调用 STANDARD 档模型后校验输出。
+     * 空素材、空输出、结构或长度校验失败以及模型调用异常时返回 null，由调用方保留原上下文。
      */
     public String summarize(List<Msg> material, String existingSummary) {
+        // 只保留可交接的对话与工具事实，思考内容不作为摘要素材。
         String transcript = renderTranscript(material);
         if (StrUtil.isBlank(transcript)) {
             return null;
@@ -116,6 +120,7 @@ public class AgentConversationSummarizer {
                 log.warn("Agent 上下文摘要为空, 放弃本次压缩, 素材消息数: {}", material.size());
                 return null;
             }
+            // 模型生成成功不代表可替换历史，仍要检查分节结构与字符上限。
             String accepted = validate(summary, maxChars);
             if (accepted == null) {
                 return null;
@@ -131,6 +136,8 @@ public class AgentConversationSummarizer {
 
     /**
      * 两段围栏 + 收尾指令，围栏之外不放会话字节
+     * <p>
+     * 分别封装旧摘要和本次笔录，并在围栏外说明随机标记、更新规则和输出长度要求。
      */
     private String buildMaterialMessage(String transcript, String existingSummary, String nonce, int maxChars) {
         StringBuilder text = new StringBuilder();
@@ -149,16 +156,24 @@ public class AgentConversationSummarizer {
         return text.toString();
     }
 
+    /**
+     * 生成带本次随机标记的素材开始标签，与对应的结束标签共同界定数据边界。
+     */
     private String open(String name, String nonce) {
         return "<" + name + " nonce=\"" + nonce + "\">";
     }
 
+    /**
+     * 生成带本次随机标记的素材结束标签，供模型区分素材正文和后续摘要要求。
+     */
     private String close(String name, String nonce) {
         return "</" + name + " nonce=\"" + nonce + "\">";
     }
 
     /**
      * 中和原文里出现的围栏标记，防止提前闭合
+     * <p>
+     * 替换原文中可能伪造素材围栏的标签前缀和本次随机标记，再将文本放入数据围栏。
      */
     private String neutralize(String text, String nonce) {
         return text.replace("<" + FENCE_TRANSCRIPT, FENCE_NEUTRALIZED)
@@ -170,6 +185,8 @@ public class AgentConversationSummarizer {
 
     /**
      * 校验分节结构和长度，不合格返回 null 放弃本次压缩
+     * <p>
+     * 先要求至少三个二级标题；未超长则直接接收，超长则尝试在小节边界截断并至少保留两节。
      */
     private String validate(String summary, int maxChars) {
         String trimmed = summary.trim();
@@ -193,6 +210,9 @@ public class AgentConversationSummarizer {
         return clipped;
     }
 
+    /**
+     * 逐行统计以二级标题前缀开头的小节数，不依赖提示词中的具体标题名称。
+     */
     private int countSections(String text) {
         int count = 0;
         for (String line : text.split("\n", -1)) {
@@ -203,6 +223,9 @@ public class AgentConversationSummarizer {
         return count;
     }
 
+    /**
+     * 在字符上限范围内寻找最后一个小节起点，保留该起点之前的完整内容；找不到有效边界返回 null。
+     */
     private String clipAtSectionBoundary(String text, int maxChars) {
         int boundary = text.lastIndexOf('\n' + SECTION_PREFIX, maxChars);
         return boundary <= 0 ? null : text.substring(0, boundary).trim();
@@ -210,6 +233,8 @@ public class AgentConversationSummarizer {
 
     /**
      * 消息摊成纯文本笔录，thinking 不进素材
+     * <p>
+     * 按消息顺序输出带时间和角色的文本、工具调用及结果；思考块与其他未识别内容不进入摘要素材。
      */
     private String renderTranscript(List<Msg> material) {
         StringBuilder transcript = new StringBuilder();
@@ -227,7 +252,9 @@ public class AgentConversationSummarizer {
     }
 
     /**
-     * 截到分钟，格式不认识就整段带上
+     * 最多截取时间戳前 16 个字符，通常对应到分钟；短时间戳完整保留
+     * <p>
+     * 读取消息时间戳并最多保留前 16 个字符，尾部补空格；空时间戳返回空串。
      */
     private String renderTimestamp(Msg msg) {
         String timestamp = msg.getTimestamp();
@@ -239,6 +266,9 @@ public class AgentConversationSummarizer {
                 : timestamp.substring(0, TIMESTAMP_MINUTE_LENGTH) + ' ';
     }
 
+    /**
+     * 按文本、工具调用、工具结果三种类型追加笔录；工具入参与输出在追加前限制长度。
+     */
     private void appendBlock(StringBuilder transcript, MsgRole role, String at, ContentBlock block) {
         if (block instanceof TextBlock text) {
             if (StrUtil.isNotBlank(text.getText())) {
@@ -258,6 +288,9 @@ public class AgentConversationSummarizer {
         }
     }
 
+    /**
+     * 提取工具结果第一层输出中的非空文本并用空格拼接；无输出或没有文本时返回空串。
+     */
     private String flatten(ToolResultBlock result) {
         if (result.getOutput() == null) {
             return "";
@@ -271,6 +304,9 @@ public class AgentConversationSummarizer {
         return output.toString().trim();
     }
 
+    /**
+     * 长文本保留开头 800 个字符与结尾 400 个字符，中间标明省略数量；null 返回空串。
+     */
     private String truncate(String value) {
         if (value == null) {
             return "";

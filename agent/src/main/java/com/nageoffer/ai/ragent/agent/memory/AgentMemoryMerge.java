@@ -21,6 +21,9 @@ import java.util.List;
 
 /**
  * 一组合并计划：ids 里的旧条目并成 content 这一条新条目
+ *
+ * @param ids 待合并的旧条目 ID；提交时要求至少两个、互不重复且仍然有效
+ * @param content 合并后的新正文，必须满足列宽限制并短于原成员正文总长
  */
 public record AgentMemoryMerge(List<String> ids, String content) {
 }

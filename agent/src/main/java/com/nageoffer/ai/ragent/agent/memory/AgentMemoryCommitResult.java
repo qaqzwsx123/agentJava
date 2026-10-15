@@ -21,6 +21,10 @@ import com.nageoffer.ai.ragent.agent.enums.AgentMemoryExtractionStatus;
 
 /**
  * 提交结果；applied 是落库的决策条数，mutated 是记忆集整体有没有变（含合并/淘汰）
+ *
+ * @param status 台账结算状态，如 WRITTEN、NOOP 或 CONFLICT
+ * @param applied 实际应用的仲裁决策数量，不含合并组数与淘汰条数
+ * @param mutated 是否需要刷新记忆快照；即使 applied 为 0，合并或淘汰也可能使它为 true
  */
 public record AgentMemoryCommitResult(AgentMemoryExtractionStatus status, int applied, boolean mutated) {
 }

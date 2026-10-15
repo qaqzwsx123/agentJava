@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 会话上下文裁剪：把过老的工具结果换成等长占位说明，不碰 IO 也不改列表长度
+ * 会话上下文裁剪：把过老的工具结果换成较短的占位说明，不碰 IO 也不改列表长度
  * 只替换 tool_result 而不动 tool_use，因此永远不会产生孤儿结果块
  */
 @Slf4j
@@ -64,6 +64,9 @@ public class AgentContextTrimmer {
 
     /**
      * 就地裁剪，返回替换映射供调用方同步上行列表
+     * <p>
+     * 超过裁剪水位后划分工具循环，排除保护区，再筛选允许裁剪的工具结果。
+     * 只有预计回收量达到最低比例时才统一替换；返回回收字符数及消息替换映射。
      */
     public TrimResult trimInPlace(List<Msg> context) {
         if (context == null || context.isEmpty()) {
@@ -74,6 +77,7 @@ public class AgentContextTrimmer {
             return TrimResult.UNCHANGED;
         }
 
+        // 先建立工具调用与结果的循环边界，再决定哪些结果可以省略。
         List<Cycle> cycles = splitCycles(context);
         Set<Integer> protectedCycles = protectedCycles(context, cycles, memoryProperties.resolveKeepRecentCycles());
         List<Candidate> candidates = collectCandidates(context, cycles, protectedCycles,
@@ -86,6 +90,7 @@ public class AgentContextTrimmer {
             return TrimResult.UNCHANGED;
         }
 
+        // 达到净回收门槛才统一应用，避免为了很少的收益损失历史信息。
         Map<Msg, Msg> replacements = apply(context, candidates);
         log.info("上下文裁剪完成, 总字符: {} -> {}, 命中消息: {}, 工具结果: {}",
                 totalChars, totalChars - reclaimable, replacements.size(), candidates.size());
@@ -94,6 +99,8 @@ public class AgentContextTrimmer {
 
     /**
      * 按工具循环切分：一条带 tool_use 的 assistant 消息开启一个循环，遇到用户消息或纯文本回答即闭合
+     * <p>
+     * 遍历上下文，为每条含工具调用的助手消息建立循环，并收集随后的工具结果索引与尚未返回的调用 ID。
      */
     private List<Cycle> splitCycles(List<Msg> context) {
         List<Cycle> cycles = new ArrayList<>();
@@ -112,6 +119,7 @@ public class AgentContextTrimmer {
             }
             List<ToolUseBlock> toolUses = blocks(msg, ToolUseBlock.class);
             if (role == MsgRole.ASSISTANT && !toolUses.isEmpty()) {
+                // 一条助手消息可能并行调用多个工具，全部调用 ID 都要等待结果配对。
                 current = new Cycle(i, new ArrayList<>(), new HashSet<>());
                 for (ToolUseBlock block : toolUses) {
                     current.pendingIds().add(block.getId());
@@ -126,6 +134,8 @@ public class AgentContextTrimmer {
 
     /**
      * 本轮和未闭合的循环额外保护不占配额，keepRecentCycles 只在本轮之前计数
+     * <p>
+     * 保护当前用户轮次中的全部循环、未返回完整结果的循环，以及此前最近的指定数量循环。
      */
     private Set<Integer> protectedCycles(List<Msg> context, List<Cycle> cycles, int keepRecentCycles) {
         int turnStart = lastUserIndex(context);
@@ -133,6 +143,7 @@ public class AgentContextTrimmer {
         int kept = 0;
         for (int i = cycles.size() - 1; i >= 0; i--) {
             Cycle cycle = cycles.get(i);
+            // 当前轮或未完成的工具调用优先保护，不消耗历史循环保留名额。
             if (cycle.startIndex() > turnStart || !cycle.pendingIds().isEmpty()) {
                 result.add(i);
                 continue;
@@ -147,6 +158,8 @@ public class AgentContextTrimmer {
 
     /**
      * 取不到用户消息返回 -1，全部循环落保护区
+     * <p>
+     * 从尾部寻找最后一条 USER 消息的位置，作为当前轮次边界。
      */
     private int lastUserIndex(List<Msg> context) {
         for (int i = context.size() - 1; i >= 0; i--) {
@@ -157,6 +170,10 @@ public class AgentContextTrimmer {
         return -1;
     }
 
+    /**
+     * 从非保护循环中筛选白名单工具的未裁剪结果，按调用 ID 关联入参。
+     * 扣除占位说明的字符数后，只保留确实能回收空间的候选项。
+     */
     private List<Candidate> collectCandidates(List<Msg> context, List<Cycle> cycles,
                                               Set<Integer> protectedCycles, List<String> evictableTools) {
         List<Candidate> candidates = new ArrayList<>();
@@ -186,6 +203,8 @@ public class AgentContextTrimmer {
 
     /**
      * 按 tool_use id 配对取入参，整个打平不按工具名解析
+     * <p>
+     * 提取调用消息中的工具入参，并以调用 ID 为键保存截短后的文本，供结果占位说明使用。
      */
     private Map<String, String> toolInputs(Msg msg) {
         Map<String, String> inputs = new HashMap<>();
@@ -195,6 +214,9 @@ public class AgentContextTrimmer {
         return inputs;
     }
 
+    /**
+     * 将空白或字面量 null 入参视为无入参；超长时保留前 120 个字符并追加省略号。
+     */
     private String clipInput(String input) {
         if (input == null || input.isBlank() || "null".equals(input)) {
             return null;
@@ -206,6 +228,8 @@ public class AgentContextTrimmer {
 
     /**
      * 原位替换：先全部重建再统一 set，中途异常不改 context
+     * <p>
+     * 按内容块引用定位候选，先构建所有新消息，再更新原列表；返回按引用匹配的旧消息到新消息映射。
      */
     private Map<Msg, Msg> apply(List<Msg> context, List<Candidate> candidates) {
         Map<ToolResultBlock, Candidate> hit = new IdentityHashMap<>();
@@ -227,12 +251,15 @@ public class AgentContextTrimmer {
             staged.put(msgIndex, replaced);
             replacements.put(origin, replaced);
         }
+        // 所有新消息构建完毕后再写回，保持消息数量与索引位置不变。
         staged.forEach(context::set);
         return replacements;
     }
 
     /**
      * 重建带全 id/name/metadata/state，漏 state 会把挂起/失败洗成默认值
+     * <p>
+     * 用包含原始长度和入参的说明替换工具输出，保留调用 ID、名称、元数据及执行状态。
      */
     private ToolResultBlock evict(Candidate candidate) {
         ToolResultBlock origin = candidate.block();
@@ -247,6 +274,8 @@ public class AgentContextTrimmer {
 
     /**
      * 占位带原入参，让模型知道当时问的是什么
+     * <p>
+     * 生成工具结果被省略后的占位文本，保留原长度，并在有入参时附带入参摘要。
      */
     private String preview(int originChars, String input) {
         StringBuilder text = new StringBuilder(EVICTED_PREFIX).append(originChars).append(EVICTED_CHARS);
@@ -256,6 +285,9 @@ public class AgentContextTrimmer {
         return text.append(EVICTED_SUFFIX).toString();
     }
 
+    /**
+     * 计算实际占位文本长度，用于预估裁剪后的净回收字符数。
+     */
     private int previewChars(int originChars, String input) {
         return preview(originChars, input).length();
     }
@@ -263,6 +295,8 @@ public class AgentContextTrimmer {
     /**
      * 靠占位前缀识别已清理块，不依赖 metadata
      * 对外开放供技能遮蔽复用：正文被换成占位后 metadata 仍在，判"已加载"必须再过这一道
+     * <p>
+     * 仅当工具输出是单个、带省略前缀的文本块时判定为已裁剪，避免重复处理。
      */
     public static boolean isEvicted(ToolResultBlock block) {
         List<ContentBlock> output = block.getOutput();
@@ -271,6 +305,9 @@ public class AgentContextTrimmer {
                 && text.getText() != null && text.getText().startsWith(EVICTED_PREFIX);
     }
 
+    /**
+     * 提取消息中指定类型的内容块；消息没有内容列表时返回空列表。
+     */
     private <T extends ContentBlock> List<T> blocks(Msg msg, Class<T> type) {
         return msg.getContent() == null ? List.of() : msg.getContentBlocks(type);
     }
@@ -282,14 +319,23 @@ public class AgentContextTrimmer {
 
         public static final TrimResult UNCHANGED = new TrimResult(0, Map.of());
 
+        /**
+         * 同时检查回收字符数与替换映射，判断调用方是否需要同步修改推理输入。
+         */
         public boolean changed() {
             return reclaimedChars > 0 && !replacements.isEmpty();
         }
     }
 
+    /**
+     * 一次助手工具调用及其结果：startIndex 是调用消息位置，toolIndexes 收集结果位置，pendingIds 跟踪未配对调用。
+     */
     private record Cycle(int startIndex, List<Integer> toolIndexes, Set<String> pendingIds) {
     }
 
+    /**
+     * 可裁剪结果及其占位所需信息；reclaimable 是原输出长度减去占位长度后的净回收量。
+     */
     private record Candidate(int msgIndex, ToolResultBlock block, int originChars, int reclaimable, String input) {
     }
 }
