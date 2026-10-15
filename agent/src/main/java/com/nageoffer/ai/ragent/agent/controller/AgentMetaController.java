@@ -38,7 +38,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AgentMetaController {
 
+    //Agent 相关配置，用于读取聊天模型名称、最大迭代次数等展示信息。
     private final AgentProperties agentProperties;
+    //Agent 工具目录，用于判断当前是否有实际可用的 MCP 工具。
     private final AgentToolCatalog toolCatalog;
 
     /**
@@ -54,6 +56,7 @@ public class AgentMetaController {
         if (mcpConfigured) {
             capabilities.add("mcp-tools");
         }
+        //  返回只读快照，不暴露密钥；模型名和迭代次数仅用于前端展示。
         return Results.success(new AgentMetaVO(
                 "AgentScope ReAct",
                 agentProperties.getChat().getModel(),

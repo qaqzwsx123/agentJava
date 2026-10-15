@@ -30,7 +30,7 @@ public enum AgentToolStatus {
     /**
      * 模型已决定调用，尚未开跑
      */
-    PENDING("pending"),
+    PENDING("pending"),// 通过 AgentToolStatus.PENDING.value()来拿到这个 pending字符串
 
     /**
      * 批已进入执行

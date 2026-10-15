@@ -28,6 +28,8 @@ import org.springframework.context.annotation.Configuration;
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "agent")
+//这个注解的作用是：去配置文件里找所有以 agent 开头的配置项，然后把它们按照名字对应关系，
+// 自动赋值给 AgentProperties 这个类的字段。
 public class AgentProperties {
 
     private Chat chat = new Chat();

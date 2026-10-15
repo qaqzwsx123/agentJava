@@ -116,6 +116,7 @@ public class ReActAgentProvider {
             return;
         }
         // 转调底层 ReActAgent 清掉该用户该会话的状态缓存
+        //取出 CachedAgent里面的ReactAgent 再取出里面的 ReactAgent来调用 自带的clearStateCache
         current.activeAgent().agent().clearStateCache(userId, sessionId);
     }
 

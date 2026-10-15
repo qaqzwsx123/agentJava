@@ -324,14 +324,20 @@ public class AgentConversationServiceImpl implements AgentConversationService {
      */
     @Override
     public List<AgentConversationVO> listByUserId(String userId) {
-        // 会话基础查询带用户条件，再集中补充统计结果，避免逐会话查询。
+        // 查询当前用户的全部会话，按最后活跃时间倒序（MyBatis-Plus Lambda 条件构造器）
+        //
         List<AgentConversationDO> conversations = conversationMapper.selectList(
-                Wrappers.lambdaQuery(AgentConversationDO.class)
-                        .eq(AgentConversationDO::getUserId, userId)
-                        .orderByDesc(AgentConversationDO::getLastTime));
+                Wrappers.lambdaQuery(AgentConversationDO.class) //默认查所有列，可以通过.select手动指定
+                        .eq(AgentConversationDO::getUserId, userId)          // 过滤当前用户
+                        .orderByDesc(AgentConversationDO::getLastTime));    // 最近活跃的排前面
+
+        // 批量统计各会话的用户消息轮次，返回 Map：conversationId -> 轮次数
         Map<String, Long> turnCounts = countTurns(conversations, userId);
+
+        // 组装返回 VO：遍历会话列表，拼装会话信息并填入对应轮次；
+        // getOrDefault 兜底——如果某会话还没有任何用户消息（如新创建的空会话），轮次记为 0
         return conversations.stream()
-                .map(item -> AgentConversationVO.builder()
+                .map(item -> AgentConversationVO.builder() //遍历每个会话 DO，把它包装成 VO（同时从统计 Map 里查出轮次填进去），最后收集成 List 返回。
                         .conversationId(item.getConversationId())
                         .title(item.getTitle())
                         .lastTime(item.getLastTime())
@@ -353,10 +359,10 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         List<String> ids = conversations.stream().map(AgentConversationDO::getConversationId).toList();
         QueryWrapper<AgentMessageDO> query = new QueryWrapper<AgentMessageDO>()
                 .select("conversation_id", "COUNT(*) AS turn_count")
-                .eq("user_id", userId)
-                .eq("role", ROLE_USER)
-                .in("conversation_id", ids)
-                .groupBy("conversation_id");
+                .eq("user_id", userId) //where  user_id=
+                .eq("role", ROLE_USER)//and role=
+                .in("conversation_id", ids) //and conversion_id in
+                .groupBy("conversation_id"); //groupBy conversation_id
         return messageMapper.selectMaps(query).stream()
                 .collect(Collectors.toMap(
                         row -> String.valueOf(row.get("conversation_id")),
@@ -374,7 +380,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         if (trimmed.isEmpty()) {
             throw new ClientException("会话标题不能为空");
         }
-        AgentConversationDO conversation = conversationMapper.selectOne(
+        AgentConversationDO conversation = conversationMapper.selectOne( //select xxx from  xxx where conversationId = and userId=
                 Wrappers.lambdaQuery(AgentConversationDO.class)
                         .eq(AgentConversationDO::getConversationId, conversationId)
                         .eq(AgentConversationDO::getUserId, userId));
@@ -382,7 +388,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
             throw new ClientException("会话不存在");
         }
         conversation.setTitle(StrUtil.sub(trimmed, 0, RENAME_MAX_LENGTH));
-        conversationMapper.updateById(conversation);
+        conversationMapper.updateById(conversation);//默认更新所有非null字段
     }
 
     /**
@@ -392,13 +398,13 @@ public class AgentConversationServiceImpl implements AgentConversationService {
     @Override
     public List<AgentMessageVO> listMessages(String conversationId, String userId) {
         // 数据库查询同时限定 conversationId 和 userId。
-        return messageMapper.selectList(Wrappers.lambdaQuery(AgentMessageDO.class)
+        return messageMapper.selectList(Wrappers.lambdaQuery(AgentMessageDO.class)// select xxx where conversationId= and userid= orderBy
                         .eq(AgentMessageDO::getConversationId, conversationId)
                         .eq(AgentMessageDO::getUserId, userId)
                         .orderByAsc(AgentMessageDO::getId))
                 .stream()
-                .map(item -> AgentMessageVO.builder()
-                        .id(item.getId())
+                .map(item -> AgentMessageVO.builder() //利用.map将AgentMessageDO变为AgentMessageVO
+                        .id(item.getId()) //转换的原因是DO是 数据库对象，他里面是所有的数据库对象，这里传给前端实际上只需要这个表里的某些字段，因此为VO
                         .role(item.getRole())
                         .content(item.getContent())
                         .thinkingContent(item.getThinkingContent())
@@ -415,14 +421,19 @@ public class AgentConversationServiceImpl implements AgentConversationService {
      * 若同用户该会话仍在运行则拒绝删除；事务提交后再驱逐本地缓存。
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class) //保证原子性，让下面的删除三张表 要么全部成功，要么全部失败，如果执行失败，前面执行的sql可以进行回滚
     public void delete(String conversationId, String userId) {
         // 先挡住会继续回写消息的在途运行，避免删除后又出现残留数据。
         // 在途流收尾会把状态和消息写回来，必须先拦住
         if (runGate.runningTaskId(userId, conversationId) != null) {
             throw new ClientException("该会话消息正在生成中，请先停止后再删除");
         }
-        conversationMapper.delete(Wrappers.lambdaQuery(AgentConversationDO.class)
+        conversationMapper.delete(Wrappers.lambdaQuery(AgentConversationDO.class)//因为AgentConversationDO里面有@TableLogic,所以是逻辑删除，换句话是update
+                //UPDATE t_agent_conversation
+                //SET deleted = 1
+                //WHERE conversation_id = ?
+                //  AND user_id = ?
+                //  AND deleted = 0;
                 .eq(AgentConversationDO::getConversationId, conversationId)
                 .eq(AgentConversationDO::getUserId, userId));
         messageMapper.delete(Wrappers.lambdaQuery(AgentMessageDO.class)
@@ -430,7 +441,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
                 .eq(AgentMessageDO::getUserId, userId));
         // Agent 状态同库，随事务一起删
         agentStateStore.delete(userId, conversationId);
-        // 提交后再清内存缓存和停止在途流
+        // 当前数据库提交成功之后再清内存缓存和停止在途流
         afterCommit(() -> evictStateCache(userId, conversationId));
     }
 
@@ -456,7 +467,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
     private void evictStateCache(String userId, String conversationId) {
         // 延迟获取 ReActAgentProvider（可选依赖，避免循环依赖/启动失败，拿不到返回 null）
         ReActAgentProvider agentProvider = agentProviderRef.getIfAvailable();
-        // 拿得到才清理，避免 NPE；拿不到就跳过（容错）
+        // 拿得到ReactAgentProvider 才清理，避免 NPE；拿不到就跳过（容错）
         if (agentProvider != null) {
             // 转调 provider 清掉该用户该会话的 Agent 状态缓存，防止废弃会话的旧状态被复用
             agentProvider.evictStateCache(userId, conversationId);

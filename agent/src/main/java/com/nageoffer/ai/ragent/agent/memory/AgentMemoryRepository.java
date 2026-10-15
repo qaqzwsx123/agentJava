@@ -184,6 +184,8 @@ public class AgentMemoryRepository {
                 .fromMessageId(fromMessageId)
                 .toMessageId(toMessageId)
                 .status(AgentMemoryExtractionStatus.PROCESSING.name())
+                //AgentMemoryExtractionStatus.PROCESSING是枚举常量，类型是AgentMemoryExtractionStatus枚举类型
+                //.name将枚举类型 转为 String 类型
                 .triggerType(trigger.name())
                 .decisionCount(0)
                 .attemptCount(spent + 1)

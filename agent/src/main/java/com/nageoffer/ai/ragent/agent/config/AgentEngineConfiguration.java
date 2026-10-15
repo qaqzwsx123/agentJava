@@ -37,10 +37,14 @@ import java.util.Map;
 @ConditionalOnAgentEngine
 @RequiredArgsConstructor
 public class AgentEngineConfiguration {
-
+//它是 Agent 的“装配配置”，由 Spring 自动执行，所以 搜不到业务代码主动调用 agentChatModel()
     private final AgentProperties agentProperties;
     private final AIModelProperties aiModelProperties;
 
+   // 两个 Bean 都被 ReActAgentProvider 使用了
+   // | Bean 方法 | 创建的对象 | 用途
+   //| `agentChatModel()` | `OpenAIChatModel` | 给主 Agent 提供大模型调用能力 |
+   //| `agentStateStore()` | `PgAgentStateStore` | 把 Agent 会话状态保存到 PostgreSQL，并支持读取恢复 |
     @Bean
     public OpenAIChatModel agentChatModel() {
         // 取 Agent 的模型配置（provider + model）

@@ -64,6 +64,8 @@ public class AgentToolCatalog {
 
     private final KnowledgeSearchFacade knowledgeSearchFacade;
     private final IntentNodeRegistry intentNodeRegistry;
+    //Spring 注入时，会把实现类的对象赋给接口类型的变量。
+    //所以 intentNodeRegistry 表面是接口类型，实际指向实现类对象。
     private final AgentMcpClients mcpClients;
     private final AgentMemoryProperties memoryProperties;
     private final AgentMemoryPipeline memoryPipeline;
@@ -157,7 +159,7 @@ public class AgentToolCatalog {
      * 两处排序都为了指纹稳定，只排组内不够：分组序取决于各组最小的节点 id
      */
     private McpResolution resolveMcpTools() {
-        // 1. 从 intentNodeRegistry 取出所有 MCP 工具节点，按工具 ID 分组
+        // 1. 从 intentNodeRegistry 意图树节点注册表 取出所有 MCP 工具节点，按工具 ID 分组
         //    - listMcpToolNodes()：获取所有与 MCP 工具相关的意图节点 - sorted(...)：按节点 ID 排序，保证分组时的顺序稳定
         //    - groupingBy(...)：按 mcpToolId 分组，同一个工具可能有多个意图节点 - LinkedHashMap::new：使用 LinkedHashMap 保持插入顺序（即排序后的顺序）
         Map<String, List<IntentNode>> nodesByToolId = intentNodeRegistry.listMcpToolNodes().stream()
@@ -166,10 +168,18 @@ public class AgentToolCatalog {
                         node -> node.getMcpToolId().trim(),  // 按工具 ID 分组（trim 去除空白）
                         LinkedHashMap::new,                  // 保持插入顺序
                         Collectors.toList()));               // 每个工具 ID 对应一个 IntentNode 列表
+        //{ nodesByToolId的结果大概是：weather_tool 挂在两个意图节点下，order_tool 挂在一个意图节点下
+        //  "weather_tool": [node1, node2],
+        //  "order_tool":   [node3],
+        //  "pay_tool":     [node4, node5]
+        //}
         // 2. 准备两个列表：可用的绑定列表、不可用的工具 ID 列表
         List<McpToolBinding> bindings = new ArrayList<>();
         List<String> unavailableToolIds = new ArrayList<>();
         // 3. 遍历每个工具 ID，判断是否可用
+        // forEach 就是遍历 nodesByToolId 这个 Map 的每一个键值对，然后把 key 和 value 分别传给 toolId 和 nodes 两个参数,依次传进lambda式子
+        // 第一次：toolId = "weather_tool"
+        //nodes  = [node1, node2]
         nodesByToolId.forEach((toolId, nodes) -> {
             // 3.1 从 mcpClients 中获取该工具对应的远程工具（RemoteTool）
             RemoteTool remote = mcpClients.get(toolId);
@@ -226,6 +236,7 @@ public class AgentToolCatalog {
         return McpToolBinding.of(toolId, displayName, description, confirmConfigured, remote);
     }
 
+    //McpResolution类 里面有两个属性，同时封装好了bindings()和unavailableToolIds()方法
     private record McpResolution(List<McpToolBinding> bindings, List<String> unavailableToolIds) {
     }
 
