@@ -69,6 +69,7 @@ public class IntentGuidanceService {
      */
     @RagTraceNode(name = "guidance-detect", type = "GUIDANCE")
     public GuidanceDecision detectAmbiguity(String question, List<SubQuestionIntent> subIntents) {
+        // 尊重澄清开关，找到有效歧义候选组后才构造提示，否则返回无需澄清。
         if (!Boolean.TRUE.equals(guidanceProperties.getEnabled())) {
             return GuidanceDecision.none();
         }
@@ -86,6 +87,7 @@ public class IntentGuidanceService {
      * 仅对单子问题检查多个知识库候选，先发现路径冲突，再由模型复核是否确有歧义。
      */
     private AmbiguityGroup findAmbiguityGroup(String question, List<SubQuestionIntent> subIntents) {
+        // 仅处理单子问题且至少两个有效候选的情况，规则找重名分叉后还需模型复核，最后裁剪选项数量。
         if (CollUtil.isEmpty(subIntents) || subIntents.size() != 1) {
             return null;
         }
@@ -113,6 +115,7 @@ public class IntentGuidanceService {
      * 保留达到最低得分要求的知识库意图，排除系统意图和低分候选。
      */
     private List<NodeScore> filterCandidates(List<NodeScore> scores) {
+        // 只保留达到最低分的知识库意图，系统与工具节点不参与路径歧义澄清。
         if (CollUtil.isEmpty(scores)) {
             return List.of();
         }
@@ -123,6 +126,7 @@ public class IntentGuidanceService {
      * 按节点去重并按分数降序，同一节点重复命中时保留高分那条
      */
     private List<NodeScore> rankCandidates(List<NodeScore> candidates) {
+        // 同一节点保留最高分候选，再按分数降序排序，避免重复候选形成假歧义。
         Map<String, NodeScore> bestByNode = new LinkedHashMap<>();
         for (NodeScore candidate : candidates) {
             IntentNode node = candidate.getNode();
@@ -138,6 +142,7 @@ public class IntentGuidanceService {
      * 以最高分候选为主候选，收集与它构成路径重名的其它候选
      */
     private PathConflict collectPathConflicts(String question, List<NodeScore> ranked) {
+        // 以最高分节点路径为基准，与其他候选比较重名分叉，至少两个冲突候选才继续模型确认。
         Map<String, IntentNode> nodeCache = new HashMap<>();
         NodeScore primary = ranked.get(0);
         List<IntentNode> primaryPath = buildNodePath(primary.getNode(), nodeCache);
@@ -171,6 +176,7 @@ public class IntentGuidanceService {
      * 叶子重名直接算冲突；分叉后的中间节点重名还要求用户问题里提到了这个名称，否则用户问的并不是这个岔路口
      */
     private String detectConflictName(List<IntentNode> primaryPath, List<IntentNode> otherPath, String normalizedQuestion) {
+        // 先比较叶节点重名，再排除真实公共祖先，检查分叉路径中与用户问题相关的重复名称。
         if (CollUtil.isEmpty(primaryPath) || CollUtil.isEmpty(otherPath)) {
             return null;
         }
@@ -201,6 +207,7 @@ public class IntentGuidanceService {
      * visited 兜住配置错误形成的父子环，父节点缺失时停在已取到的链路上
      */
     private List<IntentNode> buildNodePath(IntentNode node, Map<String, IntentNode> nodeCache) {
+        // 沿父节点向上补全路径并头插保持根到叶顺序，用已访问 ID 防止父关系成环。
         LinkedList<IntentNode> path = new LinkedList<>();
         Set<String> visited = new HashSet<>();
         IntentNode current = node;
@@ -220,6 +227,7 @@ public class IntentGuidanceService {
      * 按节点 ID 计算最长公共前缀长度
      */
     private int commonPrefixLength(List<IntentNode> left, List<IntentNode> right) {
+        // 逐层比较真实节点身份，计算两条路径共享的祖先段长度。
         int max = Math.min(left.size(), right.size());
         int index = 0;
         while (index < max && isSameNode(left.get(index), right.get(index))) {
@@ -232,6 +240,7 @@ public class IntentGuidanceService {
      * 使用非空节点 ID 判断是否为同一意图节点。
      */
     private boolean isSameNode(IntentNode left, IntentNode right) {
+        // 只有非空 ID 相同才认为同一节点，不用名称相同替代身份比较。
         return StrUtil.isNotBlank(left.getId()) && left.getId().equals(right.getId());
     }
 
@@ -239,6 +248,7 @@ public class IntentGuidanceService {
      * 过滤空或过短的标准化名称，避免用缺少区分度的名称判断路径冲突。
      */
     private boolean isComparableName(String normalizedName) {
+        // 名称必须有效且达到最小长度，避免过短词造成大量误匹配。
         return StrUtil.isNotBlank(normalizedName) && normalizedName.length() >= MIN_COMPARABLE_NAME_LENGTH;
     }
 
@@ -246,6 +256,7 @@ public class IntentGuidanceService {
      * 本次判定内缓存注册表读取结果，缺失的父节点同样缓存，避免反复回表
      */
     private IntentNode fetchNode(String nodeId, Map<String, IntentNode> nodeCache) {
+        // 在本次检测的局部缓存中复用父节点查询，未命中再从节点注册表获取并缓存结果。
         if (nodeCache.containsKey(nodeId)) {
             return nodeCache.get(nodeId);
         }
@@ -258,6 +269,7 @@ public class IntentGuidanceService {
      * 按配置的最大选项数截取排名靠前的澄清候选，未配置时保留全部。
      */
     private List<NodeScore> trimRankedOptions(List<NodeScore> ranked) {
+        // 按配置限制澄清选项数，未设置时保留全部已排序候选。
         int maxOptions = Optional.ofNullable(guidanceProperties.getMaxOptions()).orElse(ranked.size());
         if (ranked.size() <= maxOptions) {
             return ranked;
@@ -269,6 +281,7 @@ public class IntentGuidanceService {
      * 将歧义主题与编号候选渲染进澄清提示词模板。
      */
     private String buildPrompt(String topicName, List<NodeScore> ranked) {
+        // 将冲突主题和编号选项填入澄清模板，缺失主题使用空字符串。
         String options = renderOptions(ranked);
         return promptTemplateLoader.render(
                 RAGConstant.GUIDANCE_PROMPT_PATH,
@@ -283,6 +296,7 @@ public class IntentGuidanceService {
      * 按候选顺序生成从 1 开始的选项列表，供用户选择具体业务路径。
      */
     private String renderOptions(List<NodeScore> ranked) {
+        // 按候选顺序生成编号列表，选项优先展示完整路径，便于用户区分同名节点。
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < ranked.size(); i++) {
             IntentNode node = ranked.get(i).getNode();
@@ -296,6 +310,7 @@ public class IntentGuidanceService {
      * 优先展示意图完整路径，缺失时使用名称或 ID，空节点返回空字符串。
      */
     private String resolveOptionDisplay(IntentNode node) {
+        // 优先展示完整路径，其次名称，最后回落节点 ID，空节点返回空文本。
         if (node == null) {
             return "";
         }
@@ -309,6 +324,7 @@ public class IntentGuidanceService {
      * 去除首尾空白、统一小写并移除标点与空白，供意图路径名称比较使用。
      */
     private String normalizeName(String name) {
+        // 清理首尾空白、统一大小写并去除常见标点和空白，用于路径名称比较。
         if (name == null) {
             return "";
         }

@@ -100,6 +100,7 @@ public class MinerUDocumentParser implements DocumentParser {
 
     @PostConstruct
     void initSemaphore() {
+        // 按配置设置 Redis 可过期许可的并发总量，使多个服务节点共享解析任务限流。
         RPermitExpirableSemaphore semaphore = redissonClient.getPermitExpirableSemaphore(properties.getSemaphoreName());
         semaphore.setPermits(properties.getConcurrencyLimit());
         log.info("MinerU 分布式解析限流初始化: semaphoreName={}, maxConcurrent={}",
@@ -111,11 +112,13 @@ public class MinerUDocumentParser implements DocumentParser {
      */
     @Override
     public String getParserType() {
+        // 返回 MinerU 解析器标识，供路由和解析结果元数据使用。
         return ParserType.MINERU.getType();
     }
 
     @Override
     public Map<ParseProfile, Set<String>> supportedMimeTypes() {
+        // 为布局类文档登记快速档，为表格类文档登记高保真档，使格式与档位共同决定路由。
         return Map.of(
                 ParseProfile.FAST, LAYOUT_MIME_TYPES,
                 ParseProfile.FIDELITY, SPREADSHEET_MIME_TYPES
@@ -128,6 +131,7 @@ public class MinerUDocumentParser implements DocumentParser {
      */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
+        // 先申请带租期的分布式许可，再执行远端解析；中断恢复线程标记，结束时主动归还已取得的许可。
         if (content == null || content.length == 0) {
             throw new ServiceException("MinerU 解析输入字节为空");
         }
@@ -214,6 +218,7 @@ public class MinerUDocumentParser implements DocumentParser {
      * 计算上传到 MinerU 的文件名，必须带扩展名，MinerU 靠它识别格式；缺原始文件名时按 mimeType 补全
      */
     private String resolveUploadName(String sourceFile, String mimeType, String documentId) {
+        // 优先沿用源文件名，缺失时按文档 ID 与 MIME 后缀生成可上传名称。
         if (sourceFile != null && !sourceFile.isBlank()) {
             return sourceFile;
         }
@@ -224,6 +229,7 @@ public class MinerUDocumentParser implements DocumentParser {
      * 将文件名、文档 ID 及 OCR、表格、公式和语言配置组装为 MinerU 解析参数。
      */
     private BatchSubmitRequest buildSubmitRequest(String fileName, String documentId) {
+        // 把文件名、文档标识与 OCR、表格、公式、语言配置组合为提交参数。
         return new BatchSubmitRequest(
                 fileName,
                 documentId,
@@ -238,6 +244,7 @@ public class MinerUDocumentParser implements DocumentParser {
      * 为常见办公文件 MIME 推断上传扩展名，未知类型使用 .bin。
      */
     private static String extFromMime(String mimeType) {
+        // 按常见文档 MIME 推测上传后缀，无法识别时使用 bin，不依赖用户传入完整文件名。
         if (mimeType == null) {
             return ".bin";
         }
@@ -256,6 +263,7 @@ public class MinerUDocumentParser implements DocumentParser {
      * 读取非空解析选项文本，选项不存在或为空白时返回指定默认值。
      */
     private static String extractString(Map<String, Object> options, String key, String defaultValue) {
+        // 从解析选项取字段，选项缺失、字段为 null 或空白时使用指定默认值。
         if (options == null) {
             return defaultValue;
         }

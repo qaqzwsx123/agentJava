@@ -68,6 +68,7 @@ public enum IngestionNodeType {
      * 根据字符串值获取枚举
      */
     public static IngestionNodeType fromValue(String value) {
+        // null 保持 null，其余先规范化，再兼容枚举名称和配置值匹配；未知输入明确抛错。
         if (value == null) {
             return null;
         }
@@ -84,6 +85,7 @@ public enum IngestionNodeType {
      * 去除空白、转小写并统一连字符，兼容配置中的节点类型写法。
      */
     private static String normalize(String value) {
+        // 去掉首尾空白并转为小写，将短横线统一为下划线以兼容配置命名习惯。
         String trimmed = value.trim();
         String lower = trimmed.toLowerCase();
         return lower.replace('-', '_');

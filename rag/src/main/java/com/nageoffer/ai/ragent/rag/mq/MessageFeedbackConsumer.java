@@ -42,6 +42,7 @@ public class MessageFeedbackConsumer implements RocketMQListener<MessageWrapper<
 
     @Override
     public void onMessage(MessageWrapper<MessageFeedbackEvent> message) {
+        // 读取反馈事件并记录消费信息，再交给服务按事件语义完成反馈写入或取消。
         MessageFeedbackEvent event = message.getBody();
 
         log.info("[消费者] 开始处理反馈事件，messageId: {}, userId: {}, vote: {}, cancelled: {}, keys: {}",

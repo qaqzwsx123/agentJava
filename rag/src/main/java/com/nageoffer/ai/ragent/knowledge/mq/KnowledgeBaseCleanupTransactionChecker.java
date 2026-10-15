@@ -47,11 +47,13 @@ public class KnowledgeBaseCleanupTransactionChecker implements TransactionChecke
 
     @PostConstruct
     public void init() {
+        // 把当前知识库清理回查器登记到对应主题，供事务消息监听器按主题分派。
         transactionListener.registerChecker(cleanupTopic, this);
     }
 
     @Override
     public Class<KnowledgeBaseCleanupEvent> bodyType() {
+        // 返回清理事件的具体类型，供事务消息反序列化使用。
         return KnowledgeBaseCleanupEvent.class;
     }
 

@@ -52,6 +52,7 @@ public class KnowledgeDocumentScheduleJob {
      */
     @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
     public void recoverStuckRunningDocuments() {
+        // 定期调用卡死恢复逻辑，仅在实际恢复了文档时记录候选与生效阈值。
         long timeoutMinutes = scheduleProperties.getRunningTimeoutMinutes();
         DocumentStatusHelper.StuckRecoveryResult result = documentStatusHelper.recoverStuckRunning(timeoutMinutes);
         if (result.actualRecovered() > 0) {
@@ -63,6 +64,7 @@ public class KnowledgeDocumentScheduleJob {
 
     @Scheduled(fixedDelayString = "${rag.knowledge.schedule.scan-delay-ms:10000}")
     public void scan() {
+        // 限量扫描到期且锁已空闲的调度，逐个竞争租约后提交线程池；提交被拒时主动释放所获租约。
         Date now = new Date();
         List<KnowledgeDocumentScheduleDO> schedules = scheduleMapper.selectList(
                 new LambdaQueryWrapper<KnowledgeDocumentScheduleDO>()

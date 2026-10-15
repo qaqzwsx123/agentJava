@@ -52,12 +52,14 @@ public class ParserNode implements IngestionNode {
     private final ParserRegistry parserRegistry;
 
     public ParserNode(ObjectMapper objectMapper, ParserRegistry parserRegistry) {
+        // 保存设置转换器与解析路由表，供按文件格式选择解析实现。
         this.objectMapper = objectMapper;
         this.parserRegistry = parserRegistry;
     }
 
     @Override
     public String getNodeType() {
+        // 返回解析节点类型，供引擎识别这一处理阶段。
         return IngestionNodeType.PARSER.getValue();
     }
 
@@ -177,6 +179,7 @@ public class ParserNode implements IngestionNode {
      * 将 JSON 配置转为解析设置，未配置时使用空规则列表。
      */
     private ParserSettings parseSettings(JsonNode node) {
+        // 空配置采用无规则的默认设置，其余 JSON 转换为解析规则列表。
         if (node == null || node.isNull()) {
             return ParserSettings.builder().rules(List.of()).build();
         }
@@ -187,6 +190,7 @@ public class ParserNode implements IngestionNode {
      * 按文件类型匹配首条规则，ALL 可匹配任意类型；无规则或没有匹配时返回 null。
      */
     private ParserSettings.ParserRule matchRule(ParserSettings settings, String mimeType, String fileName) {
+        // 先推断文件类型，再按配置顺序寻找首条匹配类型或 ALL 的规则，跳过空规则。
         if (settings == null || settings.getRules() == null || settings.getRules().isEmpty()) {
             return null;
         }
@@ -210,6 +214,7 @@ public class ParserNode implements IngestionNode {
      * 优先通过扩展名判断业务文件类型，其次通过 MIME 推断，无法识别返回 UNKNOWN。
      */
     private String resolveType(String mimeType, String fileName) {
+        // 文件扩展名优先，无法识别时再按 MIME 归类，最终回落 UNKNOWN。
         String byName = resolveTypeByName(fileName);
         if (StringUtils.hasText(byName)) {
             return byName;
@@ -246,6 +251,7 @@ public class ParserNode implements IngestionNode {
      * 将受支持的文件扩展名映射为统一业务类型，未提供文件名或扩展名未知时返回 null。
      */
     private String resolveTypeByName(String fileName) {
+        // 按不区分大小写的扩展名归类常见文档和图片，无法识别时返回 null 供 MIME 判断接续。
         if (!StringUtils.hasText(fileName)) {
             return null;
         }
@@ -279,6 +285,7 @@ public class ParserNode implements IngestionNode {
      * 统一规则中的类型别名，例如 DOCX 转 WORD、MD 转 MARKDOWN，通配配置转 ALL。
      */
     private String normalizeType(String raw) {
+        // 统一配置中的类型别名，把扩展名、简称和通配标记映射到约定分类。
         if (!StringUtils.hasText(raw)) {
             return null;
         }

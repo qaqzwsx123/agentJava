@@ -30,6 +30,7 @@ public final class TextCleanupUtil {
      * 依次剥 BOM、去行尾空格与制表符、连续三个以上空行压成两个、去首尾空白
      */
     public static String cleanup(String text) {
+        // 移除 BOM、行尾多余空白并压缩连续空行，最后清理全文首尾空白。
         if (text == null || text.isEmpty()) {
             return "";
         }

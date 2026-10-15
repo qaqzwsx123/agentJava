@@ -61,6 +61,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      */
     @Override
     public IPage<RagTraceRunVO> pageRuns(RagTraceRunPageRequest request) {
+        // 按请求中的追踪、会话、任务和状态过滤运行分页，再批量补用户名与用户首包耗时。
         // 运行概览和执行节点分开查询，列表阶段批量补充展示字段。
         LambdaQueryWrapper<RagTraceRunDO> wrapper = Wrappers.lambdaQuery(RagTraceRunDO.class)
                 .orderByDesc(RagTraceRunDO::getStartTime);
@@ -90,6 +91,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      */
     @Override
     public RagTraceDetailVO detail(String traceId) {
+        // 查找单次运行主记录，不存在返回 null；存在时补充派生字段并加载全部节点。
         // 先读取运行主记录，再组装节点和派生性能指标。
         RagTraceRunDO run = runMapper.selectOne(Wrappers.lambdaQuery(RagTraceRunDO.class)
                 .eq(RagTraceRunDO::getTraceId, traceId)
@@ -123,6 +125,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      * 合并运行记录、批量查询的用户名和首 token 耗时，提取扩展数据中的问题组成追踪列表项。
      */
     private RagTraceRunVO toRunVO(RagTraceRunDO run, Map<String, String> usernameMap, Map<String, Long> ttftMap) {
+        // 将运行记录、用户名映射和 TTFT 映射组合成页面概览，并从扩展 JSON 解析原问题。
         String username = resolveUsername(run.getUserId(), usernameMap);
         String question = parseQuestion(run.getExtraData());
         return RagTraceRunVO.builder()
@@ -147,6 +150,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      * 从运行记录提取去重用户 ID 后一次批量查询，避免列表转换时逐条查询用户。
      */
     private Map<String, String> loadUsernameMap(List<RagTraceRunDO> runs) {
+        // 去重本页用户 ID 后一次查询用户名，避免页面逐条运行回查用户表。
         if (runs == null || runs.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -178,6 +182,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      * 批量查询 USER_TTFT 类型节点并按追踪 ID 建表，为列表补充用户感知的首 token 耗时。
      */
     private Map<String, Long> loadTtftMap(List<RagTraceRunDO> runs) {
+        // 批量读取 USER_TTFT 类型节点，以用户请求到首内容的耗时作为列表指标，不采用供应商内部首包时间。
         if (runs == null || runs.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -209,6 +214,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      * 从追踪扩展 JSON 读取 question；空值或解析失败时返回 null，不阻断历史记录展示。
      */
     private String parseQuestion(String extraData) {
+        // 只尝试从扩展 JSON 读取 question，空值或历史格式错误返回 null，不影响追踪展示。
         if (StrUtil.isBlank(extraData)) {
             return null;
         }
@@ -224,6 +230,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      * 从预加载的用户映射取用户名，用户 ID 或映射为空时返回 null。
      */
     private String resolveUsername(String userId, Map<String, String> usernameMap) {
+        // 用户 ID 或映射缺失时不补名称，其余直接从批量查询结果读取。
         if (StrUtil.isBlank(userId) || usernameMap == null || usernameMap.isEmpty()) {
             return null;
         }
@@ -234,6 +241,7 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
      * 转换追踪节点的层级关系、执行位置、状态及耗时，供前端还原调用树。
      */
     private RagTraceNodeVO toNodeVO(RagTraceNodeDO node) {
+        // 复制节点身份、父子关系、执行位置、状态和时间字段，供页面还原调用树。
         return RagTraceNodeVO.builder()
                 .traceId(node.getTraceId())
                 .nodeId(node.getNodeId())

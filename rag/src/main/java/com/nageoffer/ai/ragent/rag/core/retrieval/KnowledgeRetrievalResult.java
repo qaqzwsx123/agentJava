@@ -38,6 +38,7 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
                                        Set<String> directedIntentIds) {
 
     public KnowledgeRetrievalResult {
+        // 为缺失结果集合补空值，并复制定向意图集合，保证检索结果可安全继续传递。
         chunks = chunks == null ? List.of() : chunks;
         intentIdsByChunkKey = intentIdsByChunkKey == null ? Map.of() : intentIdsByChunkKey;
         directedIntentIds = directedIntentIds == null
@@ -49,6 +50,7 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
      * 构造没有切片、归因和定向意图的空召回结果。
      */
     public static KnowledgeRetrievalResult empty() {
+        // 构造没有证据和归因的结果，供检索失败或没有启用结果时返回。
         return new KnowledgeRetrievalResult(List.of(), Map.of(), Set.of());
     }
 
@@ -56,6 +58,7 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
      * 汇总最终切片实际归因的意图 ID，去重后返回不可修改集合。
      */
     public Set<String> retrievedIntentIds() {
+        // 合并最终证据实际归因到的意图 ID，去重后返回只读集合。
         Set<String> intentIds = new LinkedHashSet<>();
         intentIdsByChunkKey.values().stream()
                 .filter(Objects::nonNull)
@@ -67,6 +70,7 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
      * 定向检索的意图必须实际召回证据才准入，非定向意图按候选保留，返回可用于提示词的意图 ID。
      */
     public Set<String> eligibleIntentIds(List<NodeScore> candidateIntents) {
+        // 定向意图必须有最终证据归因才能准入，非定向候选沿用现有准入规则，不仅凭分类分数判断命中。
         Set<String> retrievedIntentIds = retrievedIntentIds();
         return candidateIntents.stream()
                 .filter(Objects::nonNull)
@@ -83,6 +87,7 @@ public record KnowledgeRetrievalResult(List<RetrievedChunk> chunks,
      * 按最终切片的归因意图分组，一片可属于多个意图；无归因切片放入全局分组。
      */
     public Map<String, List<RetrievedChunk>> groupByIntent(String globalKey) {
+        // 按最终块的实际归因分组，多意图归因可进入多个分组，没有归因的块放到全局组。
         Map<String, List<RetrievedChunk>> grouped = new LinkedHashMap<>();
         for (RetrievedChunk chunk : chunks) {
             Set<String> intentIds = intentIdsByChunkKey.get(RetrievedChunkKey.of(chunk));

@@ -48,6 +48,7 @@ public class BlockAwareChunkerDispatcher {
     public BlockAwareChunkerDispatcher(HeadingHandler headingHandler,
                                        ChunkPacker chunkPacker,
                                        List<BlockChunker<?>> chunkers) {
+        // 按 Block 类型建立分块器注册表，重复认领同一类型时立即报错，最后冻结映射供分派使用。
         this.headingHandler = headingHandler;
         this.chunkPacker = chunkPacker;
         Map<Class<? extends Block>, BlockChunker<?>> table = new HashMap<>();
@@ -67,6 +68,7 @@ public class BlockAwareChunkerDispatcher {
      * 把 Block 列表切分为有序块，序号从 0 单调递增
      */
     public List<Chunk> dispatch(List<Block> blocks, ChunkBudget budget) {
+        // 顺序遍历文档块，遇到标题先更新章节路径，再收集各类型草稿，统一打包并生成正式分块。
         if (blocks == null || blocks.isEmpty()) {
             return List.of();
         }
@@ -88,6 +90,7 @@ public class BlockAwareChunkerDispatcher {
      */
     @SuppressWarnings("unchecked")
     private List<ChunkDraft> chunkOne(Block block, ChunkContext ctx) {
+        // 按块的实际类型查找处理器，未注册时明确报错，避免静默丢失文档内容。
         BlockChunker<Block> chunker = (BlockChunker<Block>) registry.get(block.getClass());
         if (chunker == null) {
             throw new ServiceException("没有 chunker 认领 Block 类型：" + block.getClass().getName());

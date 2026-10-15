@@ -55,6 +55,7 @@ public class VectorChunkSink implements ChunkSink {
 
     @Override
     public void deleteDocument(VectorTarget target, DocumentRef doc) {
+        // 将已解析的逻辑分区与文档 ID 交给向量存储抽象，实际删除方式由后端实现决定。
         vectorStoreService.deleteDocumentVectors(target.partition(), doc.docId());
     }
 }

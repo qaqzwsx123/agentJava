@@ -52,11 +52,13 @@ public class CsvDocumentParser implements DocumentParser {
      */
     @Override
     public String getParserType() {
+        // 返回 CSV 解析器标识，供元数据记录和路由诊断使用。
         return ParserType.CSV.getType();
     }
 
     @Override
     public Map<ParseProfile, Set<String>> supportedMimeTypes() {
+        // 登记快速档位的常见 CSV MIME 别名，使不同探测结果落到同一解析器。
         return Map.of(ParseProfile.FAST, Set.of(
                 "text/csv",
                 "application/csv",
@@ -69,6 +71,7 @@ public class CsvDocumentParser implements DocumentParser {
      */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
+        // 解码并解析 CSV，去掉全空行后用首行作表头，后续行补足列数并生成带来源信息的表格块。
         if (content == null || content.length == 0) {
             return ParsedDocument.of(List.of());
         }
@@ -103,6 +106,7 @@ public class CsvDocumentParser implements DocumentParser {
      * 失败回退 UTF-8；统一剥离开头 BOM
      */
     private String decode(byte[] content) {
+        // 先自动探测字符集读取，探测失败时记录日志并按 UTF-8 解码，两条路径都会去掉开头 BOM。
         try (Reader reader = new AutoDetectReader(new ByteArrayInputStream(content))) {
             StringBuilder sb = new StringBuilder(content.length);
             char[] buf = new char[8192];
@@ -121,6 +125,7 @@ public class CsvDocumentParser implements DocumentParser {
      * 移除文本开头的 BOM，避免首列表头多出不可见字符。
      */
     private static String stripBom(String text) {
+        // 只移除文本开头的 BOM 字符，其余内容保持原样。
         return !text.isEmpty() && text.charAt(0) == BOM ? text.substring(1) : text;
     }
 
@@ -182,6 +187,7 @@ public class CsvDocumentParser implements DocumentParser {
      * 数据行短于表头时右侧补空串对齐（超出则原样保留）
      */
     private static List<String> padRow(List<String> row, int width) {
+        // 短行补空字符串到表头宽度，等宽或更宽的行保留原样，不截断额外列。
         if (row.size() >= width) {
             return row;
         }
@@ -197,6 +203,7 @@ public class CsvDocumentParser implements DocumentParser {
      * 检查该行所有单元格是否均为空白，供 CSV 解析过滤空行。
      */
     private static boolean isBlankRow(List<String> row) {
+        // 只要有一个非空白单元格就保留该行，否则判定为全空行。
         for (String cell : row) {
             if (cell != null && !cell.isBlank()) {
                 return false;
@@ -209,6 +216,7 @@ public class CsvDocumentParser implements DocumentParser {
      * 从解析选项取得源文件名，未配置时使用空字符串。
      */
     private String extractSourceFile(Map<String, Object> options) {
+        // 从解析选项取得文件名，未传选项或字段时使用空字符串。
         if (options == null) {
             return "";
         }

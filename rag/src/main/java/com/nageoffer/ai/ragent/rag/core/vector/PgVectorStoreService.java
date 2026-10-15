@@ -43,6 +43,7 @@ public class PgVectorStoreService implements VectorStoreService {
      */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
+        // 空块列表不写入，非空时批量绑定块 ID、集合、正文、JSON 元数据和向量字面量保存到共享表。
         if (chunks == null || chunks.isEmpty()) {
             return;
         }
@@ -132,6 +133,7 @@ public class PgVectorStoreService implements VectorStoreService {
      * 把浮点数组转换为 pgvector 的方括号向量文本，供参数化 SQL 转为 vector 类型。
      */
     private String toVectorLiteral(float[] embedding) {
+        // 按 pgvector 接受的格式输出基本向量值，SQL 使用参数绑定而不拼接向量查询语句。
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < embedding.length; i++) {
             if (i > 0) sb.append(",");

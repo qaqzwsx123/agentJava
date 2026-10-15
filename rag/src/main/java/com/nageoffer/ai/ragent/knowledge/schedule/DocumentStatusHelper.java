@@ -40,6 +40,7 @@ public class DocumentStatusHelper {
     private final KnowledgeDocumentMapper documentMapper;
 
     public boolean tryMarkRunning(String docId) {
+        // 仅把有效、已启用且当前未运行的文档改成 RUNNING，用更新行数竞争运行权，并显式刷新时间。
         // Wrapper 更新不触发 updateTime 自动填充, 显式刷新, 使卡死恢复以分块开始时刻为基准
         return documentMapper.update(
                 Wrappers.lambdaUpdate(KnowledgeDocumentDO.class)
@@ -54,6 +55,7 @@ public class DocumentStatusHelper {
     }
 
     public void markFailedIfRunning(String docId) {
+        // 只把仍处于 RUNNING 的文档标为失败，避免覆盖其他流程刚写入的终态。
         documentMapper.update(
                 Wrappers.lambdaUpdate(KnowledgeDocumentDO.class)
                         .set(KnowledgeDocumentDO::getStatus, DocumentStatus.FAILED.getCode())
@@ -64,6 +66,7 @@ public class DocumentStatusHelper {
     }
 
     public void applyRefreshedFileMetadata(String docId, StoredFileDTO stored) {
+        // 将新文件名、地址、类型和大小写回文档，更新未命中时明确说明文档不存在。
         KnowledgeDocumentDO update = KnowledgeDocumentDO.builder()
                 .id(docId)
                 .docName(stored.getOriginalFilename())
@@ -79,6 +82,7 @@ public class DocumentStatusHelper {
     }
 
     public StuckRecoveryResult recoverStuckRunning(long timeoutMinutes) {
+        // 采用至少十分钟的阈值找出长时间运行的候选，再以仍为 RUNNING 的条件重置为失败。
         long safeTimeout = Math.max(timeoutMinutes, 10);
         Date threshold = new Date(System.currentTimeMillis() - safeTimeout * 60 * 1000);
 

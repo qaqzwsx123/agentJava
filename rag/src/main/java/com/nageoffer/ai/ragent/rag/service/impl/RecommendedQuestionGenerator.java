@@ -67,6 +67,7 @@ public class RecommendedQuestionGenerator {
      */
     @RagTraceNode(name = "recommended-question-gen", type = "RECOMMEND_GEN")
     public RecommendedQuestionsPayload generate(String question, String answer, List<GroundingChunk> chunks) {
+        // 在模型调用边界统一限制问题、答案和证据素材长度，调用 FAST 模型生成追问，异常返回明确失败状态。
         try {
             int count = DEFAULT_RECOMMEND_COUNT;
             // 唯一的 prompt 输入预算权威：问题/答案/片段全在模型调用边界统一截断，避免与上游装配重复限制、也不受遗留数据影响
@@ -99,6 +100,7 @@ public class RecommendedQuestionGenerator {
      * 拼装 grounding 片段文本 供 prompt 注入；无片段时给出提示语降级为仅依据问答生成
      */
     private String buildChunksText(List<GroundingChunk> chunks) {
+        // 按顺序拼编号、文档名和有效证据正文，前缀与换行同样计入总字符预算，没素材时给出说明。
         if (CollUtil.isEmpty(chunks)) {
             return "（无检索片段，仅依据问答生成）";
         }
@@ -125,6 +127,7 @@ public class RecommendedQuestionGenerator {
      * 健壮解析：去代码围栏 -> JSON 数组 -> trim/去空/去重/截断；任何异常或非数组都视为无结果
      */
     private RecommendedQuestionsPayload parseQuestions(String raw, int count) {
+        // 清理围栏后要求 JSON 数组，只保留文本元素，限长、去空白和稳定去重后截取目标数量。
         if (StrUtil.isBlank(raw)) {
             return RecommendedQuestionsPayload.failed();
         }

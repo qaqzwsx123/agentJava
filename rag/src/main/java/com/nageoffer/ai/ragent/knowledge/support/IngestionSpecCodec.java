@@ -71,6 +71,7 @@ public class IngestionSpecCodec {
      * 整篇不分块的文档于是无声地按 1024 切开
      */
     public IngestionSpec read(String json) {
+        // 空配置直接使用默认值，历史 JSON 读取失败时记日志并回落默认配置，保证旧文档仍能读取。
         if (!StringUtils.hasText(json)) {
             return IngestionSpec.defaults();
         }
@@ -86,6 +87,7 @@ public class IngestionSpecCodec {
      * 写：配置对象 → 落库 JSON
      */
     public String write(IngestionSpec spec) {
+        // 先转换为约定的存储结构再序列化，空规格用默认值，序列化失败给出业务错误。
         try {
             return objectMapper.writeValueAsString(SpecWire.of(spec == null ? IngestionSpec.defaults() : spec));
         } catch (Exception e) {
@@ -100,6 +102,7 @@ public class IngestionSpecCodec {
      * @return 规整后的 JSON，入参为空时返回 null（列留空即表示走默认）
      */
     public String normalize(String rawJson) {
+        // 严格解析用户 JSON，再按领域规格补默认值、校验预算并重新输出，非法配置明确拒绝。
         if (!StringUtils.hasText(rawJson)) {
             return null;
         }
@@ -122,6 +125,7 @@ public class IngestionSpecCodec {
      * 从持久化映射还原解析档位及分块预算，统一交给规格对象承载。
      */
     private IngestionSpec fromMap(Map<String, Object> raw) {
+        // 从松散映射中读取档位和分块参数，再构造带统一版本的入库规格。
         return IngestionSpec.of(ParseProfile.from(readString(raw, KEY_PARSE_PROFILE)),
                 toBudget(readInt(raw, KEY_MAX_CHARS), readInt(raw, KEY_OVERLAP_CHARS),
                         readInt(raw, KEY_ROWS_PER_CHUNK), readInt(raw, KEY_TOLERANCE_FACTOR)));
@@ -134,6 +138,7 @@ public class IngestionSpecCodec {
      * 同样落回整篇不分块，它正是 {@link ChunkBudget#wholeDocument()} 的内部取值
      */
     private static ChunkBudget toBudget(Integer maxChars, Integer overlap, Integer rows, Integer tolerance) {
+        // 整篇哨兵走整篇模式，其他缺省参数采用默认值，重叠量按实际块大小重新计算。
         if (maxChars != null && maxChars == WHOLE_DOCUMENT_SENTINEL) {
             return ChunkBudget.wholeDocument();
         }
@@ -151,6 +156,7 @@ public class IngestionSpecCodec {
      * 兼容配置中的数字和整数字符串，缺失或格式无效返回 null，留给预算构造逻辑处理。
      */
     private static Integer readInt(Map<String, Object> raw, String key) {
+        // 兼容数字与数字文本，无法解析或类型不匹配时返回 null，留给预算构造处理默认值。
         Object value = raw.get(key);
         if (value instanceof Number number) {
             return number.intValue();
@@ -169,6 +175,7 @@ public class IngestionSpecCodec {
      * 将配置值转为字符串，键不存在时返回 null。
      */
     private static String readString(Map<String, Object> raw, String key) {
+        // 读取映射字段并转成字符串，未提供时保持 null。
         Object value = raw.get(key);
         return value == null ? null : value.toString();
     }
@@ -187,6 +194,7 @@ public class IngestionSpecCodec {
     private record SpecWire(int version, ParseProfile parseProfile, BudgetWire budget) {
 
         static SpecWire of(IngestionSpec spec) {
+            // 将领域规格转换成可序列化结构，整篇模式显式编码为约定哨兵值。
             ChunkBudget budget = spec.budget();
             return new SpecWire(spec.version(), spec.parseProfile(), budget.isWholeDocument()
                     ? new BudgetWire(WHOLE_DOCUMENT_SENTINEL, 0, WHOLE_DOCUMENT_SENTINEL, budget.toleranceFactor())
@@ -195,6 +203,7 @@ public class IngestionSpecCodec {
         }
 
         IngestionSpec toDomain() {
+            // 恢复领域规格，历史版本缺失时补当前版本，预算缺失时补默认配置。
             return new IngestionSpec(
                     version > 0 ? version : IngestionSpec.CURRENT_VERSION,
                     parseProfile,

@@ -50,6 +50,7 @@ public class AgentPromptResolver {
      * @return 槽位提示词，内置智能体也没配时返回空串
      */
     public String resolve(AgentPromptSlot slot) {
+        // 按提示词槽位名称查已解析映射，空槽位或无内容时返回空字符串。
         if (slot == null) {
             return "";
         }
@@ -60,6 +61,7 @@ public class AgentPromptResolver {
      * 填充占位符并清理格式，语义与 PromptTemplateLoader#render 一致
      */
     public String render(AgentPromptSlot slot, Map<String, String> slots) {
+        // 先解析槽位内容，再替换模板变量并清理多余空行，生成可直接使用的提示词。
         return PromptTemplateUtils.cleanupPrompt(PromptTemplateUtils.fillSlots(resolve(slot), slots));
     }
 
@@ -67,6 +69,7 @@ public class AgentPromptResolver {
      * @return 全部槽位的最终生效内容，缺失的槽位不出现在 map 中
      */
     public Map<String, String> resolveAll() {
+        // 缓存命中直接复用，未命中从数据库装配有效提示词后回填缓存。
         Map<String, String> cached = cacheManager.getFromCache();
         if (cached != null) {
             return cached;
@@ -80,6 +83,7 @@ public class AgentPromptResolver {
      * 读取某个智能体自身配置的槽位，不做回落，供控制台编辑态展示
      */
     public Map<String, String> loadOwnPrompts(String agentId) {
+        // 只读取指定智能体自己保存的槽位内容，不在这里做继承或默认值合并。
         Map<String, String> own = new HashMap<>();
         if (StrUtil.isBlank(agentId)) {
             return own;
@@ -112,6 +116,7 @@ public class AgentPromptResolver {
      * 按指定标志查询配置，并按创建时间、ID 取最早一条；无匹配返回 null。
      */
     private AgentProfileDO firstByFlag(SFunction<AgentProfileDO, Integer> flag) {
+        // 按指定标记筛选智能体，再按创建时间和 ID 排序，稳定选择第一条。
         List<AgentProfileDO> profiles = agentProfileMapper.selectList(
                 Wrappers.lambdaQuery(AgentProfileDO.class)
                         .eq(flag, 1)
@@ -124,6 +129,7 @@ public class AgentPromptResolver {
      * 后写入者覆盖前者，空白内容不参与覆盖，以此实现回落
      */
     private void putNonBlank(Map<String, String> target, AgentProfileDO profile) {
+        // 将智能体自己的非空白提示词覆盖到目标映射，空内容不抹去已解析的默认值。
         if (profile == null) {
             return;
         }

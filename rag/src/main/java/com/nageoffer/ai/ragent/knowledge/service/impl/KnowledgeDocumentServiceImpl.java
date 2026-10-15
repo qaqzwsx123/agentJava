@@ -332,10 +332,12 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 提取文档 ID、知识库 ID 和名称，构成后续索引与处理流程使用的文档引用。
      */
     private DocumentRef documentRef(KnowledgeDocumentDO documentDO) {
+        // 将文档实体中的文档 ID、知识库 ID 和文件名封装为入库内核引用。
         return new DocumentRef(documentDO.getId(), documentDO.getKbId(), documentDO.getDocName());
     }
 
     private void markChunkSucceeded(String docId, int chunkCount) {
+        // 保存实际块数和成功状态，同时记录当前操作人，供后续列表与调度判断结果。
         documentMapper.updateById(KnowledgeDocumentDO.builder()
                 .id(docId)
                 .chunkCount(chunkCount)
@@ -345,6 +347,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private void refreshMimeType(String docId, String mimeType) {
+        // 只在 MIME 非空白时更新探测结果，避免用缺失值覆盖已有类型。
         if (!StringUtils.hasText(mimeType)) {
             return;
         }
@@ -352,6 +355,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private byte[] readFileBytes(KnowledgeDocumentDO documentDO) {
+        // 通过存储抽象打开并完整读取文件，自动关闭流，读取失败时转换为带文档 ID 的服务异常。
         try (InputStream is = fileStorageService.openStream(documentDO.getFileUrl())) {
             return is.readAllBytes();
         } catch (Exception e) {
@@ -362,6 +366,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private void updateChunkLog(String logId, String status, int chunkCount, long extractDuration,
                                 long chunkDuration, long embedDuration, long persistDuration,
                                 long totalDuration, String errorMessage) {
+        // 汇总各阶段耗时、块数、状态和错误说明，补结束时间后更新当前分块日志。
         KnowledgeDocumentChunkLogDO update = KnowledgeDocumentChunkLogDO.builder()
                 .id(logId)
                 .status(status)
@@ -388,6 +393,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private List<EmbeddedChunk> runPipelineProcess(KnowledgeDocumentDO documentDO,
                                                    KnowledgeBaseDO kbDO,
                                                    VectorTarget target) {
+        // 要求绑定流水线，读取文件并显式传入向量落点；设置跳过内层索引写入，最终由外层统一持久化。
         // skipIndexerWrite 避免流水线内重复落索引，写入由外层文档处理流程控制。
         String docId = String.valueOf(documentDO.getId());
         String pipelineId = documentDO.getPipelineId();
@@ -410,6 +416,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 .skipIndexerWrite(true)
                 .build();
 
+        // 流水线只负责准备块和向量，返回错误会向外抛出，避免把失败上下文当成功结果保存。
         IngestionContext result = ingestionEngine.execute(pipelineDef, context);
 
         if (result.getError() != null) {
@@ -438,6 +445,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private void markChunkFailed(String docId) {
+        // 通过事务回调将文档标为失败并保存操作人，供分块异常路径统一收尾。
         transactionOperations.executeWithoutResult(status -> {
             KnowledgeDocumentDO update = new KnowledgeDocumentDO();
             update.setId(docId);
@@ -624,6 +632,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      */
     @Override
     public IPage<KnowledgeDocumentVO> page(String kbId, KnowledgeDocumentPageRequest requestParam) {
+        // 分页查询指定知识库的有效文档，再批量检测本页哪些文档的块曾被编辑，补充展示标记。
         // 列表限定有效文档和知识库范围，按创建时间倒序展示。
         Page<KnowledgeDocumentDO> pageParam = new Page<>(requestParam.getCurrent(), requestParam.getSize());
         LambdaQueryWrapper<KnowledgeDocumentDO> queryWrapper = Wrappers.lambdaQuery(KnowledgeDocumentDO.class)
@@ -653,6 +662,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 列为空表示"走默认"，这个语义要留着，所以空值不在此处物化成一份显式 JSON
      */
     private KnowledgeDocumentVO toVO(KnowledgeDocumentDO documentDO) {
+        // 复制文档字段，并将旧摄取配置按当前编码规则读取再输出，使返回配置结构一致。
         KnowledgeDocumentVO vo = BeanUtil.toBean(documentDO, KnowledgeDocumentVO.class);
         if (StringUtils.hasText(documentDO.getIngestionSpec())) {
             vo.setIngestionSpec(ingestionSpecCodec.write(ingestionSpecCodec.read(documentDO.getIngestionSpec())));
@@ -664,6 +674,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 批量找出存在已编辑切片的文档：以切片更新时间超过创建时间一秒作为判定条件。
      */
     private Set<String> findEditedDocIds(List<String> docIds) {
+        // 按修改时间比创建时间晚一秒以上识别编辑过的块，返回其所属文档的去重 ID 集合。
         if (docIds == null || docIds.isEmpty()) {
             return Collections.emptySet();
         }
@@ -682,6 +693,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      */
     @Override
     public List<KnowledgeDocumentSearchVO> search(String keyword, int limit) {
+        // 管理端按文档名查找，限制最多二十条，再批量补知识库名称；这是文档选择搜索而非语义检索。
         // 该搜索用于管理端文档选择，不是对文档分块做 RAG 内容检索。
         if (!StringUtils.hasText(keyword)) {
             return Collections.emptyList();
@@ -796,6 +808,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      */
     @Override
     public IPage<KnowledgeDocumentChunkLogVO> getChunkLogs(String docId, Page<KnowledgeDocumentChunkLogVO> page) {
+        // 分页取文档分块日志，批量补流水线名称，并按处理模式计算各显式阶段以外的耗时。
         // 先查询日志当前页，再集中查询所引用的流水线名称。
         Page<KnowledgeDocumentChunkLogDO> mpPage = new Page<>(page.getCurrent(), page.getSize());
         LambdaQueryWrapper<KnowledgeDocumentChunkLogDO> qw = new LambdaQueryWrapper<KnowledgeDocumentChunkLogDO>()
@@ -823,6 +836,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             }
         }
 
+        // 名称映射查询完成后再转换当前页，其他耗时不允许显示为负数。
         Page<KnowledgeDocumentChunkLogVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
         voPage.setRecords(records.stream().map(each -> {
             KnowledgeDocumentChunkLogVO vo = BeanUtil.toBean(each, KnowledgeDocumentChunkLogVO.class);
@@ -843,6 +857,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 从总耗时中扣除已单独统计的阶段耗时，计算其他耗时；流水线模式采用不同的阶段口径。
      */
     private static long getOther(KnowledgeDocumentChunkLogDO each, Long totalDuration) {
+        // 流水线模式只减去分块与持久化耗时，普通模式另外减去提取和嵌入，缺失阶段按零处理。
         String mode = each.getProcessMode();
         boolean pipelineMode = ProcessMode.PIPELINE.getValue().equalsIgnoreCase(mode);
         long extract = each.getExtractDuration() == null ? 0 : each.getExtractDuration();
@@ -858,6 +873,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 只有 URL 来源且请求显式开启定时更新时才启用调度。
      */
     private boolean isScheduleEnabled(SourceType sourceType, KnowledgeDocumentUploadRequest request) {
+        // 只有 URL 来源且请求明确启用时才认为定时刷新开启，文件上传来源不参与。
         return SourceType.URL == sourceType && Boolean.TRUE.equals(request.getScheduleEnabled());
     }
 
@@ -866,6 +882,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * URL 来源必须有地址，启用定时抓取时还需合法且满足最小间隔的 cron。
      */
     private void validateSourceAndSchedule(SourceType sourceType, KnowledgeDocumentUploadRequest request) {
+        // 先检查远端地址，再对已启用调度校验 Cron 与最小间隔，避免产生文件后才发现参数错误。
         // 把纯参数校验前置，避免校验失败后留下没有文档引用的存储文件。
         String sourceLocation = StrUtil.trimToNull(request.getSourceLocation());
         if (SourceType.URL == sourceType && !StringUtils.hasText(sourceLocation)) {
@@ -892,6 +909,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 直接分块时规范化 ingestionSpec；Pipeline 模式要求 ID 对应的配置存在。
      */
     private ProcessModeConfig resolveProcessModeConfig(KnowledgeDocumentUploadRequest request) {
+        // 普通分块模式规范化摄取配置；流水线模式要求流水线存在，只保存对应模式需要的字段。
         // 两种模式只保存各自需要的字段，避免下游读取混合配置。
         ProcessMode processMode = ProcessMode.normalize(request.getProcessMode());
         if (ProcessMode.CHUNK == processMode) {
@@ -913,6 +931,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      * 文件来源校验并上传 MultipartFile，其他来源交给远程抓取器下载入库，统一返回存储信息。
      */
     private StoredFileDTO resolveStoredFile(String bucketName, SourceType sourceType, String sourceLocation, MultipartFile file) {
+        // 本地来源要求文件存在并直接上传，URL 来源交给远端抓取与存储流程。
         if (SourceType.FILE == sourceType) {
             Assert.notNull(file, () -> new ClientException("上传文件不能为空"));
             return fileStorageService.upload(bucketName, file);
@@ -927,6 +946,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
      */
     @Override
     public String preview(String docId) {
+        // 只允许 Markdown 文档预览，按 UTF-8 读取存储内容并自动关闭流，读取失败转换为客户端提示。
         // 先检查文档和预览类型，使用 try-with-resources 确保输入流释放。
         KnowledgeDocumentDO documentDO = documentMapper.selectById(docId);
         Assert.notNull(documentDO, () -> new ClientException("文档不存在"));

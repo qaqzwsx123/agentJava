@@ -114,6 +114,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
      */
     @Override
     public IntentNode getNodeById(String id) {
+        // 空 ID 不加载树，其余从已装配的意图树 ID 映射取节点，找不到时返回 null。
         if (id == null || id.isBlank()) {
             return null;
         }
@@ -126,6 +127,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
      */
     @Override
     public List<IntentNode> listMcpToolNodes() {
+        // 从叶节点中筛出具有工具 ID 的 MCP 意图，按节点 ID 排序供工具目录使用。
         return loadIntentTreeData().leafNodes.stream()
                 .filter(IntentNode::isMCP)
                 .filter(node -> node.getMcpToolId() != null && !node.getMcpToolId().isBlank())
@@ -148,6 +150,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
      * 使用 Deque 替代递归，避免意图树过深导致 StackOverflow
      */
     private List<IntentNode> flatten(List<IntentNode> roots) {
+        // 用显式栈遍历树并收集全部节点，避免把后续索引构建绑定到递归调用深度。
         List<IntentNode> result = new ArrayList<>();
         Deque<IntentNode> stack = new ArrayDeque<>(roots);
         while (!stack.isEmpty()) {
@@ -385,6 +388,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
      * 所以这里必须手动用 Gson 解析，保证示例文本干净
      */
     private List<String> parseExamples(String examples) {
+        // 只接受 JSON 数组中的基础值作为示例，非数组或非法 JSON 记录预览日志并返回空列表。
         if (examples == null || examples.isBlank()) {
             return List.of();
         }
@@ -414,6 +418,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
      * - 业务系统 > OA系统 > 系统介绍
      */
     private void fillFullPath(List<IntentNode> nodes, IntentNode parent) {
+        // 从父节点完整路径递归追加当前名称，为每个节点生成可展示的层级路径。
         if (nodes == null) return;
 
         for (IntentNode node : nodes) {

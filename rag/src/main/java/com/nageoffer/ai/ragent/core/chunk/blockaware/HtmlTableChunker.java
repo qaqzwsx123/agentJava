@@ -49,6 +49,7 @@ public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
 
     @Override
     public Class<HtmlTableBlock> blockType() {
+        // 声明处理原始 HTML 表格块，避免把 HTML 当普通段落切断。
         return HtmlTableBlock.class;
     }
 
@@ -105,6 +106,7 @@ public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
      * 切出各 tr 片段（含标签本身），首个即表头行
      */
     private static List<String> splitRows(String html) {
+        // 按行标签匹配并收集完整 HTML 行，后续切分保持每行结构完整。
         List<String> rows = new ArrayList<>();
         Matcher matcher = ROW.matcher(html);
         while (matcher.find()) {
@@ -117,6 +119,7 @@ public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
      * 取原始 table 开标签而非写死，作者写在上面的 border / class 等属性得跟着每一块走
      */
     private static String openTag(String html) {
+        // 保留原表格起始标签及属性，无法识别结束位置时使用默认 table 标签。
         int end = html.indexOf('>');
         return end < 0 ? "<table>" : html.substring(0, end + 1);
     }
@@ -125,6 +128,7 @@ public class HtmlTableChunker implements BlockChunker<HtmlTableBlock> {
      * 把表格开始标签、重复表头和当前行组合为独立完整的 HTML 表格。
      */
     private static String render(String open, String header, List<String> rows) {
+        // 依次拼接表格起始标签、重复表头和当前行组，最后闭合表格标签。
         StringBuilder sb = new StringBuilder(open).append(header);
         for (String row : rows) {
             sb.append(row);

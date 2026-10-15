@@ -97,6 +97,7 @@ public class MinerUResultUnpacker {
     public MinerUResultUnpacker(FileStorageService fileStorageService,
                                 VlmService vlmService,
                                 ImageParseProperties imageParseProperties) {
+        // 保存资产存储、图片描述模型和配置，供解包后处理内嵌图片。
         this.fileStorageService = fileStorageService;
         this.vlmService = vlmService;
         this.imageParseProperties = imageParseProperties;
@@ -146,6 +147,7 @@ public class MinerUResultUnpacker {
      * 在内存中遍历结果 ZIP，取首份 Markdown 并收集图片字节，忽略目录，不直接解压到磁盘。
      */
     private ZipContents readZip(byte[] zipBytes) {
+        // 逐条读取压缩包，仅保留首份 Markdown 和支持的图片，文件路径只作为内存映射键使用。
         String markdown = null;
         Map<String, byte[]> images = new HashMap<>();
 
@@ -175,6 +177,7 @@ public class MinerUResultUnpacker {
      * 读取当前 ZIP 条目的全部字节；不关闭 ZIP 流，以便外层继续读取下一条目。
      */
     private static byte[] readAll(ZipInputStream zin) throws IOException {
+        // 按缓冲区读取当前 ZIP 条目直到结束，返回该条目的完整字节。
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
         int n;
@@ -188,6 +191,7 @@ public class MinerUResultUnpacker {
      * 根据文件名扩展名识别支持的图片条目，供结果包中的资产收集使用。
      */
     private static boolean isImage(String name) {
+        // 按不区分大小写的常见图片后缀筛选资产条目。
         String lower = name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
                 || lower.endsWith(".webp") || lower.endsWith(".gif") || lower.endsWith(".bmp");
@@ -197,6 +201,7 @@ public class MinerUResultUnpacker {
      * 上传所有图片到资产桶，返回 {zip 内路径 → 公开访问 URL}
      */
     private Map<String, String> uploadImages(Map<String, byte[]> images, String documentId) {
+        // 为每张内嵌图生成资产路径并上传，建立原 ZIP 路径到公开 URL 的映射；上传失败终止处理。
         Map<String, String> result = new HashMap<>();
         for (Map.Entry<String, byte[]> e : images.entrySet()) {
             String zipPath = e.getKey();
@@ -224,6 +229,7 @@ public class MinerUResultUnpacker {
      * 但 MinerU 云端解析本就以分钟计
      */
     private Map<String, String> describeImages(Map<String, byte[]> images) {
+        // 仅在开启图片描述时逐张调用视觉模型，单张描述失败记日志并继续保留其余图片结果。
         if (!imageParseProperties.isEmbeddedDescribeEnabled() || images.isEmpty()) {
             return Map.of();
         }
@@ -247,6 +253,7 @@ public class MinerUResultUnpacker {
      * 提取路径最后一个点后的扩展名并转小写，缺少扩展名时使用 bin。
      */
     private static String extractExt(String path) {
+        // 取最后一个点后的扩展名并统一小写，没有扩展名时使用 bin。
         int idx = path.lastIndexOf('.');
         return idx >= 0 ? path.substring(idx + 1).toLowerCase(Locale.ROOT) : "bin";
     }
@@ -255,6 +262,7 @@ public class MinerUResultUnpacker {
      * 将图片扩展名转换为 MIME，未识别类型按二进制流处理。
      */
     private static String inferMime(String ext) {
+        // 按图片扩展名选择上传 MIME，未知类型使用通用二进制类型。
         return switch (ext) {
             case "png" -> "image/png";
             case "jpg", "jpeg" -> "image/jpeg";
@@ -282,17 +290,20 @@ public class MinerUResultUnpacker {
 
         UnpackVisitor(Provenance provenance, Map<String, String> imageUrlMap,
                       Map<String, String> imageDescriptionMap) {
+            // 保存文件溯源、已上传图片地址与图片描述，供语法树访问时替换资源引用。
             this.provenance = provenance;
             this.imageUrlMap = imageUrlMap;
             this.imageDescriptionMap = imageDescriptionMap;
         }
 
         List<Block> getBlocks() {
+            // 返回按文档顺序累计的结构化块，交给后续分块处理。
             return blocks;
         }
 
         @Override
         public void visit(Heading heading) {
+            // 将标题级别与行内文字转为标题块，保留文件来源，供后续维护章节路径。
             blocks.add(new HeadingBlock(
                     provenance,
                     heading.getLevel(),
@@ -302,6 +313,7 @@ public class MinerUResultUnpacker {
 
         @Override
         public void visit(Paragraph paragraph) {
+            // 跳过已经由列表处理的段落，先提取段首独立图片，再把剩余非空文本保存为段落块。
             if (paragraph.getParent() instanceof ListItem) {
                 return;
             }
@@ -324,6 +336,7 @@ public class MinerUResultUnpacker {
 
         @Override
         public void visit(FencedCodeBlock codeBlock) {
+            // 保留代码语言与正文，移除末尾一个换行后生成代码块，供分块器重建展示围栏。
             blocks.add(new CodeBlock(
                     provenance,
                     codeBlock.getInfo(),
@@ -333,6 +346,7 @@ public class MinerUResultUnpacker {
 
         @Override
         public void visit(IndentedCodeBlock codeBlock) {
+            // 将缩进代码转换成不指定语言的代码块，正文只清理最后一个换行。
             blocks.add(new CodeBlock(
                     provenance,
                     null,
@@ -342,16 +356,19 @@ public class MinerUResultUnpacker {
 
         @Override
         public void visit(BulletList bulletList) {
+            // 收集列表项文字并标记为无序列表，避免逐段访问时重复产出列表正文。
             blocks.add(buildListBlock(bulletList, false));
         }
 
         @Override
         public void visit(OrderedList orderedList) {
+            // 收集列表项文字并标记为有序列表，后续由列表分块器恢复编号。
             blocks.add(buildListBlock(orderedList, true));
         }
 
         @Override
         public void visit(CustomBlock customBlock) {
+            // 表格扩展节点走表头与表体提取，其余自定义块继续使用默认访问逻辑。
             if (customBlock instanceof TableBlock tableBlock) {
                 handleTable(tableBlock);
                 return;
@@ -366,6 +383,7 @@ public class MinerUResultUnpacker {
          */
         @Override
         public void visit(HtmlBlock htmlBlock) {
+            // 跳过空 HTML，table 起始的内容保留为原始 HTML 表格块，其余作为段落块。
             String html = htmlBlock.getLiteral() == null ? "" : htmlBlock.getLiteral().strip();
             if (html.isEmpty()) {
                 return;
@@ -376,12 +394,14 @@ public class MinerUResultUnpacker {
         }
 
         private static boolean isBlank(Node node) {
+            // 把软换行、硬换行和纯空白文本节点视为可忽略空白，辅助识别段首图片。
             return node instanceof SoftLineBreak
                     || node instanceof HardLineBreak
                     || (node instanceof Text t && t.getLiteral().trim().isEmpty());
         }
 
         private void handleStandaloneImage(Image image) {
+            // 解析图片在压缩包中的路径，替换为公开地址，并把可用的视觉描述附到独立图片块。
             String rawDest = image.getDestination();
             String zipPath = resolveZipPath(rawDest);
             String resolved = resolveImageUrl(rawDest);
@@ -396,6 +416,7 @@ public class MinerUResultUnpacker {
         }
 
         private String resolveImageUrl(String rawDest) {
+            // 本地压缩包图片替换为上传后的 URL，外部图片保留原地址，空地址回落为空字符串。
             String zipPath = resolveZipPath(rawDest);
             if (zipPath != null) {
                 return imageUrlMap.get(zipPath);
@@ -431,6 +452,7 @@ public class MinerUResultUnpacker {
         }
 
         private static String inferMimeFromUrl(String url) {
+            // 按公开地址的图片后缀猜测 MIME，未识别类型回落为通用二进制。
             String lower = url.toLowerCase(Locale.ROOT);
             if (lower.endsWith(".png")) return "image/png";
             if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
@@ -440,6 +462,7 @@ public class MinerUResultUnpacker {
         }
 
         private ListBlock buildListBlock(Node listNode, boolean ordered) {
+            // 按列表直接子项收集文本，保留有序标志并附上文件溯源。
             List<String> items = new ArrayList<>();
             Node child = listNode.getFirstChild();
             while (child != null) {
@@ -452,6 +475,7 @@ public class MinerUResultUnpacker {
         }
 
         private void handleTable(TableBlock tableBlock) {
+            // 遍历表头与表体节点，分别提取单元格并组装统一的结构化表格块。
             List<String> headers = new ArrayList<>();
             List<List<String>> rows = new ArrayList<>();
 
@@ -482,6 +506,7 @@ public class MinerUResultUnpacker {
         }
 
         private List<String> extractCellTexts(TableRow row) {
+            // 顺序提取一行内各单元格文本并清理边缘空白，保留表格列位置。
             List<String> cells = new ArrayList<>();
             Node cell = row.getFirstChild();
             while (cell != null) {
@@ -494,6 +519,7 @@ public class MinerUResultUnpacker {
         }
 
         private String extractInlineText(Node parent) {
+            // 从父节点第一个子节点开始提取行内文本，复用统一遍历逻辑。
             return extractInlineTextFrom(parent.getFirstChild());
         }
 
@@ -501,6 +527,7 @@ public class MinerUResultUnpacker {
          * 从指定兄弟节点起拼接 inline 文本（供段首剥离图片后渲染剩余内容）
          */
         private String extractInlineTextFrom(Node start) {
+            // 从指定兄弟节点起依次渲染文本，供跳过段首图片后继续提取剩余正文。
             StringBuilder sb = new StringBuilder();
             Node node = start;
             while (node != null) {
@@ -511,6 +538,7 @@ public class MinerUResultUnpacker {
         }
 
         private void appendInline(StringBuilder sb, Node node) {
+            // 按行内节点类型保留文本、代码和链接，图片替换为上传地址；强调去标记，换行保持换行。
             if (node instanceof Text t) {
                 sb.append(t.getLiteral());
             } else if (node instanceof Code code) {
@@ -537,6 +565,7 @@ public class MinerUResultUnpacker {
         }
 
         private static String stripTrailingNewline(String s) {
+            // null 转为空字符串，仅移除最后一个换行，避免破坏代码块内部格式。
             if (s == null) {
                 return "";
             }

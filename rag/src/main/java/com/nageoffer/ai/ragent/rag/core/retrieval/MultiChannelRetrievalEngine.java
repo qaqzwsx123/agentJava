@@ -79,6 +79,7 @@ public class MultiChannelRetrievalEngine {
     @RagTraceNode(name = "multi-channel-retrieval", type = "RETRIEVE_CHANNEL")
     public KnowledgeRetrievalResult retrieveKnowledgeChannels(SubQuestionIntent subIntent,
                                                                RetrievalBudget budget) {
+        // 先解析范围并执行通道，再顺序后处理，最终按实际集合给证据归因，同时保留定向意图用于准入判断。
         SearchContext context = buildSearchContext(subIntent, budget);
 
         List<SearchChannelResult> channelResults = executeSearchChannels(context);
@@ -102,6 +103,7 @@ public class MultiChannelRetrievalEngine {
      * 全局作用域没有命中意图，整体无归属
      */
     private Map<String, Set<String>> deriveAttribution(List<RetrievedChunk> chunks, RetrievalScope scope) {
+        // 只对定向检索建立归因，先从意图绑定建立集合映射，再按最终块的真实集合关联意图。
         if (scope == null || !scope.directed() || chunks.isEmpty()) {
             return Map.of();
         }
@@ -211,6 +213,7 @@ public class MultiChannelRetrievalEngine {
      */
     private List<RetrievedChunk> executePostProcessors(List<SearchChannelResult> results,
                                                        SearchContext context) {
+        // 筛选启用处理器并按顺序执行，单处理器失败记录后继续，保留当前已取得结果供后续处理。
         List<SearchResultPostProcessor> enabledProcessors = postProcessors.stream()
                 .filter(processor -> processor.isEnabled(context))
                 .sorted(Comparator.comparingInt(SearchResultPostProcessor::getOrder))
@@ -227,6 +230,7 @@ public class MultiChannelRetrievalEngine {
                 .flatMap(r -> r.getChunks().stream())
                 .collect(Collectors.toList());
 
+        // 处理器按 getOrder 串行接力，后一阶段消费前一阶段产物，不能把它们并行执行。
         int initialSize = chunks.size();
 
         // 顺序影响处理语义：去重、融合、重排、证据门控、元数据补充依次消费结果。
@@ -262,6 +266,7 @@ public class MultiChannelRetrievalEngine {
      */
     private CompletableFuture<SearchChannelResult> withTimeout(CompletableFuture<SearchChannelResult> future,
                                                                SearchChannel channel, long timeoutMs) {
+        // 非正超时不包装，启用超时后把超时或异步异常转换为本通道空结果，不保证底层请求同步停止。
         if (timeoutMs <= 0) {
             return future;
         }
@@ -285,6 +290,7 @@ public class MultiChannelRetrievalEngine {
      * 作用域在此处算一次挂进上下文，各通道只读不判，保证同一子问题内三条通道的检索范围一致
      */
     private SearchContext buildSearchContext(SubQuestionIntent subIntent, RetrievalBudget budget) {
+        // 以当前子问题同时作为原始与改写输入，附预算、意图及解析后的检索范围。
         List<SubQuestionIntent> subIntents = List.of(subIntent);
         String question = subIntent.subQuestion();
 

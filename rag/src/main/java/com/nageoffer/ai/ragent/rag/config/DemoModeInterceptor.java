@@ -52,6 +52,7 @@ public class DemoModeInterceptor implements HandlerInterceptor {
     public boolean preHandle(@NonNull HttpServletRequest request,
                              @NonNull HttpServletResponse response,
                              @NonNull Object handler) throws Exception {
+        // 演示模式关闭时放行；开启后允许预检和普通 GET，其他请求按 SSE 或 JSON 协议返回拒绝结果。
         if (!demoModeProperties.getDemoMode()) {
             return true;
         }
@@ -73,6 +74,7 @@ public class DemoModeInterceptor implements HandlerInterceptor {
     }
 
     private void writeSseReject(HttpServletResponse response) throws Exception {
+        // 保持 SSE 响应格式，依次发送 reject 和 done 事件并刷新输出，让前端能够正常结束等待。
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType("text/event-stream;charset=UTF-8");
         response.setHeader("Cache-Control", "no-cache");
@@ -84,6 +86,7 @@ public class DemoModeInterceptor implements HandlerInterceptor {
     }
 
     private void writeJsonReject(HttpServletResponse response) throws Exception {
+        // 按统一 Result 结构返回演示限制说明，HTTP 状态沿用成功码，由业务错误码表达拒绝。
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType("application/json;charset=UTF-8");
         Result<Void> result = new Result<Void>()

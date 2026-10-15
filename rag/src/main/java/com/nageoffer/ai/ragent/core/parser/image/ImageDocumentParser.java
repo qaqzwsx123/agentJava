@@ -64,6 +64,7 @@ public class ImageDocumentParser implements DocumentParser {
     public ImageDocumentParser(VlmService vlmService,
                                FileStorageService fileStorageService,
                                ImageParseProperties properties) {
+        // 保存图片描述模型、文件存储服务和图片解析配置，供后续图像处理使用。
         this.vlmService = vlmService;
         this.fileStorageService = fileStorageService;
         this.properties = properties;
@@ -74,11 +75,13 @@ public class ImageDocumentParser implements DocumentParser {
      */
     @Override
     public String getParserType() {
+        // 返回图片解析器标识，供解析器注册与结果记录使用。
         return ParserType.IMAGE.getType();
     }
 
     @Override
     public Map<ParseProfile, Set<String>> supportedMimeTypes() {
+        // 声明快速档位可处理 PNG、JPEG 和 SVG，SVG 在实际描述前会转换为栅格图片。
         return Map.of(ParseProfile.FAST, Set.of(
                 "image/png",
                 "image/jpeg",
@@ -137,6 +140,7 @@ public class ImageDocumentParser implements DocumentParser {
      * 从解析选项取非空字符串，缺失或空白时使用指定默认值。
      */
     private static String extract(Map<String, Object> options, String key, String defaultValue) {
+        // 从可选参数取字符串，缺失或空白时采用调用方提供的默认值。
         if (options == null) {
             return defaultValue;
         }
@@ -151,6 +155,7 @@ public class ImageDocumentParser implements DocumentParser {
      * 无内在尺寸的 SVG 设宽度上限避免超大画布
      */
     private static byte[] rasterizeSvg(byte[] svg) {
+        // 用 PNG 转码器把 SVG 栅格化，限制最大宽度并使用白底，转码失败转换为明确服务异常。
         try {
             PNGTranscoder transcoder = new PNGTranscoder();
             transcoder.addTranscodingHint(PNGTranscoder.KEY_MAX_WIDTH, 1600f);
@@ -167,6 +172,7 @@ public class ImageDocumentParser implements DocumentParser {
      * 为 JPEG 使用 jpg 扩展名，其余类型按当前实现使用 png 命名。
      */
     private static String extFromMime(String mimeType) {
+        // JPEG 对应 jpg 后缀，其余当前支持的栅格输出采用 png。
         if (mimeType == null) {
             return "png";
         }
@@ -180,6 +186,7 @@ public class ImageDocumentParser implements DocumentParser {
      * 去掉源文件名末尾扩展名作为图片说明，空文件名返回空字符串。
      */
     private static String stripExt(String fileName) {
+        // 移除文件名最后一个有效扩展名，空值返回空字符串，保留无扩展名的原文件名。
         if (fileName == null || fileName.isBlank()) {
             return "";
         }

@@ -48,6 +48,7 @@ public class EvidenceGatePostProcessor implements SearchResultPostProcessor, Ini
      */
     @Override
     public void afterPropertiesSet() {
+        // 配置正数精排门槛时必须启用精排，否则启动报错，避免门槛无分可读而失去作用。
         double minRerankScore = searchChannelProperties.getEvidence().getMinRerankScore();
         if (minRerankScore > 0 && Boolean.FALSE.equals(ragConfigProperties.getRerankEnabled())) {
             throw new IllegalStateException(String.format(
@@ -59,6 +60,7 @@ public class EvidenceGatePostProcessor implements SearchResultPostProcessor, Ini
 
     @Override
     public String getName() {
+        // 返回证据准入处理器名称，供处理链日志使用。
         return "EvidenceGate";
     }
 
@@ -72,6 +74,7 @@ public class EvidenceGatePostProcessor implements SearchResultPostProcessor, Ini
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 仅在配置了正数最低精排分时启用证据门控。
         return searchChannelProperties.getEvidence().getMinRerankScore() > 0;
     }
 
@@ -108,6 +111,7 @@ public class EvidenceGatePostProcessor implements SearchResultPostProcessor, Ini
      * 不取首条：{@code RerankClient} 未承诺返回序，回填条目也没分
      */
     private Float maxRerankScore(List<RetrievedChunk> chunks) {
+        // 只比较非空且有限的精排分，全部缺失或无效时返回 null 表示没有可用分数。
         Float max = null;
         for (RetrievedChunk chunk : chunks) {
             Float score = chunk.getRerankScore();

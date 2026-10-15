@@ -50,6 +50,7 @@ public class MilvusVectorRetrieverService implements VectorRetrieverService {
 
     @Override
     public List<RetrievedChunk> retrieve(RetrieveRequest retrieveParam) {
+        // 先把问题转为归一化向量，再复用按向量检索入口，避免查询逻辑重复实现。
         float[] norm = embedAndNormalize(retrieveParam.getQuery());
         return retrieveByVector(norm, retrieveParam);
     }
@@ -63,15 +64,18 @@ public class MilvusVectorRetrieverService implements VectorRetrieverService {
 
     @Override
     public float[] embedAndNormalize(String query) {
+        // 模型嵌入列表转换为基本数组后做 L2 归一化，供后续各集合检索共用。
         return normalize(toArray(embeddingService.embed(query)));
     }
 
     @Override
     public boolean supportsGlobalRetrieval() {
+        // 当前实现支持在共享物理集合中按需取消逻辑集合过滤，允许全局检索。
         return true;
     }
 
     private String buildCollectionFilter(List<String> collectionNames) {
+        // 空集合范围不生成过滤，单集合用等值，多集合用 IN，并转义各集合名。
         if (collectionNames == null || collectionNames.isEmpty()) {
             return null;
         }
@@ -86,6 +90,7 @@ public class MilvusVectorRetrieverService implements VectorRetrieverService {
     }
 
     private String escapeFilterValue(String value) {
+        // 转义反斜线与双引号，避免集合名破坏 Milvus 表达式中的字符串字面量。
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
@@ -95,6 +100,7 @@ public class MilvusVectorRetrieverService implements VectorRetrieverService {
      * @param filter 可选的标量过滤表达式（为空则不过滤，检索全共享库）
      */
     private List<RetrievedChunk> searchShared(float[] vector, String filter, int topK) {
+        // 在配置的共享物理集合中按向量搜索，附可选逻辑集合过滤，并转换首个查询向量对应的结果。
         List<BaseVector> vectors = List.of(new FloatVec(vector));
 
         Map<String, Object> params = new HashMap<>();
@@ -130,12 +136,14 @@ public class MilvusVectorRetrieverService implements VectorRetrieverService {
     }
 
     private static float[] toArray(List<Float> list) {
+        // 保持元素顺序把 Float 列表复制为 float 数组，满足向量客户端输入要求。
         float[] arr = new float[list.size()];
         for (int i = 0; i < list.size(); i++) arr[i] = list.get(i);
         return arr;
     }
 
     private static float[] normalize(float[] v) {
+        // 计算向量 L2 长度并创建归一化副本，原数组不在此方法中修改。
         double sum = 0.0;
         for (float x : v) sum += x * x;
         double len = Math.sqrt(sum);

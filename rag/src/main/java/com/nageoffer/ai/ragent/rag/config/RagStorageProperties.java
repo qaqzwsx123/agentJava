@@ -99,6 +99,7 @@ public class RagStorageProperties {
          * 公开基址：留空时回退 endpoint
          */
         public String resolvePublicUrl() {
+            // 优先使用显式公网地址，没有时回落存储 endpoint，供公开资源 URL 拼接。
             return StringUtils.hasText(publicUrl) ? publicUrl : endpoint;
         }
     }

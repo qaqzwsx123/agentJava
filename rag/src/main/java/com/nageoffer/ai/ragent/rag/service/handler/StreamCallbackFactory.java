@@ -50,6 +50,7 @@ public class StreamCallbackFactory {
     public StreamCallback createChatEventHandler(SseEmitter emitter,
                                                  String conversationId,
                                                  String taskId) {
+        // 把本轮 emitter、会话、任务及共享依赖封装为参数对象，每次创建独立回调实例保存本轮流状态。
         StreamChatHandlerParams params = StreamChatHandlerParams.builder()
                 .emitter(emitter)
                 .conversationId(conversationId)

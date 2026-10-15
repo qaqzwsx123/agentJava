@@ -96,6 +96,7 @@ public class RetrievalScopeResolver {
      * 绑定为空的意图既检索不到东西，也不该拉高置信度判定
      */
     private List<NodeScore> extractKbIntents(List<SubQuestionIntent> subIntents) {
+        // 展开各子问题候选，保留达到门槛且绑定集合的知识意图，同一节点只保留最高分。
         if (CollUtil.isEmpty(subIntents)) {
             return List.of();
         }

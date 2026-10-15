@@ -36,6 +36,7 @@ public class ListChunker implements BlockChunker<ListBlock> {
 
     @Override
     public Class<ListBlock> blockType() {
+        // 声明处理列表块，保持有序或无序列表的展示语义。
         return ListBlock.class;
     }
 
@@ -79,6 +80,7 @@ public class ListChunker implements BlockChunker<ListBlock> {
      */
     private ChunkDraft buildDraft(List<String> items, int startNumber, ListBlock block,
                                  ChunkMetadata metadata) {
+        // 按起始序号逐项渲染列表并用换行分隔，生成携带元数据的草稿。
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < items.size(); i++) {
             if (!sb.isEmpty()) {
@@ -93,6 +95,7 @@ public class ListChunker implements BlockChunker<ListBlock> {
      * 整份清单渲染后的体量，含项间换行，用于判断切不切
      */
     private static int renderedLength(ListBlock block) {
+        // 按实际列表标记和序号计算展示长度，并计入换行开销。
         int total = 0;
         List<String> items = block.items();
         for (int i = 0; i < items.size(); i++) {
@@ -105,6 +108,7 @@ public class ListChunker implements BlockChunker<ListBlock> {
      * 单项渲染，同时用作预算切分的体量度量
      */
     private static String renderItem(ListBlock block, int number, String item) {
+        // 有序列表输出编号，无序列表输出短横线，正文保持原样。
         return block.ordered() ? number + ". " + item : "- " + item;
     }
 }

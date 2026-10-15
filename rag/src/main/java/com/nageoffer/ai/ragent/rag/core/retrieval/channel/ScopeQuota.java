@@ -56,6 +56,7 @@ public record ScopeQuota(int primary, int supplement) {
      * 按名额截断已按相关性降序的候选，名额为 0 即取零条
      */
     public static <T> List<T> cap(List<T> chunks, int limit) {
+        // 预算非正时不保留结果，超过上限才复制截断前段，其余保持原列表。
         if (limit <= 0) {
             return List.of();
         }

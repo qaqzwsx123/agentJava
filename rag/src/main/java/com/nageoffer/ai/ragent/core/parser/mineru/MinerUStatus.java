@@ -34,6 +34,7 @@ public record MinerUStatus(
      * 仅当远端任务状态为 DONE 时判定解析完成。
      */
     public boolean completed() {
+        // 只有远端状态映射为 DONE 才视为成功完成。
         return state == MinerUTaskState.DONE;
     }
 
@@ -41,6 +42,7 @@ public record MinerUStatus(
      * 仅当远端任务状态为 FAILED 时判定解析失败。
      */
     public boolean failed() {
+        // 只有远端状态映射为 FAILED 才视为明确失败，其余状态继续由轮询决定。
         return state == MinerUTaskState.FAILED;
     }
 }

@@ -62,6 +62,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(QueryTermMappingCreateRequest requestParam) {
+        // 校验源词和目标词，补匹配方式、优先级和启用默认值，写库后清缓存并保存创建快照。
         // 先规范化必填词语，空白映射不允许写入数据库。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         String sourceTerm = StrUtil.trimToNull(requestParam.getSourceTerm());
@@ -98,6 +99,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void update(String id, QueryTermMappingUpdateRequest requestParam) {
+        // 保存修改前快照，只更新请求显式提供的字段，再清缓存并记录数据库中的最终结果。
         // 读取原记录供审计比对，再逐项应用请求中的变更字段。
         Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         QueryTermMappingDO record = loadById(id);
@@ -171,6 +173,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
      */
     @Override
     public IPage<QueryTermMappingVO> pageQuery(QueryTermMappingPageRequest requestParam) {
+        // 源词和目标词关键词位于同一 OR 组内，按优先级升序与更新时间倒序分页展示。
         // 关键字条件在同一个 OR 分组内构造，不影响其他过滤范围。
         String keyword = StrUtil.trimToNull(requestParam.getKeyword());
         Page<QueryTermMappingDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
@@ -191,6 +194,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
      * 加载术语映射规则，不存在时返回业务异常。
      */
     private QueryTermMappingDO loadById(String id) {
+        // 按 ID 查规则，不存在时抛出业务错误，供更新或删除入口统一使用。
         QueryTermMappingDO record = queryTermMappingMapper.selectById(id);
         Assert.notNull(record, () -> new ClientException("映射规则不存在"));
         return record;
@@ -200,6 +204,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
      * 将术语映射记录转换为响应，统一字符串 ID 和布尔启用状态。
      */
     private QueryTermMappingVO toVO(QueryTermMappingDO record) {
+        // 把实体字段转为管理视图，整数启用标记转换为布尔值，ID 统一输出字符串。
         return QueryTermMappingVO.builder()
                 .id(String.valueOf(record.getId()))
                 .sourceTerm(record.getSourceTerm())

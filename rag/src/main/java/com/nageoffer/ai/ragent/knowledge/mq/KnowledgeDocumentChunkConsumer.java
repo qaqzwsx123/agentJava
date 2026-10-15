@@ -45,6 +45,7 @@ public class KnowledgeDocumentChunkConsumer implements RocketMQListener<MessageW
 
     @Override
     public void onMessage(MessageWrapper<KnowledgeDocumentChunkEvent> message) {
+        // 从事件恢复操作人上下文，再执行文档分块；无论成功失败都清理线程上下文，防止线程复用串用户。
         KnowledgeDocumentChunkEvent event = message.getBody();
 
         log.info("[消费者] 开始消费文档分块任务，docId={}, keys={}", event.getDocId(), message.getKeys());

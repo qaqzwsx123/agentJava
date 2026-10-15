@@ -47,12 +47,14 @@ public class FetcherNode implements IngestionNode {
     private final Map<SourceType, DocumentFetcher> fetchers;
 
     public FetcherNode(List<DocumentFetcher> fetchers) {
+        // 按来源类型登记抓取实现，同一来源有重复实现时由收集过程直接报错。
         this.fetchers = fetchers.stream()
                 .collect(Collectors.toMap(DocumentFetcher::supportedType, Function.identity()));
     }
 
     @Override
     public String getNodeType() {
+        // 返回获取器节点类型，供引擎调度对应实现。
         return IngestionNodeType.FETCHER.getValue();
     }
 
@@ -61,6 +63,7 @@ public class FetcherNode implements IngestionNode {
      */
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
+        // 已有原始字节则复用并按需探测 MIME，否则按来源选择抓取器，把内容、MIME 与文件名写回上下文。
         if (context.getRawBytes() != null && context.getRawBytes().length > 0) {
             if (!StringUtils.hasText(context.getMimeType())) {
                 String fileName = context.getSource() == null ? null : context.getSource().getFileName();
@@ -80,6 +83,7 @@ public class FetcherNode implements IngestionNode {
             return NodeResult.fail(new ClientException("不支持的来源类型: " + source.getType()));
         }
 
+        // 真正的外部读取只发生在缺少原始字节时，抓取结果回写后供解析节点直接消费。
         FetchResult result = fetcher.fetch(source);
         context.setRawBytes(result.content());
         if (StringUtils.hasText(result.mimeType())) {

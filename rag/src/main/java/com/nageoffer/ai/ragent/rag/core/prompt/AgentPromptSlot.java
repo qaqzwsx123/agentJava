@@ -127,11 +127,13 @@ public enum AgentPromptSlot {
 
     AgentPromptSlot(String displayName, Group group, Set<OrchestrationMode> effectiveModes,
                     String inactiveReason, Set<String> requiredPlaceholders) {
+        // 保存槽位名称、分组、生效模式和必需占位符；不带编辑提示的重载将该提示默认设为 null。
         this(displayName, group, effectiveModes, inactiveReason, requiredPlaceholders, null);
     }
 
     AgentPromptSlot(String displayName, Group group, Set<OrchestrationMode> effectiveModes,
                     String inactiveReason, Set<String> requiredPlaceholders, String editorHint) {
+        // 保存槽位名称、分组、生效模式和必需占位符；不带编辑提示的重载将该提示默认设为 null。
         this.displayName = displayName;
         this.group = group;
         this.effectiveModes = effectiveModes;
@@ -141,6 +143,7 @@ public enum AgentPromptSlot {
     }
 
     public boolean isEffectiveIn(OrchestrationMode mode) {
+        // 检查当前编排模式是否属于槽位允许的模式集合。
         return effectiveModes.contains(mode);
     }
 
@@ -148,6 +151,7 @@ public enum AgentPromptSlot {
      * 当前架构下真正会被读取的槽位，控制台拿它当覆盖率的分母
      */
     public static List<AgentPromptSlot> effectiveIn(OrchestrationMode mode) {
+        // 保持枚举顺序筛选当前模式实际生效的槽位，供编辑界面和运行时使用。
         return Arrays.stream(values())
                 .filter(slot -> slot.isEffectiveIn(mode))
                 .toList();
@@ -157,6 +161,7 @@ public enum AgentPromptSlot {
      * 忽略大小写查找提示词槽位枚举，未知键返回空 Optional。
      */
     public static Optional<AgentPromptSlot> find(String key) {
+        // 按不区分大小写的槽位键查找，使用 Optional 表示未知槽位。
         return Arrays.stream(values())
                 .filter(slot -> slot.name().equalsIgnoreCase(key))
                 .findFirst();
@@ -175,6 +180,7 @@ public enum AgentPromptSlot {
         private final String displayName;
 
         Group(String displayName) {
+            // 保存提示词分组的展示名称，供管理页面分类展示。
             this.displayName = displayName;
         }
     }

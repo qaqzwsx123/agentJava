@@ -59,6 +59,7 @@ public class KnowledgeBaseCleanupConsumer implements RocketMQListener<MessageWra
 
     @Override
     public void onMessage(MessageWrapper<KnowledgeBaseCleanupEvent> message) {
+        // 分别清理向量、文件、可选关键词和图谱资源，单项失败继续尝试其他项，最后统一抛错触发消息重试。
         KnowledgeBaseCleanupEvent event = message.getBody();
         String collectionName = event.getCollectionName();
 
@@ -80,6 +81,7 @@ public class KnowledgeBaseCleanupConsumer implements RocketMQListener<MessageWra
             log.error("删除知识库存储目录失败，namespace={}", collectionName, e);
         }
 
+        // 关键词和图谱通道按实际装配情况清理，未启用的组件不强制要求存在。
         KeywordIndexService keywordIndexService = keywordIndexServiceProvider.getIfAvailable();
         if (keywordIndexService != null) {
             try {
@@ -100,6 +102,7 @@ public class KnowledgeBaseCleanupConsumer implements RocketMQListener<MessageWra
             }
         }
 
+        // 前面已经尝试所有清理项，只要还有失败就抛异常让消息机制重试。
         if (!allSucceeded) {
             throw new ServiceException("知识库物理资源清理存在失败项，触发重试");
         }

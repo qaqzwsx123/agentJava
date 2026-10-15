@@ -116,11 +116,13 @@ public enum DisplayType {
     private final String code;
 
     DisplayType(String code) {
+        // 保存文件展示类型的稳定编码，供接口与前端选择预览方式。
         this.code = code;
     }
 
     @JsonValue
     public String getCode() {
+        // 返回展示类型配置编码，避免直接暴露枚举内部名称。
         return code;
     }
 
@@ -128,6 +130,7 @@ public enum DisplayType {
      * 是否表格类文件
      */
     public boolean isTabular() {
+        // 通过表格类型集合判断是否需要展示表格专属解析设置。
         return TABULAR.contains(this);
     }
 
@@ -138,6 +141,7 @@ public enum DisplayType {
      * {@code jpg ∈ {jpg, jpeg}}），故拿落库的 {@code fileType} 或原始扩展名来比这份清单结果都对
      */
     public Set<String> extensions() {
+        // 从扩展名映射中收集属于当前展示类型的后缀，并使用排序集合保持输出稳定。
         Set<String> result = new TreeSet<>();
         BY_EXTENSION.forEach((extension, type) -> {
             if (type == this) {
@@ -151,6 +155,7 @@ public enum DisplayType {
      * 唯一产生点：扩展名优先，无扩展名时才看 MIME，都认不出就是 {@link #OTHER}
      */
     public static DisplayType of(String filename, String mimeType) {
+        // 先按文件后缀识别展示类型，后缀无法识别时再按 MIME 判断，最后回落 OTHER。
         DisplayType byExtension = BY_EXTENSION.get(extractExtension(filename));
         if (byExtension != null) {
             return byExtension;
@@ -162,6 +167,7 @@ public enum DisplayType {
      * 反解落库值，未知一律 {@link #OTHER}
      */
     public static DisplayType from(String code) {
+        // 去空白并统一小写后匹配展示编码，缺省或未知值返回 OTHER。
         if (code == null || code.isBlank()) {
             return OTHER;
         }
@@ -178,6 +184,7 @@ public enum DisplayType {
      * 去除路径部分后提取小写扩展名，无有效扩展名时返回空字符串。
      */
     private static String extractExtension(String filename) {
+        // 先去掉路径部分，再读取最后一个有效后缀并统一小写，缺失后缀时返回空字符串。
         if (filename == null) {
             return "";
         }
@@ -197,6 +204,7 @@ public enum DisplayType {
      * 统一 MIME 大小写并去掉分号参数，供文件预览类型判断使用。
      */
     private static String normalizeMime(String mimeType) {
+        // 规范 MIME 大小写并去掉分号后的附加参数，便于按纯类型匹配展示方式。
         if (mimeType == null || mimeType.isBlank()) {
             return "";
         }

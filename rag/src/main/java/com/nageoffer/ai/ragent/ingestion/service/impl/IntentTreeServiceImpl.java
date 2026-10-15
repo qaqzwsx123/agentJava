@@ -101,6 +101,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      */
     private IntentNodeTreeVO buildTree(IntentNodeDO current,
                                        Map<String, List<IntentNodeDO>> parentMap) {
+        // 递归把节点和按父编码分组的子节点转成树形视图，并兼容新旧集合绑定字段。
         IntentNodeTreeVO result = BeanUtil.toBean(current, IntentNodeTreeVO.class);
         result.setCollectionNames(effectiveCollectionNames(current));
         List<IntentNodeDO> children = parentMap.getOrDefault(current.getIntentCode(), Collections.emptyList());
@@ -330,6 +331,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public void batchEnableNodes(List<String> ids) {
+        // 先验证所有目标均有效，批量启用后清理意图树缓存，并记录前后快照。
         // 批量启用不会自动追加未选择的父节点或子节点。
         List<IntentNodeDO> targetNodes = listAndValidateTargetNodes(ids);
         List<IntentNodeDO> before = copyNodes(targetNodes);
@@ -481,6 +483,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 创建接口兼容旧的 kbId，同时将新的 collectionNames 作为明确的优先输入
      */
     private CollectionBinding resolveCreateCollectionBinding(IntentNodeCreateRequest request) {
+        // 显式集合列表优先，否则按知识库 ID 读取主集合；未指定绑定时使用空绑定。
         if (request.getCollectionNames() != null) {
             return resolveCollectionBinding(request.getCollectionNames());
         }
@@ -500,6 +503,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 所有集合必须存在且有效，列表第一项对应主知识库 ID。
      */
     private CollectionBinding resolveCollectionBinding(List<String> requestedCollectionNames) {
+        // 清理并去重集合名，批量确认对应知识库未删除，首个集合的知识库作为兼容主绑定。
         // 先去重归一集合名，再一次查询有效知识库并指出缺失项。
         List<String> collectionNames = normalizeCollectionNames(requestedCollectionNames);
         if (collectionNames.isEmpty()) {
@@ -530,6 +534,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 去除空集合名及首尾空白，按首次出现顺序去重，返回不可变列表。
      */
     private List<String> normalizeCollectionNames(List<String> collectionNames) {
+        // 过滤 null 和空白项，去掉首尾空白并按输入顺序去重，返回只读列表。
         if (collectionNames == null) {
             return List.of();
         }
@@ -545,6 +550,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 回填集合列表、兼容的单集合字段以及主知识库 ID，使新旧绑定字段保持一致。
      */
     private void applyCollectionBinding(IntentNodeDO node, CollectionBinding binding) {
+        // 同时更新多集合字段、兼容单集合字段和主知识库 ID，保持旧调用方仍可读取。
         node.setCollectionNames(binding.collectionNames());
         node.setCollectionName(firstOrNull(binding.collectionNames()));
         node.setKbId(binding.primaryKbId());
@@ -554,6 +560,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 优先读取多集合配置，旧记录仅有单集合时转为列表，两者均无配置时返回空列表。
      */
     private List<String> effectiveCollectionNames(IntentNodeDO node) {
+        // 优先取新的多集合字段，空时回落旧单集合名，两个字段都缺失则无绑定。
         if (CollectionUtils.isNotEmpty(node.getCollectionNames())) {
             return normalizeCollectionNames(node.getCollectionNames());
         }
@@ -567,12 +574,14 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 取得集合列表的首项作为兼容字段，空列表返回 null。
      */
     private String firstOrNull(List<String> values) {
+        // 返回首个集合名，空列表返回 null，供兼容单集合字段使用。
         return CollectionUtils.isEmpty(values) ? null : values.get(0);
     }
 
     private record CollectionBinding(List<String> collectionNames, String primaryKbId) {
 
         private static CollectionBinding empty() {
+            // 创建没有集合名与主知识库 ID 的空绑定。
             return new CollectionBinding(List.of(), null);
         }
     }
@@ -582,6 +591,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * null ID 被过滤、重复 ID 去重，缺失目标会返回明确的业务错误。
      */
     private List<IntentNodeDO> listAndValidateTargetNodes(List<String> ids) {
+        // 去掉无效和重复 ID 后批量查询，任何目标缺失或已删除都拒绝整批操作并提示缺失项。
         // 整批目标校验通过后才允许后续批量更新，避免默默跳过无效 ID。
         Assert.notEmpty(ids, () -> new ClientException("请至少选择一个节点"));
         List<String> normalizedIds = ids.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
@@ -604,6 +614,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 读取未逻辑删除的意图节点，供构树和绑定校验使用。
      */
     private List<IntentNodeDO> listActiveNodes() {
+        // 查询未删除的意图节点；此处不按 enabled 过滤，调用方自行判断启用状态。
         return intentNodeMapper.selectList(new LambdaQueryWrapper<IntentNodeDO>()
                 .eq(IntentNodeDO::getDeleted, 0));
     }
@@ -612,6 +623,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 按父意图编码将节点分组；没有父编码的节点归到 ROOT，供递归构树使用。
      */
     private Map<String, List<IntentNodeDO>> buildChildrenMap(List<IntentNodeDO> nodes) {
+        // 按父编码把节点分组，缺少父编码时放入 ROOT 组，供树构建和后代遍历复用。
         return nodes.stream().collect(Collectors.groupingBy(node -> {
             String parentCode = node.getParentCode();
             return parentCode == null ? "ROOT" : parentCode;
@@ -623,6 +635,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 返回集合不包含起始节点本身，用于批量停用和删除的完整子树校验。
      */
     private List<IntentNodeDO> collectDescendants(String intentCode, Map<String, List<IntentNodeDO>> childrenMap) {
+        // 使用显式栈收集指定编码的全部后代，不包含起始节点本身，供批量操作检查范围。
         // 使用显式栈遍历子节点，校验结果随后与请求选择的 ID 集合对比。
         if (StrUtil.isBlank(intentCode)) {
             return Collections.emptyList();
@@ -646,6 +659,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 取最多三个节点名称拼成提示文本；缺少名称时使用意图编码。
      */
     private String summarizeNodeNames(List<IntentNodeDO> nodes) {
+        // 最多取三个节点名称，缺少名称时用编码，生成简短的业务提示。
         return nodes.stream()
                 .limit(3)
                 .map(item -> StrUtil.blankToDefault(item.getName(), item.getIntentCode()))
@@ -656,6 +670,7 @@ public class IntentTreeServiceImpl implements IntentTreeService {
      * 复制节点对象，隔离后续对绑定等字段的修改，保留变更前快照。
      */
     private List<IntentNodeDO> copyNodes(List<IntentNodeDO> nodes) {
+        // 复制节点实体作为变更前快照，避免后续修改同一对象使日志前后值一致。
         return nodes.stream()
                 .map(node -> BeanUtil.copyProperties(node, IntentNodeDO.class))
                 .toList();

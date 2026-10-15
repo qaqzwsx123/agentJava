@@ -47,6 +47,7 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public String getName() {
+        // 返回精排处理器名称，供耗时和结果变化日志展示。
         return "Rerank";
     }
 
@@ -60,6 +61,7 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 由 RAG 精排开关决定是否调用精排模型。
         return ragConfigProperties.getRerankEnabled();
     }
 
@@ -67,6 +69,7 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
     public List<RetrievedChunk> process(List<RetrievedChunk> chunks,
                                         List<SearchChannelResult> results,
                                         SearchContext context) {
+        // 空结果跳过，其余按当前问题调用精排并取上下文 Top-K，随后记录分数分布与通道归因。
         if (chunks.isEmpty()) {
             log.info("Chunk 列表为空，跳过 Rerank");
             return chunks;
@@ -88,6 +91,7 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
      * 不并进下方多通道归因：那段在单通道下整体早退，而闸门关掉时恰恰最需要这行
      */
     private void logScoreSpread(List<RetrievedChunk> reranked) {
+        // 只统计有效有限精排分，输出数量及最高最低分，便于判断证据门槛是否合理。
         List<Float> scores = reranked.stream()
                 .map(RetrievedChunk::getRerankScore)
                 .filter(score -> score != null && Float.isFinite(score))

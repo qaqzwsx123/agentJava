@@ -83,6 +83,7 @@ public final class FairDistributedRateLimiter {
                                       IntSupplier maxPermitsSupplier,
                                       IntSupplier leaseSecondsSupplier,
                                       IntSupplier pollIntervalMsSupplier) {
+        // 校验依赖并按名称隔离 Redis 键，加载原子出队脚本，创建命名调度池和许可通知器。
         this.name = Objects.requireNonNull(name);
         this.redissonClient = Objects.requireNonNull(redissonClient);
         this.maxPermitsSupplier = Objects.requireNonNull(maxPermitsSupplier);
@@ -120,6 +121,7 @@ public final class FairDistributedRateLimiter {
     }
 
     public void stop() {
+        // 只停止一次，移除 Redis 通知监听，等待调度器退出后清空本地排队通知注册。
         if (!started.compareAndSet(true, false)) {
             return;
         }
@@ -136,6 +138,7 @@ public final class FairDistributedRateLimiter {
      * 非阻塞地排队抢占一个 permit
      */
     public void acquire(AcquireRequest req) {
+        // 先创建本轮票据并绑定取消，再写存活标记与递增顺序入队，立即尝试领取，未成功才登记轮询。
         Ticket ticket = new Ticket(req);
         if (req.cancelBinder() != null) {
             req.cancelBinder().accept(ticket::cancel);
@@ -167,12 +170,14 @@ public final class FairDistributedRateLimiter {
         volatile ScheduledFuture<?> future;
 
         Ticket(AcquireRequest req) {
+            // 保存本次请求和绝对等待截止时间，供超时、取消与领取分支竞争统一票据状态。
             this.req = req;
             this.deadline = System.currentTimeMillis() + req.maxWaitMillis();
         }
 
         @SuppressWarnings("BooleanMethodIsAlwaysInverted")
         boolean isPending() {
+            // 以原子状态判断请求是否仍在等待，决定是否需要继续轮询。
             return state.get() == State.PENDING;
         }
 
@@ -183,6 +188,7 @@ public final class FairDistributedRateLimiter {
          * 业务执行完毕（含异常）会在 finally 释放。这里跨界释放会导致并发请求拿到尚在使用的 permit
          */
         void cancel() {
+            // 尝试把等待态转成取消态，再执行幂等清理；已经授予的票据不会因此释放正在使用的许可。
             state.compareAndSet(State.PENDING, State.CANCELLED);
             cleanup();
         }
@@ -191,6 +197,7 @@ public final class FairDistributedRateLimiter {
          * 排队超时：CAS 抢占终态后 cleanup + 在 caller executor 上跑 onTimeout
          */
         void timeout() {
+            // 只有从等待态成功转成超时的一次调用会清理并提交超时回调，避免取消和超时重复响应。
             if (!state.compareAndSet(State.PENDING, State.TIMED_OUT)) {
                 return;
             }
@@ -239,6 +246,7 @@ public final class FairDistributedRateLimiter {
          * 释放当前 Ticket 持有的 permit（若有）。线程安全 + 幂等
          */
         void releaseHeldPermit() {
+            // 原子取出并清空已持有许可，只释放一次，再通知队列尝试推进。
             String pid = permitRef.getAndSet(null);
             if (pid != null) {
                 releasePermitQuietly(pid);
@@ -253,6 +261,7 @@ public final class FairDistributedRateLimiter {
          * 否则会在业务运行期间把 permit 还给 semaphore，等价于把同一 slot 让给另一个请求
          */
         void cleanup() {
+            // 移除队列与存活标记，仅非授予状态归还暂持许可，最后取消轮询并注销通知，避免资源泄露。
             boolean removed = false;
             try {
                 removed = redissonClient.getScoredSortedSet(queueKey, StringCodec.INSTANCE).remove(requestId);
@@ -262,6 +271,7 @@ public final class FairDistributedRateLimiter {
             deleteEntryMarker(requestId);
 
             boolean releasedPermit = false;
+            // 授予状态的许可仍由实际业务完成路径释放，清理排队信息不能提前归还正在使用的许可。
             if (state.get() != State.GRANTED) {
                 String permitId = permitRef.getAndSet(null);
                 if (permitId != null) {
@@ -277,10 +287,12 @@ public final class FairDistributedRateLimiter {
         }
 
         void unregisterFromNotifier() {
+            // 从本地通知器移除本票据的轮询函数，终态请求不再被许可通知唤醒。
             pollNotifier.unregister(requestId);
         }
 
         void cancelFutureQuietly() {
+            // 已持有调度句柄且尚未取消时取消后续触发，不中断正在执行的一轮。
             ScheduledFuture<?> f = future;
             if (f != null && !f.isCancelled()) {
                 f.cancel(false);
@@ -288,6 +300,7 @@ public final class FairDistributedRateLimiter {
         }
 
         private void submitSafely(Runnable r, String label) {
+            // 通过请求指定执行器提交回调，执行器拒绝时只告警，当前实现不会同步回退执行。
             try {
                 req.onAcquiredExecutor().execute(r);
             } catch (Exception ex) {
@@ -343,6 +356,7 @@ public final class FairDistributedRateLimiter {
      * 为等待票据设置定时检查并注册通知唤醒；终态清理轮询，超过截止时间触发超时。
      */
     private void scheduleQueuePoll(Ticket ticket) {
+        // 以至少五十毫秒间隔检查票据，终态取消轮询，过期触发超时，等待中继续尝试领取许可。
         int interval = Math.max(50, pollIntervalMsSupplier.getAsInt());
         Runnable poller = () -> {
             if (!ticket.isPending()) {
@@ -366,6 +380,7 @@ public final class FairDistributedRateLimiter {
      * 非阻塞尝试获取指定租期的分布式许可；被中断时保留线程中断标记并返回 null。
      */
     private String tryAcquirePermit() {
+        // 尝试立即领取带租期许可，不阻塞等待；线程中断恢复标记并按未取得处理。
         RPermitExpirableSemaphore sem = redissonClient.getPermitExpirableSemaphore(semaphoreKey);
         try {
             return sem.tryAcquire(0, leaseSecondsSupplier.getAsInt(), TimeUnit.SECONDS);
@@ -379,6 +394,7 @@ public final class FairDistributedRateLimiter {
      * 读取分布式信号量剩余许可数，作为当前可尝试放行的队头范围。
      */
     private int availablePermits() {
+        // 从 Redis 可过期信号量读取当前可用数量，供公平出队和通知预检查。
         return redissonClient.getPermitExpirableSemaphore(semaphoreKey).availablePermits();
     }
 
@@ -386,6 +402,7 @@ public final class FairDistributedRateLimiter {
      * 按许可 ID 归还资源；许可已过期等异常只记调试日志，不中断清理流程。
      */
     private void releasePermitQuietly(String permitId) {
+        // 归还指定许可，过期或重复释放等异常只记调试日志，保持清理路径可继续。
         try {
             redissonClient.getPermitExpirableSemaphore(semaphoreKey).release(permitId);
         } catch (Exception ex) {
@@ -398,6 +415,7 @@ public final class FairDistributedRateLimiter {
      * 后续 {@link #claimIfReady} 在 Lua 内会把对应 ZSet 条目当僵尸清理掉，避免永久占据队头窗口
      */
     private void setEntryMarker(String requestId, long remainingMillis) {
+        // 写入带等待时长加缓冲期的存活标记，Lua 可据此跳过已经失效的队列项。
         long ttlMillis = Math.max(remainingMillis, 1L) + ENTRY_TTL_BUFFER_MILLIS;
         try {
             RBucket<String> bucket = redissonClient.getBucket(entryKeyPrefix + requestId, StringCodec.INSTANCE);
@@ -411,6 +429,7 @@ public final class FairDistributedRateLimiter {
      * 删除指定排队请求的存活标记，异常隔离在清理流程内。
      */
     private void deleteEntryMarker(String requestId) {
+        // 删除票据存活标记，Redis 清理异常只记日志，不阻塞后续票据收尾。
         try {
             redissonClient.getBucket(entryKeyPrefix + requestId, StringCodec.INSTANCE).delete();
         } catch (Exception ex) {
@@ -422,6 +441,7 @@ public final class FairDistributedRateLimiter {
      * @return 成功返回 ticket 的原始 score（用于失败时按原位次重入队），未 claim 返回 -1
      */
     private long claimIfReady(String requestId, int availablePermits) {
+        // 用 Lua 原子判断队列位置及当前可用许可，成功取回顺序，未获资格返回负一。
         RScript script = redissonClient.getScript(StringCodec.INSTANCE);
         List<Object> result = script.eval(
                 RScript.Mode.READ_WRITE,
@@ -442,6 +462,7 @@ public final class FairDistributedRateLimiter {
      * 通过 Redis 原子递增取得全局排队序号，使跨节点请求具有统一顺序。
      */
     private long nextQueueSeq() {
+        // 使用 Redis 原子自增序列给请求分配全局先后顺序，跨服务实例保持统一队列排序。
         RAtomicLong seq = redissonClient.getAtomicLong(queueSeqKey);
         return seq.incrementAndGet();
     }
@@ -450,6 +471,7 @@ public final class FairDistributedRateLimiter {
      * 广播许可变化通知，让等待节点及时重试，不必只依赖下一次定时轮询。
      */
     private void publishQueueNotify() {
+        // 发布许可变化事件，让其他实例及时唤醒本地等待请求，减少仅靠定时轮询的延迟。
         redissonClient.getTopic(notifyTopicKey).publish("permit_changed");
     }
 
@@ -459,6 +481,7 @@ public final class FairDistributedRateLimiter {
      * 兼容 Redis 返回的数值或数字字符串，无法识别时返回零。
      */
     private static long parseLong(Object value) {
+        // 兼容脚本返回的 Number 与数字字符串，无法解析时回落零，供协议结果判断。
         if (value instanceof Number n) {
             return n.longValue();
         }
@@ -473,6 +496,7 @@ public final class FairDistributedRateLimiter {
     }
 
     private static String loadLuaScript() {
+        // 从类路径按 UTF-8 读取出队脚本，缺失或读取失败时拒绝初始化限流器。
         try {
             ClassPathResource resource = new ClassPathResource(LUA_PATH);
             return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
@@ -482,6 +506,7 @@ public final class FairDistributedRateLimiter {
     }
 
     private static void awaitShutdown(ScheduledExecutorService exec) {
+        // 正常关闭后最多等三秒，超时强制停止；等待被中断时也强停并恢复中断标记。
         try {
             if (!exec.awaitTermination(3, TimeUnit.SECONDS)) {
                 exec.shutdownNow();
@@ -504,6 +529,7 @@ public final class FairDistributedRateLimiter {
                                  Executor onAcquiredExecutor,
                                  Consumer<Runnable> cancelBinder) {
         public AcquireRequest {
+            // 请求必须提供成功、超时回调及成功回调执行器，同时要求等待期限为正数。
             Objects.requireNonNull(onAcquired);
             Objects.requireNonNull(onTimeout);
             Objects.requireNonNull(onAcquiredExecutor);
@@ -530,19 +556,23 @@ public final class FairDistributedRateLimiter {
         private final AtomicInteger pendingNotifications = new AtomicInteger(0);
 
         PollNotifier(IntSupplier permitSupplier, Executor executor) {
+            // 保存许可查询器与通知执行器，Redis 通知到达后用它们驱动本地等待票据。
             this.permitSupplier = permitSupplier;
             this.executor = executor;
         }
 
         void register(String requestId, Runnable poller) {
+            // 按请求 ID 保存轮询函数，供有可用许可时批量唤醒。
             pollers.put(requestId, poller);
         }
 
         void unregister(String requestId) {
+            // 删除指定请求的唤醒函数，终态或取消请求不再参与通知扫描。
             pollers.remove(requestId);
         }
 
         void fire() {
+            // 合并并发通知，只保留一个扫描者；有许可才遍历票据，扫描中新增通知会触发下一轮检查。
             pendingNotifications.incrementAndGet();
             if (!firing.compareAndSet(false, true)) {
                 return;
@@ -570,6 +600,7 @@ public final class FairDistributedRateLimiter {
         }
 
         void clear() {
+            // 清空所有本地轮询注册，供限流器停机释放引用。
             pollers.clear();
         }
     }

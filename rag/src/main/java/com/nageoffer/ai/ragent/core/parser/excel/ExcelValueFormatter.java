@@ -40,6 +40,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 public final class ExcelValueFormatter {
 
     private ExcelValueFormatter() {
+        // 单元格格式化通过静态方法复用，私有构造器阻止实例化。
     }
 
     /**
@@ -51,6 +52,7 @@ public final class ExcelValueFormatter {
      * @return 格式化后的字符串（已 trim）
      */
     public static String format(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
+        // 公式单元格走公式求值逻辑，普通单元格按 Excel 展示格式取值并去掉首尾空白。
         if (cell == null) {
             return "";
         }
@@ -107,6 +109,7 @@ public final class ExcelValueFormatter {
      * @return cell 字体带 strikeout 返回 true；空 cell / 无样式 / 异常一律 false
      */
     public static boolean isStrikethrough(Cell cell) {
+        // 从单元格样式关联字体判断删除线；缺少样式或读取异常时按未标记处理。
         if (cell == null) {
             return false;
         }
@@ -127,6 +130,7 @@ public final class ExcelValueFormatter {
      * 生成工作表名与单元格地址，供公式解析失败日志定位具体单元格。
      */
     private static String describe(Cell cell) {
+        // 拼接工作表名和单元格地址，供公式等解析异常定位到具体位置。
         return cell.getSheet().getSheetName()
                 + "!" + cell.getAddress().formatAsString();
     }

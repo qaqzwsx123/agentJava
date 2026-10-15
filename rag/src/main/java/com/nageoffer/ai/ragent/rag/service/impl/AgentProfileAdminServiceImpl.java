@@ -72,6 +72,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      */
     @Override
     public AgentProfileListVO list() {
+        // 按内置优先展示智能体，结合当前编排模式统计每个人设已配置槽位中生效与未生效的数量。
         // 先加载各人设实际配置的槽位，再按模式区分生效和未生效项。
         OrchestrationMode mode = orchestrationProperties.getMode();
         Map<String, List<AgentPromptSlot>> configuredSlots = loadConfiguredSlots();
@@ -112,6 +113,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 正常路径不会出现纯空白行，无需为防御性 trim 而把大段 content 捞回内存
      */
     private Map<String, List<AgentPromptSlot>> loadConfiguredSlots() {
+        // 只读取已有正文的槽位键并按智能体分组，历史上已移除或无法识别的槽位不参与统计。
         List<AgentPromptDO> prompts = agentPromptMapper.selectList(Wrappers.lambdaQuery(AgentPromptDO.class)
                 .select(AgentPromptDO::getAgentId, AgentPromptDO::getSlotKey)
                 .isNotNull(AgentPromptDO::getContent)
@@ -141,6 +143,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
             condition = BizChangeLogContext.RECORD_CONDITION
     )
     public String create(AgentProfileSaveRequest requestParam) {
+        // 规范名称和头像并校验名称唯一，创建默认未启用的自定义人设，只保存基本信息与创建快照。
         // 人设基本信息与提示词正文分开维护，创建时不复制全部默认提示词。
         String name = trimmedName(requestParam);
         assertNameAvailable(name, null);
@@ -248,6 +251,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      */
     @Override
     public AgentPromptConfigVO loadPrompts(String id) {
+        // 列出所有槽位的规则和当前模式生效情况，正文只取该人设自有配置，不混入默认继承值。
         // 本接口读取人设自身的提示词，不把默认正文误写成用户自定义内容。
         AgentProfileDO profile = mustLoad(id);
         AgentProfileDO builtin = loadBuiltin();
@@ -339,6 +343,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 内置智能体，缺失时返回 null 由调用方降级
      */
     private AgentProfileDO loadBuiltin() {
+        // 按内置标记读取默认人设，供提示词编辑页面说明默认来源。
         return agentProfileMapper.selectOne(Wrappers.lambdaQuery(AgentProfileDO.class)
                 .eq(AgentProfileDO::getBuiltin, 1));
     }
@@ -349,6 +354,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 空内容允许走默认回落，非空内容缺少必需变量时拒绝保存。
      */
     private void assertPlaceholdersPresent(AgentPromptSlot slot, String content) {
+        // 非空自定义提示词必须包含槽位要求的全部占位符，缺失时逐项列出以免运行时上下文无法注入。
         // 避免提示词编辑后丢失编排阶段需要注入的上下文位置。
         if (StrUtil.isBlank(content) || slot.getRequiredPlaceholders().isEmpty()) {
             return;
@@ -367,6 +373,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 去除智能体名称首尾空白并校验非空，供新增、修改共用。
      */
     private String trimmedName(AgentProfileSaveRequest requestParam) {
+        // 兼容空请求并清理名称空白，名称仍为空时明确拒绝保存。
         String name = requestParam == null ? null : StrUtil.trim(requestParam.getName());
         if (StrUtil.isBlank(name)) {
             throw new ClientException("智能体名称不能为空");
@@ -378,6 +385,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 头像预设表在前端，这里只做长度校验：认不出的取值前端会按 id 哈希兜底，不至于渲染成空白
      */
     private String trimmedAvatar(AgentProfileSaveRequest requestParam) {
+        // 空白头像转为 null，非空值限制长度，避免把超长标识写入字段。
         String avatar = requestParam == null ? null : StrUtil.trimToNull(requestParam.getAvatar());
         if (avatar != null && avatar.length() > AVATAR_MAX_LENGTH) {
             throw new ClientException("头像标识过长");
@@ -389,6 +397,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 检查智能体名称是否重复；修改时排除当前记录，重复则返回业务异常。
      */
     private void assertNameAvailable(String name, String excludeId) {
+        // 查询同名人设，更新时排除自身 ID，命中其他记录则报名称冲突。
         boolean duplicated = agentProfileMapper.exists(Wrappers.lambdaQuery(AgentProfileDO.class)
                 .eq(AgentProfileDO::getName, name)
                 .ne(StrUtil.isNotBlank(excludeId), AgentProfileDO::getId, excludeId));
@@ -401,6 +410,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 按 ID 取得智能体配置，空 ID 或记录不存在时统一返回不存在异常。
      */
     private AgentProfileDO mustLoad(String id) {
+        // 空 ID 或数据库没有记录都转换为同一个人设不存在提示。
         AgentProfileDO profile = StrUtil.isBlank(id) ? null : agentProfileMapper.selectById(id);
         if (profile == null) {
             throw new ClientException("智能体不存在");
@@ -425,6 +435,7 @@ public class AgentProfileAdminServiceImpl implements AgentProfileAdminService {
      * 将数据库整型标志转换为布尔值，仅数值 1 代表开启。
      */
     private static boolean isTrue(Integer flag) {
+        // 只有整数一表示启用或内置，null 与其他值均按 false 处理。
         return flag != null && flag == 1;
     }
 }

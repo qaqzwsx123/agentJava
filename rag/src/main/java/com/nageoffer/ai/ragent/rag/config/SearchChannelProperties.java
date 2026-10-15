@@ -74,6 +74,7 @@ public class SearchChannelProperties implements InitializingBean {
      * 解析召回扇出基数：优先使用显式 recallBudget，未配置（<=0）时回退到最终条数
      */
     public int resolveRecallBudget(int contextTopK) {
+        // 显式召回预算为正数时优先使用，否则沿用当前上下文 Top-K，保持缺省配置兼容。
         return recallBudget > 0 ? recallBudget : contextTopK;
     }
 

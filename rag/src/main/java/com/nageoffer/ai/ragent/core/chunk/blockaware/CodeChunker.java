@@ -36,6 +36,7 @@ public class CodeChunker implements BlockChunker<CodeBlock> {
 
     @Override
     public Class<CodeBlock> blockType() {
+        // 声明该分块器处理代码块，供分派器按类型注册和查找。
         return CodeBlock.class;
     }
 
@@ -44,6 +45,7 @@ public class CodeChunker implements BlockChunker<CodeBlock> {
      */
     @Override
     public List<ChunkDraft> chunk(CodeBlock block, ChunkContext ctx) {
+        // 保留代码语言、章节与溯源信息，按预算决定是否逐行切分，每段展示文本独立补齐代码围栏。
         if (block == null) {
             return List.of();
         }
@@ -72,6 +74,7 @@ public class CodeChunker implements BlockChunker<CodeBlock> {
      * 按行累加切分：单行超预算时整行独立成块，绝不从行中间切断
      */
     private static List<String> splitByLines(String code, int maxChars) {
+        // 逐行累积代码，加入下一行会超预算时先落块；单行自身超长时仍整行保留。
         List<String> segments = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         for (String line : code.split("\n", -1)) {

@@ -56,6 +56,7 @@ public class AmbiguityLLMChecker {
      * 调用 LLM 确认是否存在歧义，响应非法或调用失败时返回 false
      */
     public boolean checkAmbiguity(String question, List<NodeScore> ranked) {
+        // 把问题与候选路径交给 FAST 模型复核，只有合法 JSON 明确给出 ambiguous 才采用结果，调用或解析异常均跳过澄清。
         String candidatesText = buildCandidatesText(ranked);
         String prompt = promptTemplateLoader.render(
                 GUIDANCE_AMBIGUITY_CHECK_PROMPT_PATH,
@@ -74,6 +75,7 @@ public class AmbiguityLLMChecker {
                 .thinking(false)
                 .build();
 
+        // 模型输出属于辅助判断：格式不符合约定或缺少字段时采用不澄清的降级结果。
         try {
             String raw = llmService.chat(request, Tier.FAST);
             String cleaned = LLMResponseCleaner.stripMarkdownCodeFence(raw);
@@ -104,6 +106,7 @@ public class AmbiguityLLMChecker {
      * 将候选意图 ID、名称、路径、说明和得分逐条渲染，作为模型判断业务路径歧义的素材。
      */
     private String buildCandidatesText(List<NodeScore> ranked) {
+        // 列出候选 ID、名称、完整路径、可选说明和分数，让模型依据具体路径判断是否存在歧义。
         return ranked.stream()
                 .map(ns -> {
                     IntentNode node = ns.getNode();

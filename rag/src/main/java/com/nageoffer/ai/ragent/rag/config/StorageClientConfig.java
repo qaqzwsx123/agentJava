@@ -43,6 +43,7 @@ public class StorageClientConfig {
     @Bean
     @ConditionalOnProperty(name = "rag.storage.type", havingValue = "s3", matchIfMissing = true)
     public S3Client s3Client(RagStorageProperties properties) {
+        // 按端点、区域、静态凭证及路径风格创建 S3 兼容客户端，供对象读写复用。
         RagStorageProperties.S3 s3 = properties.getS3();
         return S3Client.builder()
                 .endpointOverride(URI.create(s3.getEndpoint()))
@@ -59,6 +60,7 @@ public class StorageClientConfig {
     @Bean
     @ConditionalOnProperty(name = "rag.storage.type", havingValue = "s3", matchIfMissing = true)
     public S3Presigner s3Presigner(RagStorageProperties properties) {
+        // 预签名器与 S3 客户端使用相同端点、区域和寻址风格，保证生成链接对应同一存储服务。
         RagStorageProperties.S3 s3 = properties.getS3();
         return S3Presigner.builder()
                 .endpointOverride(URI.create(s3.getEndpoint()))
@@ -74,6 +76,7 @@ public class StorageClientConfig {
     @Bean(destroyMethod = "shutdown")
     @ConditionalOnProperty(name = "rag.storage.type", havingValue = "oss")
     public OSS ossClient(RagStorageProperties properties) {
+        // 按 OSS 端点和凭证创建原生客户端，具体存储实现由条件装配选择。
         RagStorageProperties.Oss oss = properties.getOss();
         return new OSSClientBuilder().build(oss.getEndpoint(), oss.getAccessKey(), oss.getSecretKey());
     }

@@ -51,12 +51,14 @@ public class EnricherNode implements IngestionNode {
     private final LLMService llmService;
 
     public EnricherNode(ObjectMapper objectMapper, LLMService llmService) {
+        // 保存配置转换器和模型服务，供逐块富化任务调用。
         this.objectMapper = objectMapper;
         this.llmService = llmService;
     }
 
     @Override
     public String getNodeType() {
+        // 返回分块富化节点类型，供引擎注册和匹配。
         return IngestionNodeType.ENRICHER.getValue();
     }
 
@@ -120,6 +122,7 @@ public class EnricherNode implements IngestionNode {
      * 解析分块增强设置，未配置时返回空任务列表。
      */
     private EnricherSettings parseSettings(JsonNode node) {
+        // 没有配置时使用空任务集合，避免无意触发模型富化调用。
         if (node == null || node.isNull()) {
             return EnricherSettings.builder().tasks(List.of()).build();
         }
@@ -130,6 +133,7 @@ public class EnricherNode implements IngestionNode {
      * 以分块正文、序号和任务标识渲染模板；模板为空时直接使用分块正文。
      */
     private String buildUserPrompt(String template, EmbeddedChunk chunk, IngestionContext context) {
+        // 以当前块正文为输入，模板存在时补入块序号、任务与流水线标识等变量。
         String input = chunk.content();
         if (!StringUtils.hasText(template)) {
             return input;
@@ -147,6 +151,7 @@ public class EnricherNode implements IngestionNode {
      * 将模型结果转为关键词、摘要或扩展字段，合并到当前分块的待写入元数据中。
      */
     private void applyResult(Map<String, Object> extras, ChunkEnrichType type, String response) {
+        // 关键词与元数据解析为结构化内容，摘要保留文本，最终写入当前块的扩展字段集合。
         switch (type) {
             case KEYWORDS -> extras.put("keywords", JsonResponseParser.parseStringList(response));
             case SUMMARY -> extras.put("summary", StringUtils.hasText(response) ? response.trim() : response);
@@ -160,6 +165,7 @@ public class EnricherNode implements IngestionNode {
      * 使用 FAST 档及可选优先模型执行分块增强请求。
      */
     private String chat(ChatRequest request, String modelId) {
+        // 使用 FAST 档和可选模型 ID 执行当前富化请求。
         return llmService.chat(request, Tier.FAST, modelId);
     }
 }

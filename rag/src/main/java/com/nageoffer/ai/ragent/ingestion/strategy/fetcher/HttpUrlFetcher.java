@@ -41,6 +41,7 @@ public class HttpUrlFetcher implements DocumentFetcher {
 
     @Override
     public SourceType supportedType() {
+        // 声明支持普通 URL 来源，供获取器节点登记路由。
         return SourceType.URL;
     }
 
@@ -49,6 +50,7 @@ public class HttpUrlFetcher implements DocumentFetcher {
      */
     @Override
     public FetchResult fetch(DocumentSource source) {
+        // 校验链接后携带请求头下载，优先保留指定文件名，缺少有效 Content-Type 时再探测实际 MIME。
         String location = source.getLocation();
         if (!StringUtils.hasText(location)) {
             throw new ServiceException("链接地址不能为空");
@@ -68,6 +70,7 @@ public class HttpUrlFetcher implements DocumentFetcher {
      * 把 token 凭证转为 Bearer 鉴权头，其他凭证键原样作为请求头，忽略空键与 null 值。
      */
     private Map<String, String> buildHeaders(Map<String, String> credentials) {
+        // 把来源凭证转换为请求头，其中 token 转换为 Bearer 鉴权，其余非空键值直接沿用。
         if (credentials == null || credentials.isEmpty()) {
             return Map.of();
         }
@@ -89,6 +92,7 @@ public class HttpUrlFetcher implements DocumentFetcher {
      * 移除媒体类型中的 charset 等分号参数，返回用于解析器匹配的 MIME 主类型。
      */
     private String normalizeContentType(String contentType) {
+        // 移除分号后的字符集等附加参数，只保留 MIME 主值，空值返回 null。
         if (!StringUtils.hasText(contentType)) {
             return null;
         }

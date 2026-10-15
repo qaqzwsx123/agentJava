@@ -39,6 +39,7 @@ import java.util.function.Predicate;
 public final class RetrievalChannelConfigValidator {
 
     private RetrievalChannelConfigValidator() {
+        // 校验器通过静态方法复用，私有构造器阻止实例化。
     }
 
     /**
@@ -85,6 +86,7 @@ public final class RetrievalChannelConfigValidator {
      */
     public static List<Violation> validate(Function<String, String> typeReader,
                                            Predicate<String> enabledReader) {
+        // 逐个比较后端类型与通道开关，只有后端未装配却启用了该通道时收集矛盾项。
         List<Violation> violations = new ArrayList<>();
         for (ChannelSpec spec : SPECS) {
             String actualType = typeReader.apply(spec.typeKey());

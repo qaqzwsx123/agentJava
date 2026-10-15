@@ -31,6 +31,7 @@ import java.util.List;
 public final class ChunkRanking {
 
     private ChunkRanking() {
+        // 排序辅助能力通过静态方法使用，私有构造器阻止实例化。
     }
 
     /**
@@ -41,6 +42,7 @@ public final class ChunkRanking {
      * 拼接序会让补充路的强命中恒排在主路弱命中之后，RRF 按名次取分，等于名额给了、排序又把它按回去
      */
     public static List<RetrievedChunk> mergeByScore(List<RetrievedChunk> primary, List<RetrievedChunk> supplement) {
+        // 合并定向与补充结果并统一按分数降序排序，补充为空时复用单列表排序入口。
         if (supplement.isEmpty()) {
             return sortedByScore(primary);
         }
@@ -55,6 +57,7 @@ public final class ChunkRanking {
      * 按相关性降序返回副本，入参不足两条时原样返回
      */
     public static List<RetrievedChunk> sortedByScore(List<RetrievedChunk> chunks) {
+        // 不足两项直接返回，其余复制列表后排序，避免改变调用方列表顺序。
         if (chunks.size() < 2) {
             return chunks;
         }
@@ -67,6 +70,7 @@ public final class ChunkRanking {
      * 取一路候选的最高分，供阈值校准观测，空列表为 0
      */
     public static float topScoreOf(List<RetrievedChunk> chunks) {
+        // 沿用已排序列表首项作为最高分，空列表返回零，首项缺分数用负无穷表示未知。
         if (chunks.isEmpty()) {
             return 0F;
         }

@@ -43,11 +43,13 @@ public enum ParseProfile {
     private final String code;
 
     ParseProfile(String code) {
+        // 保存解析档位对应的配置编码，用于序列化和参数匹配。
         this.code = code;
     }
 
     @JsonValue
     public String getCode() {
+        // 返回档位的稳定编码，避免将枚举显示名直接作为外部配置值。
         return code;
     }
 
@@ -55,6 +57,7 @@ public enum ParseProfile {
      * 返回默认 FAST 解析档位，供未显式指定档位的摄入流程使用。
      */
     public static ParseProfile defaultProfile() {
+        // 未指定档位时统一采用快速档位。
         return FAST;
     }
 
@@ -63,6 +66,7 @@ public enum ParseProfile {
      */
     @JsonCreator
     public static ParseProfile from(String code) {
+        // 空值回落到默认档位，其余先去空白并忽略大小写匹配编码，未知值明确抛错。
         if (code == null || code.isBlank()) {
             return defaultProfile();
         }

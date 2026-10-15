@@ -41,11 +41,13 @@ public record IngestionOutcome(
 ) {
 
     public IngestionOutcome {
+        // 把分块结果复制为只读列表，缺少耗时统计时补全零值，统一结果读取约定。
         chunks = chunks == null ? List.of() : List.copyOf(chunks);
         timings = timings == null ? IngestionTimings.zero() : timings;
     }
 
     public int chunkCount() {
+        // 直接返回本次入库产出的分块数量，避免额外维护不一致的计数。
         return chunks.size();
     }
 
@@ -55,6 +57,7 @@ public record IngestionOutcome(
     public record IngestionTimings(long parseMillis, long chunkMillis, long embedMillis, long indexMillis) {
 
         public static IngestionTimings zero() {
+            // 构造全部阶段耗时为零的统计，供未执行处理阶段的结果复用。
             return new IngestionTimings(0, 0, 0, 0);
         }
     }

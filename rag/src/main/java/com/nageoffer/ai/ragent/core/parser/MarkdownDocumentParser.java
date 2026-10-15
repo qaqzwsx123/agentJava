@@ -80,6 +80,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      */
     @Override
     public String getParserType() {
+        // 返回 Markdown 解析器标识，用于结果元数据及解析器注册。
         return ParserType.MARKDOWN.getType();
     }
 
@@ -88,6 +89,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      */
     @Override
     public ParsedDocument parseStructured(byte[] content, String mimeType, Map<String, Object> options) {
+        // 按 UTF-8 读取文档并构建语法树，访问器抽取结构化块，最后附上解析器、MIME 和块数信息。
         if (content == null || content.length == 0) {
             return ParsedDocument.of(List.of());
         }
@@ -116,6 +118,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      */
     @Override
     public Map<ParseProfile, Set<String>> supportedMimeTypes() {
+        // 声明快速档位支持的 Markdown 别名与纯文本类型，供注册表精确路由。
         return Map.of(ParseProfile.FAST, Set.of(
                 "text/x-web-markdown",
                 "text/markdown",
@@ -128,6 +131,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      * 从解析选项取得源文件名，用于结构化块的溯源记录。
      */
     private static String extractSourceFile(Map<String, Object> options) {
+        // 读取选项中的 sourceFile，缺失时用空字符串作为来源文件名。
         if (options == null) {
             return "";
         }
@@ -147,10 +151,12 @@ public class MarkdownDocumentParser implements DocumentParser {
         private final List<Block> blocks = new ArrayList<>();
 
         BlockExtractingVisitor(Provenance provenance) {
+            // 保存当前文件溯源，后续提取出的每个文档块复用这一来源。
             this.provenance = provenance;
         }
 
         List<Block> getBlocks() {
+            // 返回按语法树访问顺序累积的文档块，供解析结果装配。
             return blocks;
         }
 
@@ -189,6 +195,7 @@ public class MarkdownDocumentParser implements DocumentParser {
          */
         @Override
         public void visit(HtmlBlock htmlBlock) {
+            // 跳过空 HTML，table 起始的内容保留为原始 HTML 表格块，其余作为段落块。
             String html = htmlBlock.getLiteral() == null ? "" : htmlBlock.getLiteral().strip();
             if (html.isEmpty()) {
                 return;
@@ -200,6 +207,7 @@ public class MarkdownDocumentParser implements DocumentParser {
 
         @Override
         public void visit(FencedCodeBlock codeBlock) {
+            // 保留代码语言与正文，移除末尾一个换行后生成代码块，供分块器重建展示围栏。
             blocks.add(new CodeBlock(
                     provenance,
                     codeBlock.getInfo(),
@@ -209,6 +217,7 @@ public class MarkdownDocumentParser implements DocumentParser {
 
         @Override
         public void visit(IndentedCodeBlock codeBlock) {
+            // 将缩进代码转换成不指定语言的代码块，正文只清理最后一个换行。
             blocks.add(new CodeBlock(
                     provenance,
                     null,
@@ -239,6 +248,7 @@ public class MarkdownDocumentParser implements DocumentParser {
         }
 
         private ListBlock buildListBlock(Node listNode, boolean ordered) {
+            // 遍历直接列表项提取行内文本，并记录列表是否有序，供列表分块器保留标记。
             List<String> items = new ArrayList<>();
             Node child = listNode.getFirstChild();
             while (child != null) {
@@ -251,6 +261,7 @@ public class MarkdownDocumentParser implements DocumentParser {
         }
 
         private void handleTable(TableBlock tableBlock) {
+            // 分别读取表头和表体单元格，转换为框架统一的结构化表格块。
             List<String> headers = new ArrayList<>();
             List<List<String>> rows = new ArrayList<>();
 
@@ -281,6 +292,7 @@ public class MarkdownDocumentParser implements DocumentParser {
         }
 
         private List<String> extractCellTexts(TableRow row) {
+            // 按单元格顺序抽取行内文本并清理边缘空白，保持表格列顺序。
             List<String> cells = new ArrayList<>();
             Node cell = row.getFirstChild();
             while (cell != null) {
@@ -298,6 +310,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      * Link 保留 {@code [text](url)} 形式以与下游 ImageChunker 风格一致
      */
     private static String extractInlineText(Node parent) {
+        // 遍历子节点并复用行内渲染方法，拼出段落、标题或单元格的文本。
         StringBuilder sb = new StringBuilder();
         Node child = parent.getFirstChild();
         while (child != null) {
@@ -338,6 +351,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      * 段落是否只包含一张图片（允许周围有空白文本）
      */
     private static Image asStandaloneImage(Paragraph paragraph) {
+        // 段落中只有一张图片和空白节点时才视为独立图片，混合正文或多图时保持段落处理。
         Image found = null;
         Node child = paragraph.getFirstChild();
         while (child != null) {
@@ -362,6 +376,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      * 向量文本由分块阶段回落到链接本身
      */
     private static ImageBlock toImageBlock(Image image, Provenance provenance) {
+        // 将图片地址、标题和替代文本映射到图片块，并按地址后缀推测媒体类型。
         String url = image.getDestination() == null ? "" : image.getDestination();
         String altText = extractInlineText(image);
         return new ImageBlock(
@@ -376,6 +391,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      * 按地址后缀猜 MIME：图片地址不经过字节探测，只能按扩展名给一个合理值
      */
     private static String guessImageMime(String url) {
+        // 按常见图片后缀推测 MIME，无法识别时返回 null，不冒充已知格式。
         String lower = url.toLowerCase(java.util.Locale.ROOT);
         if (lower.endsWith(".png")) {
             return "image/png";
@@ -396,6 +412,7 @@ public class MarkdownDocumentParser implements DocumentParser {
     }
 
     private static String stripTrailingNewline(String s) {
+        // 只去掉最后一个换行符，保留代码正文内部的排版，null 转为空文本。
         if (s == null) {
             return "";
         }

@@ -54,16 +54,19 @@ public class KeywordSearchChannel implements SearchChannel {
      */
     @Override
     public String getName() {
+        // 返回关键词通道名称，供执行耗时和结果归因日志使用。
         return "KeywordSearch";
     }
 
     @Override
     public SearchChannelType getType() {
+        // 声明 KEYWORD 类型，供融合权重选择和归因统计。
         return SearchChannelType.KEYWORD;
     }
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 以关键词通道配置决定本轮是否参与检索。
         return properties.getChannels().getKeyword().isEnabled();
     }
 
@@ -113,6 +116,7 @@ public class KeywordSearchChannel implements SearchChannel {
     }
 
     private double supplementRatio() {
+        // 读取定向检索之外允许补充的比例，保持与其他知识通道相同配置来源。
         return properties.getScope().getSupplementRatio();
     }
 }

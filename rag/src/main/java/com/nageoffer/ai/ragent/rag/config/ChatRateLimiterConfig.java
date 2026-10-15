@@ -33,6 +33,7 @@ public class ChatRateLimiterConfig {
     @Bean(initMethod = "start", destroyMethod = "stop")
     public FairDistributedRateLimiter chatRateLimiter(RedissonClient redissonClient,
                                                       RAGRateLimitProperties rateLimitProperties) {
+        // 创建聊天专用公平分布式限流器，通过配置读取函数提供全局并发、许可租期和轮询间隔。
         return new FairDistributedRateLimiter(
                 CHAT_LIMITER_NAME,
                 redissonClient,

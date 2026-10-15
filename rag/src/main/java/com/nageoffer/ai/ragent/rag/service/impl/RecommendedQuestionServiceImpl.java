@@ -88,6 +88,7 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
      * 消息 ID、用户、assistant 角色及有效状态同时匹配，否则报告消息不存在。
      */
     private ConversationMessageDO loadAssistantMessage(String messageId, String userId) {
+        // 只允许读取当前用户未删除的助手消息作为推荐输入，未命中时统一提示消息不存在。
         ConversationMessageDO message = conversationMessageMapper.selectOne(
                 Wrappers.lambdaQuery(ConversationMessageDO.class)
                         .eq(ConversationMessageDO::getId, messageId)
@@ -107,6 +108,7 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
      * 查询同时匹配会话、用户和 user 角色，缺失关联或原问题时返回 null。
      */
     private String loadQuestion(ConversationMessageDO message) {
+        // 沿回复关联 ID 查同一会话、同一用户的有效提问，没有关联或原提问已不存在则返回 null。
         if (StrUtil.isBlank(message.getReplyToMessageId())) {
             return null;
         }
@@ -126,6 +128,7 @@ public class RecommendedQuestionServiceImpl implements RecommendedQuestionServic
      * 有明确消息状态且不是 NORMAL 时停用推荐，避免对失败或中断结果继续生成。
      */
     private boolean isRecommendationDisabled(ConversationMessageDO message) {
+        // 明确存在且不是 NORMAL 的消息状态禁用追问，避免对取消、拒绝等异常结果继续推荐。
         return StrUtil.isNotBlank(message.getMessageStatus())
                 && !ChatMessage.MessageStatus.NORMAL.name().equals(message.getMessageStatus());
     }

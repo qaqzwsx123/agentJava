@@ -54,6 +54,7 @@ public class RelationalChunkSink implements ChunkSink {
 
     @Override
     public void replaceDocument(VectorTarget target, DocumentRef doc, List<EmbeddedChunk> chunks) {
+        // 先删该文档旧块，再批量保存新块的标识、顺序、正文、哈希和统计；嵌入文本单独保留以支持重建向量。
         deleteDocument(target, doc);
         if (chunks.isEmpty()) {
             return;
@@ -83,6 +84,7 @@ public class RelationalChunkSink implements ChunkSink {
 
     @Override
     public void deleteDocument(VectorTarget target, DocumentRef doc) {
+        // 按文档 ID 删除关系库中的块记录，实际事务范围由上层索引写入器管理。
         chunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkDO>()
                 .eq(KnowledgeChunkDO::getDocId, doc.docId()));
     }

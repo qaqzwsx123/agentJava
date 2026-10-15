@@ -54,6 +54,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
      */
     @Override
     public StreamSpan beginStreamNode(String name, String type) {
+        // 有追踪上下文时创建运行中的流节点并压栈，否则使用空操作 span，避免调用方逐处判断追踪开关。
         if (!traceProperties.isEnabled()) {
             return NOOP_SPAN;
         }
@@ -92,6 +93,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
         private final AtomicBoolean finished = new AtomicBoolean(false);
 
         StreamSpanImpl(String traceId, String nodeId, long startMillis) {
+            // 保存流节点标识和开始时间，结束回调可在不同线程使用这些固定值计算耗时。
             this.traceId = traceId;
             this.nodeId = nodeId;
             this.startMillis = startMillis;
@@ -110,6 +112,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
 
         @Override
         public void finishSuccess() {
+            // 通过原子标记保证流节点只结束一次，写入成功与耗时，记录失败仅记日志。
             if (!finished.compareAndSet(false, true)) {
                 return;
             }
@@ -123,6 +126,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
 
         @Override
         public void finishError(Throwable error) {
+            // 只允许首次结束回调写入失败状态和截断错误，避免完成与异常竞争造成终态覆盖。
             if (!finished.compareAndSet(false, true)) {
                 return;
             }
@@ -136,6 +140,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
 
         @Override
         public void finishCancelledIfRunning() {
+            // 只有节点尚未结束时才标记取消，追踪写入异常不再影响流式主流程。
             if (!finished.compareAndSet(false, true)) {
                 return;
             }
@@ -149,6 +154,7 @@ public class RagStreamTraceSupportImpl implements RagStreamTraceSupport {
     }
 
     private String truncateError(Throwable throwable) {
+        // 把异常类型和消息压缩到允许长度，空异常保持 null。
         if (throwable == null) {
             return null;
         }

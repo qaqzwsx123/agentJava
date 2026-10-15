@@ -53,6 +53,7 @@ public class RetrievalContext {
      * 是否存在 KB 上下文
      */
     public boolean hasKb() {
+        // 以知识上下文文本是否有效判断是否具备可用知识证据。
         return StrUtil.isNotBlank(kbContext);
     }
 
@@ -60,6 +61,7 @@ public class RetrievalContext {
      * 是否无任何上下文
      */
     public boolean isEmpty() {
+        // 复用 hasKb 的判断，当前没有知识上下文即视为空检索上下文。
         return !hasKb();
     }
 }

@@ -69,6 +69,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
     private final String publicBaseUrl;
 
     public S3ObjectStorageClient(S3Client s3Client, S3Presigner s3Presigner, RagStorageProperties properties) {
+        // 保存对象读写客户端、预签名器和解析后的公网基地址，供同一存储实现复用。
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.publicBaseUrl = properties.getS3().resolvePublicUrl();
@@ -103,6 +104,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
 
     @Override
     public void reliablePut(String bucket, String key, InputStream content, long size, String contentType) {
+        // 使用已知流长度构造 SDK 请求体，并保存内容类型，交给 S3 兼容接口完成上传。
         s3Client.putObject(
                 PutObjectRequest.builder()
                         .bucket(bucket)
@@ -117,6 +119,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public InputStream getObject(String bucket, String key) {
+        // 返回 S3 对象响应流，调用方负责消费后关闭以归还连接。
         return s3Client.getObject(b -> b.bucket(bucket).key(key));
     }
 
@@ -125,6 +128,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public void deleteObject(String bucket, String key) {
+        // 按桶和对象键发起单对象删除，异常由上层业务决定如何处理。
         s3Client.deleteObject(b -> b.bucket(bucket).key(key));
     }
 
@@ -166,6 +170,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public boolean objectExists(String bucket, String key) {
+        // 通过 HEAD 判断对象存在，只有对象不存在或 HTTP 404 返回 false，其他异常继续抛出。
         try {
             s3Client.headObject(b -> b.bucket(bucket).key(key));
             return true;
@@ -181,6 +186,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
 
     @Override
     public boolean bucketExists(String bucket) {
+        // 通过 HEAD 判断桶存在，兼容不同 S3 服务的不存在异常与 404 表达，其余错误不伪装为不存在。
         try {
             s3Client.headBucket(b -> b.bucket(bucket));
             return true;
@@ -219,6 +225,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
      */
     @Override
     public String buildPublicUrl(String bucket, String key) {
+        // 规范基地址末尾斜线，再按当前实现的路径风格拼桶名与对象键。
         String base = publicBaseUrl.endsWith("/")
                 ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
                 : publicBaseUrl;
@@ -269,6 +276,7 @@ public class S3ObjectStorageClient implements ObjectStorageClient {
      * 读取并关闭 HTTP 错误流，缺失或读取失败时返回可用于日志的占位说明。
      */
     private String readErrorStream(HttpURLConnection conn) {
+        // 读取 HTTP 错误响应并自动关闭流，正文缺失或读取失败时返回便于诊断的占位说明。
         try (InputStream err = conn.getErrorStream()) {
             return err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "(empty)";
         } catch (IOException e) {

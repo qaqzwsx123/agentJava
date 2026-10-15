@@ -41,6 +41,7 @@ public class HeadingHandler {
         public static final Outline EMPTY = new Outline(List.of(), List.of());
 
         public Outline {
+            // 分别复制章节名称和级别列表，保证后续更新大纲不会反向改变旧上下文。
             path = path == null ? List.of() : List.copyOf(path);
             levels = levels == null ? List.of() : List.copyOf(levels);
         }
@@ -50,6 +51,7 @@ public class HeadingHandler {
      * 根据 heading 更新章节路径，入参与返回值都不可变
      */
     public Outline update(Outline current, HeadingBlock heading) {
+        // 保留比新标题级别更浅的祖先，再追加当前标题，构造新的不可变章节路径与级别列表。
         Outline base = current == null ? Outline.EMPTY : current;
         if (heading == null) {
             return base;

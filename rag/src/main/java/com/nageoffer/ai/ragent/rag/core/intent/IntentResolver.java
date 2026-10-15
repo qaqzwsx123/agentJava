@@ -52,6 +52,7 @@ public class IntentResolver {
      */
     @RagTraceNode(name = "intent-resolve", type = "INTENT")
     public List<SubQuestionIntent> resolve(RewriteResult rewriteResult) {
+        // 按子问题并行分类，单题异常降为空意图，全部任务汇总后再限制整轮候选规模。
         List<String> subQuestions = CollUtil.isNotEmpty(rewriteResult.subQuestions())
                 ? rewriteResult.subQuestions()
                 : List.of(rewriteResult.rewrittenQuestion());
@@ -79,6 +80,7 @@ public class IntentResolver {
      * 汇总各子问题中的知识库意图，供回答提示词选择可用配置。
      */
     public List<NodeScore> mergeKbIntents(List<SubQuestionIntent> subIntents) {
+        // 从各子问题结果中收集知识库类型意图，工具与系统意图不参与知识检索。
         List<NodeScore> kbIntents = new ArrayList<>();
         for (SubQuestionIntent si : subIntents) {
             kbIntents.addAll(NodeScoreFilters.kb(si.nodeScores()));
@@ -90,6 +92,7 @@ public class IntentResolver {
      * 仅有一个有效候选且类型为 SYSTEM 时判定为纯系统意图。
      */
     public boolean isSystemOnly(List<NodeScore> nodeScores) {
+        // 只有且仅有一个候选并明确标记 SYSTEM 时，才进入纯系统回答路径。
         return nodeScores.size() == 1
                 && nodeScores.get(0).getNode() != null
                 && nodeScores.get(0).getNode().getKind() == SYSTEM;
@@ -99,6 +102,7 @@ public class IntentResolver {
      * 调用分类器后过滤低分候选，并限制单个问题最多保留的意图数。
      */
     private List<NodeScore> classifyIntents(String question) {
+        // 调用分类器后按最低分过滤并限制候选数，沿用分类器给出的排序。
         List<NodeScore> scores = intentClassifier.classifyTargets(question);
         return scores.stream()
                 .filter(ns -> ns.getScore() >= INTENT_MIN_SCORE)
@@ -144,6 +148,7 @@ public class IntentResolver {
      * 收集所有意图候选，标记所属子问题索引
      */
     private List<IntentCandidate> collectAllCandidates(List<SubQuestionIntent> subIntents) {
+        // 保留每个候选所属子问题索引，合并后按分数从高到低排列。
         List<IntentCandidate> candidates = new ArrayList<>();
         for (int i = 0; i < subIntents.size(); i++) {
             List<NodeScore> nodeScores = subIntents.get(i).nodeScores();
@@ -163,6 +168,7 @@ public class IntentResolver {
      * 每个子问题选择最高分意图（保底策略）
      */
     private List<IntentCandidate> selectTopIntentPerSubQuestion(List<IntentCandidate> allCandidates, int subQuestionCount) {
+        // 按已排序候选为每个子问题选择第一条作为保底意图，避免高分子问题占尽所有名额。
         List<IntentCandidate> topIntents = new ArrayList<>();
         boolean[] selected = new boolean[subQuestionCount];
 
@@ -186,6 +192,7 @@ public class IntentResolver {
     private List<IntentCandidate> selectAdditionalIntents(List<IntentCandidate> allCandidates,
                                                           List<IntentCandidate> guaranteedIntents,
                                                           int remaining) {
+        // 有剩余预算时继续按总排序补候选，跳过已作为子问题保底的意图。
         if (remaining <= 0) {
             return List.of();
         }

@@ -55,6 +55,7 @@ public class IntentTreeCacheManager {
      * @return 意图树根节点列表，如果缓存不存在则返回null
      */
     public List<IntentNode> getIntentTreeFromCache() {
+        // 从 Redis 读取整棵意图树，未命中或反序列化异常返回 null 触发数据库加载。
         try {
             String cacheJson = stringRedisTemplate.opsForValue().get(INTENT_TREE_CACHE_KEY);
             if (cacheJson == null) {
@@ -79,6 +80,7 @@ public class IntentTreeCacheManager {
      * @param roots 意图树根节点列表
      */
     public void saveIntentTreeToCache(List<IntentNode> roots) {
+        // 将根节点列表序列化并设置按天计算的有效期，缓存失败只记录日志。
         try {
             String cacheJson = objectMapper.writeValueAsString(roots);
             stringRedisTemplate.opsForValue().set(
@@ -98,6 +100,7 @@ public class IntentTreeCacheManager {
      * 在意图节点发生增删改时调用
      */
     public void clearIntentTreeCache() {
+        // 删除缓存并记录是否实际命中，使下一次分类重新加载最新意图配置。
         Boolean deleted = stringRedisTemplate.delete(INTENT_TREE_CACHE_KEY);
         if (deleted) {
             log.info("意图树缓存已清除，Key: {}", INTENT_TREE_CACHE_KEY);
@@ -112,6 +115,7 @@ public class IntentTreeCacheManager {
      * @return true表示缓存存在，false表示不存在
      */
     public boolean isCacheExists() {
+        // 检查缓存键是否存在，Redis 异常按不存在返回，让业务能够继续走加载路径。
         try {
             return stringRedisTemplate.hasKey(INTENT_TREE_CACHE_KEY);
         } catch (Exception e) {

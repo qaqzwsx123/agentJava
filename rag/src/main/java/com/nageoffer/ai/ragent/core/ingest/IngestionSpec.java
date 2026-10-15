@@ -34,6 +34,7 @@ public record IngestionSpec(int version, ParseProfile parseProfile, ChunkBudget 
     public static final int CURRENT_VERSION = 2;
 
     public IngestionSpec {
+        // 协议版本必须为正数，未提供档位或分块预算时分别补默认配置。
         if (version <= 0) {
             throw new IllegalArgumentException("version 必须 > 0，实际 " + version);
         }
@@ -45,6 +46,7 @@ public record IngestionSpec(int version, ParseProfile parseProfile, ChunkBudget 
      * 使用当前协议版本、默认解析档位和默认分块预算构造摄入规格。
      */
     public static IngestionSpec defaults() {
+        // 组合当前协议版本、默认解析档位和默认分块预算，生成标准入库配置。
         return new IngestionSpec(CURRENT_VERSION, ParseProfile.defaultProfile(), ChunkBudget.defaults());
     }
 
@@ -52,6 +54,7 @@ public record IngestionSpec(int version, ParseProfile parseProfile, ChunkBudget 
      * 将指定解析档位和分块预算绑定到当前规格版本，作为可持久化的摄入配置。
      */
     public static IngestionSpec of(ParseProfile parseProfile, ChunkBudget budget) {
+        // 使用指定解析档位和分块预算，协议版本统一取代码当前版本。
         return new IngestionSpec(CURRENT_VERSION, parseProfile, budget);
     }
 }

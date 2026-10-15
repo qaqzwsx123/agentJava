@@ -61,6 +61,7 @@ public class ConversationServiceImpl implements ConversationService {
      */
     @Override
     public List<ConversationVO> listByUserId(String userId) {
+        // 只列出该用户未删除会话，按最近活跃时间排序，空用户或没有记录返回空列表。
         // 会话查询显式限定 userId 和逻辑删除标记。
         if (StrUtil.isBlank(userId)) {
             return List.of();
@@ -91,6 +92,7 @@ public class ConversationServiceImpl implements ConversationService {
      */
     @Override
     public void createOrUpdate(ConversationCreateBO request) {
+        // 按用户和会话查已有记录，新会话调用模型生成标题并创建，已有会话只刷新活跃时间。
         // 请求对象承载用户、会话与问题信息，便于编排链路显式传递身份。
         String userId = request.getUserId();
         String conversationId = request.getConversationId();
@@ -106,6 +108,7 @@ public class ConversationServiceImpl implements ConversationService {
                         .eq(ConversationDO::getDeleted, 0)
         );
 
+        // 只有首次创建会话才生成标题，后续用户提问仅更新最近活跃时间。
         if (existing == null) {
             String title = titleGenerator.generate(question);
             ConversationDO record = ConversationDO.builder()
@@ -128,6 +131,7 @@ public class ConversationServiceImpl implements ConversationService {
      */
     @Override
     public void rename(String conversationId, ConversationUpdateRequest request) {
+        // 从登录上下文取用户，校验标题长度和会话归属后才更新名称，避免修改其他用户会话。
         // 先从登录上下文取用户，再校验标题长度和会话归属。
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
@@ -164,6 +168,7 @@ public class ConversationServiceImpl implements ConversationService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void delete(String conversationId) {
+        // 确认当前用户拥有会话后，按相同用户与会话范围删除主记录、消息与摘要。
         // 先确认会话存在且属于当前用户，再依次清理相关数据。
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {

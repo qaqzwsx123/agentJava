@@ -44,6 +44,7 @@ public class ScheduleStateManager {
     public boolean markSkippedIfOwned(ScheduleLockLease lease,
                                       ScheduleStateContext ctx,
                                       RemoteFileFetcher.RemoteFetchResult fetchResult) {
+        // 用锁令牌限制调度主记录更新，同时结束本轮执行记录；未获主状态写入权时在执行说明追加租约提示。
         boolean scheduleUpdated = updateScheduleIfOwned(
                 lease,
                 Wrappers.lambdaUpdate(KnowledgeDocumentScheduleDO.class)
@@ -72,6 +73,7 @@ public class ScheduleStateManager {
     }
 
     public boolean markSkippedIfOwned(ScheduleLockLease lease, ScheduleStateContext ctx, String message) {
+        // 用锁令牌限制调度主记录更新，同时结束本轮执行记录；未获主状态写入权时在执行说明追加租约提示。
         boolean scheduleUpdated = updateScheduleIfOwned(
                 lease,
                 Wrappers.lambdaUpdate(KnowledgeDocumentScheduleDO.class)
@@ -98,6 +100,7 @@ public class ScheduleStateManager {
                                       ScheduleStateContext ctx,
                                       RemoteFileFetcher.RemoteFetchResult fetchResult,
                                       StoredFileDTO stored) {
+        // 按当前锁所有权更新成功时间与远端标识，再保存本轮执行的文件和结果信息。
         Date endTime = new Date();
         boolean scheduleUpdated = updateScheduleIfOwned(
                 lease,
@@ -131,6 +134,7 @@ public class ScheduleStateManager {
     }
 
     public boolean markFailedIfOwned(ScheduleLockLease lease, ScheduleStateContext ctx, String errorMessage) {
+        // 先截断错误说明，再按令牌更新调度失败状态，本轮执行记录无论是否仍持锁都保留结束信息。
         String truncatedErrorMessage = truncate(errorMessage);
         boolean scheduleUpdated = updateScheduleIfOwned(
                 lease,
@@ -154,6 +158,7 @@ public class ScheduleStateManager {
     }
 
     public boolean disableIfOwned(ScheduleLockLease lease, String reason) {
+        // 持锁条件命中时关闭调度并清空下次执行时间，记录失败原因，返回是否实际更新。
         return updateScheduleIfOwned(
                 lease,
                 Wrappers.lambdaUpdate(KnowledgeDocumentScheduleDO.class)
@@ -165,6 +170,7 @@ public class ScheduleStateManager {
     }
 
     public void markLeaseLost(ScheduleStateContext ctx, String stage) {
+        // 只把当前执行记录标记为租约丢失，不覆盖可能已由新执行者接管的调度主状态。
         if (ctx == null || ctx.getExecId() == null) {
             return;
         }
@@ -186,6 +192,7 @@ public class ScheduleStateManager {
                                     String etag,
                                     String lastModified,
                                     String message) {
+        // 文件刷新已完成但调度主状态写回异常时，仅保存本轮执行成功事实与文件元数据。
         if (ctx == null || ctx.getExecId() == null) {
             return;
         }
@@ -205,6 +212,7 @@ public class ScheduleStateManager {
 
     private boolean updateScheduleIfOwned(ScheduleLockLease lease,
                                           LambdaUpdateWrapper<KnowledgeDocumentScheduleDO> updateWrapper) {
+        // 为更新附加调度 ID 和锁令牌条件，用受影响行数判断本轮是否仍有写主状态的资格。
         if (lease == null || updateWrapper == null) {
             return false;
         }
@@ -214,6 +222,7 @@ public class ScheduleStateManager {
     }
 
     private String withLeaseNote(String message, boolean scheduleUpdated) {
+        // 成功写主状态时沿用原消息，否则追加租约失效说明，并统一限制文本长度。
         if (scheduleUpdated) {
             return truncate(message);
         }
@@ -222,6 +231,7 @@ public class ScheduleStateManager {
     }
 
     private String truncate(String value) {
+        // 清理首尾空白并将说明限制到五百一十二字符，避免调度结果超过字段长度。
         if (!StringUtils.hasText(value)) {
             return value;
         }

@@ -33,6 +33,7 @@ public final class MimeTypeDetector {
      * 按字节 + 文件名探测 MIME，文件名可为空，字节为空返回 null
      */
     public static String detect(byte[] bytes, String fileName) {
+        // 空内容不探测；有文件名时联合内容与文件名识别 MIME，否则仅依据内容字节。
         if (bytes == null || bytes.length == 0) {
             return null;
         }

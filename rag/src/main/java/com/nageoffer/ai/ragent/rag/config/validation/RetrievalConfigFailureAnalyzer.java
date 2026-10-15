@@ -34,6 +34,7 @@ public class RetrievalConfigFailureAnalyzer extends AbstractFailureAnalyzer<Retr
 
     @Override
     protected FailureAnalysis analyze(Throwable rootFailure, RetrievalConfigException cause) {
+        // 逐项列出通道与后端配置的矛盾，并给出启用后端或关闭通道两条修正路径，生成 Spring 启动诊断。
         List<RetrievalChannelConfigValidator.Violation> violations = cause.getViolations();
 
         StringBuilder description = new StringBuilder();

@@ -45,12 +45,14 @@ public final class EnricherPromptManager {
     }
 
     private EnricherPromptManager() {
+        // 块级富化提示词统一通过静态方法读取，禁止实例化工具类。
     }
 
     /**
      * 按分块增强类型取得默认系统提示词，供没有自定义配置的任务使用。
      */
     public static String systemPrompt(ChunkEnrichType type) {
+        // 按分块富化类型返回默认系统提示词，供模型调用构建请求。
         return DEFAULT_SYSTEM_PROMPTS.get(type);
     }
 }

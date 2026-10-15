@@ -54,6 +54,7 @@ public class RAGPromptService {
      * 生成系统提示词，并对模板格式做清理
      */
     public String buildSystemPrompt(PromptContext context) {
+        // 要求已有知识上下文，优先采用唯一合格意图的自定义模板，否则使用默认知识回答槽位，并按开关追加引用规则。
         return buildSystemPrompt(context, true);
     }
 
@@ -61,6 +62,7 @@ public class RAGPromptService {
      * citationEligible=false 时无条件跳过引用规则拼接（Agent 模式检索门面无来源编号，不读引用开关）
      */
     private String buildSystemPrompt(PromptContext context, boolean citationEligible) {
+        // 要求已有知识上下文，优先采用唯一合格意图的自定义模板，否则使用默认知识回答槽位，并按开关追加引用规则。
         if (!context.hasKb()) {
             throw new IllegalStateException("PromptContext requires KB context");
         }
@@ -91,6 +93,7 @@ public class RAGPromptService {
                                                      List<ChatMessage> history,
                                                      String question,
                                                      List<String> subQuestions) {
+        // 兼容未显式指定引用资格的调用，默认允许引用后转交完整消息装配方法。
         return buildStructuredMessages(context, history, question, subQuestions, true);
     }
 
@@ -130,6 +133,7 @@ public class RAGPromptService {
      * 仅在证据准入后恰有一个不同意图时使用该节点的自定义提示词，多意图或无意图返回 null。
      */
     private String configuredTemplate(List<NodeScore> intents, Set<String> eligibleIntentIds) {
+        // 先按证据准入 ID 过滤并去重意图，只有恰好一个有效意图时才使用其专属模板。
         List<NodeScore> safeIntents = intents == null ? List.of() : intents;
         Map<String, NodeScore> eligibleById = new LinkedHashMap<>();
         for (NodeScore intent : safeIntents) {
@@ -153,6 +157,7 @@ public class RAGPromptService {
      * 多个子问题按编号渲染，单问题使用单问题模板，空问题返回空字符串。
      */
     private String buildUserQuestion(String question, List<String> subQuestions) {
+        // 多个子问题使用编号模板，单问题使用普通模板，空问题返回空文本。
         if (CollUtil.isNotEmpty(subQuestions) && subQuestions.size() > 1) {
             String numbered = IntStream.range(0, subQuestions.size())
                     .mapToObj(i -> (i + 1) + ". " + subQuestions.get(i))
@@ -169,6 +174,7 @@ public class RAGPromptService {
      * 把非空证据和问题用空行连接，任一部分为空时直接使用另一部分。
      */
     private String mergeEvidenceAndQuestion(String evidenceBody, String question) {
+        // 证据和问题均存在时用段落分隔连接，任一为空则直接返回另一个。
         if (StrUtil.isBlank(evidenceBody)) {
             return question;
         }
@@ -182,6 +188,7 @@ public class RAGPromptService {
      * 将知识库证据渲染为一个文本块
      */
     private String buildEvidenceBody(PromptContext context) {
+        // 只有有效知识上下文才渲染证据区段，并清理首尾空白。
         return StrUtil.isBlank(context.getKbContext())
                 ? ""
                 : renderSection("kb-evidence", Map.of("body", context.getKbContext().trim())).trim();
@@ -191,6 +198,7 @@ public class RAGPromptService {
      * 调用统一模板加载器渲染上下文配置中的指定区段。
      */
     private String renderSection(String section, Map<String, String> slots) {
+        // 统一通过上下文资源模板渲染指定区段，避免各调用点重复定义格式。
         return templateLoader.renderSection(CONTEXT_FORMAT_PATH, section, slots);
     }
 }

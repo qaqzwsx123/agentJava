@@ -36,6 +36,7 @@ public record AgentSkill(
         List<String> toolIds) {
 
     public AgentSkill {
+        // 把工具 ID 列表复制为只读列表，缺省为空，避免外部修改技能已经登记的能力范围。
         toolIds = toolIds == null ? List.of() : List.copyOf(toolIds);
     }
 }

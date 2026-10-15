@@ -55,6 +55,7 @@ public class ConversationTitleGenerator {
      */
     @RagTraceNode(name = "conversation-title-gen", type = "TITLE_GEN")
     public String generate(String question) {
+        // 把标题长度要求和问题填入模板调用 FAST 模型，模型失败时使用新对话作为回落标题。
         int maxLen = memoryProperties.getTitleMaxLength();
         if (maxLen <= 0) {
             maxLen = 30;

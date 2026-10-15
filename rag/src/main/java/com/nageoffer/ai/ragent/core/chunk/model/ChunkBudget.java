@@ -60,6 +60,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
     public static final int ROWS_PER_CHUNK_LIMIT = 1000;
 
     public ChunkBudget {
+        // 校验字符数、重叠、表格行数和容忍倍数，整篇哨兵模式按既有规则豁免常规上限。
         if (maxChars <= 0) {
             throw new IllegalArgumentException("maxChars 必须 > 0，实际 " + maxChars);
         }
@@ -86,6 +87,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
 
     /** 三参构造：容忍倍数取默认值，供尚未开放该配置项的调用方使用 */
     public ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk) {
+        // 三参数构造沿用默认容忍倍数，交由完整构造器统一保存和校验预算。
         this(maxChars, overlapChars, rowsPerChunk, DEFAULT_TOLERANCE_FACTOR);
     }
 
@@ -96,6 +98,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
      * 最大距离，取小了切口会落在句子中间——1024 配 64 对中文长句就常常回退不到句号，故按块大小等比给
      */
     public static int defaultOverlapFor(int maxChars) {
+        // 按块大小比例计算默认重叠量，并限制在零到块大小减一之间。
         return Math.max(0, Math.min(maxChars - 1, maxChars / OVERLAP_DIVISOR));
     }
 
@@ -106,6 +109,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
      * 而 {@code RetrieveRequest.topK} 默认 5，块太小会让名额被同一章节的碎片占满，它真正切开的只有超长散文段落
      */
     public static ChunkBudget defaults() {
+        // 组合默认字符上限、重叠量和表格行数，生成常规分块预算。
         return new ChunkBudget(DEFAULT_MAX_CHARS, defaultOverlapFor(DEFAULT_MAX_CHARS), 50);
     }
 
@@ -113,6 +117,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
      * 整文档不切分：全文作为单块
      */
     public static ChunkBudget wholeDocument() {
+        // 使用整篇哨兵值并关闭重叠，标记后续应跳过普通分块处理。
         return new ChunkBudget(WHOLE_DOCUMENT, 0, WHOLE_DOCUMENT);
     }
 
@@ -123,6 +128,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
      * {@code ChunkPacker} 据此决定整个章节能否不拆成一块；乘出来的值仍受 {@link #MAX_CHARS_LIMIT} 封顶
      */
     public int toleranceChars() {
+        // 整篇模式保留哨兵，其余按容忍倍数放宽预算，但不超过全局字符上限。
         return isWholeDocument() ? WHOLE_DOCUMENT : Math.min(maxChars * toleranceFactor, MAX_CHARS_LIMIT);
     }
 
@@ -130,6 +136,7 @@ public record ChunkBudget(int maxChars, int overlapChars, int rowsPerChunk, int 
      * 判断最大字符数是否为整篇模式的特殊值，决定是否跳过常规分块。
      */
     public boolean isWholeDocument() {
+        // 通过最大字符数是否等于整篇哨兵判断工作模式。
         return maxChars == WHOLE_DOCUMENT;
     }
 }

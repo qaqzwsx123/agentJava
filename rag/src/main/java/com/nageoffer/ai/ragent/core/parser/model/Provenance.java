@@ -31,6 +31,7 @@ public record Provenance(String sourceFile, String sheetName) {
      * 构造文件级溯源信息，不指定工作表。
      */
     public static Provenance ofFile(String sourceFile) {
+        // 创建文件级溯源，不附加工作表信息。
         return new Provenance(sourceFile, null);
     }
 
@@ -38,6 +39,7 @@ public record Provenance(String sourceFile, String sheetName) {
      * 构造包含源文件和工作表名称的溯源信息。
      */
     public static Provenance ofExcelCell(String sourceFile, String sheetName) {
+        // 同时保存文件名与工作表名，供分块回溯到原工作表。
         return new Provenance(sourceFile, sheetName);
     }
 }

@@ -81,6 +81,7 @@ public class RAGSettingsController {
      */
     @GetMapping("/rag/settings")
     public Result<SystemSettingsVO> settings() {
+        // 读取当前装配配置并组合页面响应，展示引擎、后端、检索模型和上传限制，不在此接口修改配置。
         // 分别组装后端选择、RAG 参数、AI 模型及上传大小限制。
         SystemSettingsVO response = SystemSettingsVO.builder()
                 .engine(SystemSettingsVO.EngineSettings.builder()
@@ -102,6 +103,7 @@ public class RAGSettingsController {
      * 返回的是管理端所需字段，不直接序列化完整的后端连接配置对象。
      */
     private BackendSettings toBackendSettings() {
+        // 分别暴露存储、向量、关键词和图谱后端的选型及连接展示字段。
         // 各后端选择独立组装，便于前端解释当前服务使用的实现。
         return BackendSettings.builder()
                 .storage(toStorageBackend(ragStorageProperties))
@@ -146,6 +148,7 @@ public class RAGSettingsController {
      * 只读取当前配置，不通过此接口修改运行参数。
      */
     private SystemSettingsVO.RagSettings toRagSettings() {
+        // 将默认参数、功能开关、检索、限流和记忆配置组织成页面稳定结构。
         // 不同配置对象转换为稳定的响应结构，避免页面依赖配置类内部字段。
         return SystemSettingsVO.RagSettings.builder()
                 .defaultConfig(SystemSettingsVO.DefaultSettings.builder()
@@ -186,6 +189,7 @@ public class RAGSettingsController {
      * 渠道权重来自融合配置，联网搜索只返回密钥是否已配置，不返回原密钥。
      */
     private SearchSettings toSearchSettings(SearchChannelProperties props) {
+        // 分别映射上下文数量、召回预算、通道权重与精排上限，联网密钥仅提供是否配置的标记。
         // 默认 Top-K、召回预算和精排候选上限分别展示，不能混为同一个数量。
         SearchChannelProperties.Channels channels = props.getChannels();
         SearchChannelProperties.ChannelWeights weights = props.getFusion().getChannelWeights();
@@ -232,6 +236,7 @@ public class RAGSettingsController {
      * 提供商 API Key 经过 maskApiKey 处理后才进入响应。
      */
     private AISettings toAISettings(AIModelProperties props) {
+        // 供应商密钥经过掩码后再输出，并兼容模型选择或流式配置缺省的情况。
         // 先构造脱敏后的提供商信息，再映射各类型模型组。
         Map<String, AISettings.ProviderConfig> providers = new HashMap<>();
         if (props.getProviders() != null) {
@@ -267,6 +272,7 @@ public class RAGSettingsController {
      * 模型组未配置时保留 null，候选模型与分层配置分别映射。
      */
     private AISettings.ModelGroup toModelGroup(AIModelProperties.ModelGroup group) {
+        // 将候选模型、默认选择和层级信息映射为展示结构，缺少模型组时保持 null。
         // 这里只描述候选项，不在读取配置时执行模型调用或健康探测。
         if (group == null) {
             return null;
@@ -298,6 +304,7 @@ public class RAGSettingsController {
      * 未配置层级时返回 null，保留未配置与空集合的语义差异。
      */
     private Map<String, AISettings.TierConfig> toTiers(Map<String, AIModelProperties.TierConfig> tiers) {
+        // 按层级名映射候选模型列表和超时时间，没有层级配置时不额外构造默认展示值。
         // 层级候选顺序与原始配置保持一致，实际模型选择由运行时组件决定。
         if (tiers == null) {
             return null;

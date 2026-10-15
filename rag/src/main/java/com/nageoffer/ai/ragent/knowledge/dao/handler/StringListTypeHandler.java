@@ -38,6 +38,7 @@ public class StringListTypeHandler extends BaseTypeHandler<List<String>> {
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, List<String> parameter, JdbcType jdbcType) throws SQLException {
+        // 把列表序列化为 JSON，再通过 PostgreSQL jsonb 对象绑定参数，保证数据库按 jsonb 类型存储。
         PGobject jsonObject = new PGobject();
         jsonObject.setType("jsonb");
         jsonObject.setValue(JSONUtil.toJsonStr(parameter));
@@ -46,20 +47,24 @@ public class StringListTypeHandler extends BaseTypeHandler<List<String>> {
 
     @Override
     public List<String> getNullableResult(ResultSet rs, String columnName) throws SQLException {
+        // 从结果集或存储过程读出 JSON 文本，复用 parse 方法恢复为对应元素类型的列表。
         return parse(rs.getString(columnName));
     }
 
     @Override
     public List<String> getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+        // 从结果集或存储过程读出 JSON 文本，复用 parse 方法恢复为对应元素类型的列表。
         return parse(rs.getString(columnIndex));
     }
 
     @Override
     public List<String> getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+        // 从结果集或存储过程读出 JSON 文本，复用 parse 方法恢复为对应元素类型的列表。
         return parse(cs.getString(columnIndex));
     }
 
     private List<String> parse(String json) {
+        // 空白字段保留 null，其余 JSON 按处理器约定的元素类型解析为列表，格式错误继续交给调用链处理。
         if (StrUtil.isBlank(json)) {
             return null;
         }

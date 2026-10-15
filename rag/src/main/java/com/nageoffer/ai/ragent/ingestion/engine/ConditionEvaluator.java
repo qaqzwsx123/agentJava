@@ -42,6 +42,7 @@ public class ConditionEvaluator {
     private final ExpressionParser parser = new SpelExpressionParser();
 
     public ConditionEvaluator(ObjectMapper objectMapper) {
+        // 保存 JSON 编解码器，供规则值转换与条件求值复用。
         this.objectMapper = objectMapper;
     }
 
@@ -49,6 +50,7 @@ public class ConditionEvaluator {
      * 先校验条件结构，再执行条件计算，结构无效时直接返回 false。
      */
     public boolean evaluate(IngestionContext context, JsonNode condition) {
+        // 先验证完整条件结构，再执行求值，避免格式错误的子条件被取反后意外放行。
         return isStructurallyValid(condition) && evaluateValid(context, condition);
     }
 
@@ -56,6 +58,7 @@ public class ConditionEvaluator {
      * 递归校验空条件、布尔值、表达式及 all、any、not、field 规则的结构，未知结构返回 false。
      */
     private boolean isStructurallyValid(JsonNode condition) {
+        // 识别空条件、布尔值、表达式和规则对象，组合条件递归检查，无法识别的结构拒绝执行。
         if (condition == null || condition.isNull() || condition.isBoolean() || condition.isTextual()) {
             return true;
         }
@@ -82,6 +85,7 @@ public class ConditionEvaluator {
      * 要求组合条件是数组，并检查每个子条件结构；任一无效则整组无效。
      */
     private boolean isStructurallyValidGroup(JsonNode node) {
+        // 组合条件必须是数组，并要求每个子项结构都合法。
         if (node == null || !node.isArray()) {
             return false;
         }
@@ -97,6 +101,7 @@ public class ConditionEvaluator {
      * 计算已通过结构检查的条件：空条件放行，布尔值直返，文本走 SpEL，对象按组合或字段规则分派。
      */
     private boolean evaluateValid(IngestionContext context, JsonNode condition) {
+        // 空条件默认通过，其余按布尔值、SpEL、all、any、not 或字段规则分别求值。
         if (condition == null || condition.isNull()) {
             return true;
         }
@@ -127,6 +132,7 @@ public class ConditionEvaluator {
      * 按顺序短路计算 all 条件，任一为 false 即返回 false；空数组按逻辑与返回 true。
      */
     private boolean evalAll(IngestionContext context, JsonNode node) {
+        // 逐项短路求值，任何一个子条件不通过即失败，合法空数组按全部满足处理。
         if (node == null || !node.isArray()) {
             return false;
         }
@@ -142,6 +148,7 @@ public class ConditionEvaluator {
      * 按顺序短路计算 any 条件，任一为 true 即返回 true；空数组返回 false。
      */
     private boolean evalAny(IngestionContext context, JsonNode node) {
+        // 逐项寻找通过的子条件，遇到 true 立即返回，空数组没有可通过项因而返回 false。
         if (node == null || !node.isArray()) {
             return false;
         }
@@ -173,6 +180,7 @@ public class ConditionEvaluator {
      * 通过 BeanWrapper 读取上下文中的属性路径，属性不存在或读取失败时返回 null。
      */
     private Object readField(IngestionContext context, String path) {
+        // 通过 BeanWrapper 读取上下文属性路径，字段不存在或访问失败时用 null 表示。
         try {
             BeanWrapperImpl wrapper = new BeanWrapperImpl(context);
             return wrapper.getPropertyValue(path);
@@ -185,6 +193,7 @@ public class ConditionEvaluator {
      * 按操作符分派相等、包含、正则、数值及存在性判断，未识别操作符按相等处理。
      */
     private boolean compare(Object left, Object right, String operator) {
+        // 按操作符分派相等、集合、字符串、正则和数值比较，未识别操作符沿用相等比较。
         return switch (operator.toLowerCase()) {
             case "ne" -> !Objects.equals(normalize(left), normalize(right));
             case "in" -> in(left, right);
@@ -204,6 +213,7 @@ public class ConditionEvaluator {
      * 优先使用左右任一列表的成员判断，两侧都不是列表时按规范化后的相等关系比较。
      */
     private boolean in(Object left, Object right) {
+        // 优先按列表成员关系判断，两边都非列表时回落到规范化后的相等比较。
         if (right instanceof List<?> list) {
             return list.contains(left);
         }
@@ -217,6 +227,7 @@ public class ConditionEvaluator {
      * 支持字符串子串或列表成员判断；任一操作数为空或左侧类型不支持时返回 false。
      */
     private boolean contains(Object left, Object right) {
+        // 字符串使用子串判断，列表使用元素匹配，其余类型或空参数均不满足。
         if (left == null || right == null) {
             return false;
         }
@@ -233,6 +244,7 @@ public class ConditionEvaluator {
      * 把两侧转成字符串执行整串正则匹配，空操作数返回 false。
      */
     private boolean regex(Object left, Object right) {
+        // 双方非空时执行完整字符串正则匹配，空参数直接判为不匹配。
         if (left == null || right == null) {
             return false;
         }
@@ -243,6 +255,7 @@ public class ConditionEvaluator {
      * 将两侧转为有限浮点数，转换成功后用调用方谓词判断大小关系，否则返回 false。
      */
     private boolean compareNumbers(Object left, Object right, IntPredicate predicate) {
+        // 先将两侧转成有限数值，任一转换失败即拒绝，再用比较结果判断具体大小关系。
         Double l = toDouble(left);
         Double r = toDouble(right);
         if (l == null || r == null) {
@@ -255,6 +268,7 @@ public class ConditionEvaluator {
      * 兼容 Number 和数字文本，排除 NaN 与无穷值，转换失败返回 null。
      */
     private Double toDouble(Object value) {
+        // 兼容 Number 和数字文本，解析失败、NaN 或无穷值返回 null，避免无效数值参与规则判断。
         Double number;
         if (value instanceof Number n) {
             number = n.doubleValue();
@@ -272,6 +286,7 @@ public class ConditionEvaluator {
      * 比较前去除字符串首尾空白，其他类型保持原值。
      */
     private Object normalize(Object value) {
+        // 只清理字符串的首尾空白，其他对象保留原类型参与比较。
         if (value instanceof String s) {
             return s.trim();
         }
@@ -282,6 +297,7 @@ public class ConditionEvaluator {
      * 以摄入上下文为根对象并绑定 ctx 变量计算 SpEL，仅 Boolean true 放行，表达式执行异常返回 false。
      */
     private boolean evalSpel(IngestionContext context, String expression) {
+        // 以入库上下文为根对象并额外暴露 ctx 变量，只有明确求得 true 才通过，表达式错误按不满足处理。
         try {
             StandardEvaluationContext ctx = new StandardEvaluationContext(context);
             ctx.setVariable("ctx", context);

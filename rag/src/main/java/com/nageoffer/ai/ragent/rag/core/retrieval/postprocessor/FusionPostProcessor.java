@@ -64,6 +64,7 @@ public class FusionPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public String getName() {
+        // 返回融合处理器名称，供多通道执行日志定位。
         return "Fusion";
     }
 
@@ -72,11 +73,13 @@ public class FusionPostProcessor implements SearchResultPostProcessor {
      */
     @Override
     public int getOrder() {
+        // 融合安排在去重之后、后续精排之前执行。
         return 5;
     }
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        // 只有融合策略明确选择 RRF 时启用当前处理器。
         return STRATEGY_RRF.equalsIgnoreCase(properties.getFusion().getStrategy());
     }
 
@@ -101,6 +104,7 @@ public class FusionPostProcessor implements SearchResultPostProcessor {
      * 依据各通道原始召回名次累计 RRF 分，回写到去重后的 chunks 并按分数倒序
      */
     private List<RetrievedChunk> fuseByRrf(List<RetrievedChunk> chunks, List<SearchChannelResult> results) {
+        // 各通道按排名和权重累加倒数排名分，再把融合分写回去重块并按新分数排序。
         int k = properties.getFusion().getRrfK();
 
         Map<String, Double> rrfScores = new LinkedHashMap<>();
@@ -114,6 +118,7 @@ public class FusionPostProcessor implements SearchResultPostProcessor {
             }
         }
 
+        // 原始通道分值尺度可能不同，RRF 使用通道内排名融合后覆盖统一排序分，精排分字段仍由后续阶段生成。
         List<RetrievedChunk> fused = new ArrayList<>(chunks);
         for (RetrievedChunk chunk : fused) {
             Double score = rrfScores.get(RetrievedChunkKey.of(chunk));
@@ -154,6 +159,7 @@ public class FusionPostProcessor implements SearchResultPostProcessor {
      * config 层不依赖 core 的通道枚举，故枚举到权重的映射放在此处
      */
     private double weightOf(SearchChannelType type) {
+        // 按通道类型取配置权重，混合类型采用默认权重。
         SearchChannelProperties.ChannelWeights w = properties.getFusion().getChannelWeights();
         return switch (type) {
             case VECTOR -> w.getVector();

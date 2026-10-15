@@ -39,6 +39,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
 
     public KeywordSyncingVectorStoreService(VectorStoreService delegate,
                                             KeywordIndexService keywordIndexService) {
+        // 保存主向量实现和关键词索引服务，统一装饰各种新增、更新与删除操作。
         this.delegate = delegate;
         this.keywordIndexService = keywordIndexService;
     }
@@ -48,6 +49,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void indexDocumentChunks(String collectionName, String docId, List<EmbeddedChunk> chunks) {
+        // 先写向量，再同步同一批块到关键词索引，辅助索引故障由日志记录。
         delegate.indexDocumentChunks(collectionName, docId, chunks);
         syncKeyword(docId, () -> keywordIndexService.indexDocumentChunks(collectionName, docId, chunks));
     }
@@ -57,6 +59,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
+        // 先更新向量块，再覆盖写关键词文档，保持两边使用同一块 ID。
         delegate.updateChunk(collectionName, docId, chunk);
         syncKeyword(docId, () -> keywordIndexService.updateChunk(collectionName, docId, chunk));
     }
@@ -66,6 +69,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
+        // 向量文档删除成功后再清理同文档的关键词记录。
         delegate.deleteDocumentVectors(collectionName, docId);
         syncKeyword(docId, () -> keywordIndexService.deleteDocumentIndex(collectionName, docId));
     }
@@ -75,6 +79,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
+        // 先删向量中的指定块，再按相同块 ID 删除关键词记录。
         delegate.deleteChunkById(collectionName, chunkId);
         syncKeyword(chunkId, () -> keywordIndexService.deleteChunkById(collectionName, chunkId));
     }
@@ -84,6 +89,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
+        // 批量删除主向量后再同步批量关键词删除，避免两套入口各自维护业务顺序。
         delegate.deleteChunksByIds(collectionName, chunkIds);
         syncKeyword(null, () -> keywordIndexService.deleteChunksByIds(collectionName, chunkIds));
     }
@@ -92,6 +98,7 @@ public class KeywordSyncingVectorStoreService implements VectorStoreService {
      * best-effort 执行关键词同步，失败仅告警，不影响向量主链路
      */
     private void syncKeyword(String docId, Runnable action) {
+        // 辅助关键词同步失败只告警，不把已成功的向量主操作改成失败返回。
         try {
             action.run();
         } catch (Exception e) {

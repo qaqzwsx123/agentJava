@@ -39,6 +39,7 @@ public interface QueryRewriteService {
      * 默认实现仅返回改写结果并将其作为单个子问题
      */
     default RewriteResult rewriteWithSplit(String userQuestion) {
+        // 默认实现把一次改写作为唯一子问题；带历史的兼容重载仍委托不带历史的方法，需感知历史的实现自行覆盖。
         String rewritten = rewrite(userQuestion);
         return new RewriteResult(rewritten, List.of(rewritten));
     }
@@ -48,6 +49,7 @@ public interface QueryRewriteService {
      * 默认实现忽略历史，回退到基础改写逻辑
      */
     default RewriteResult rewriteWithSplit(String userQuestion, List<ChatMessage> history) {
+        // 默认实现把一次改写作为唯一子问题；带历史的兼容重载仍委托不带历史的方法，需感知历史的实现自行覆盖。
         return rewriteWithSplit(userQuestion);
     }
 }

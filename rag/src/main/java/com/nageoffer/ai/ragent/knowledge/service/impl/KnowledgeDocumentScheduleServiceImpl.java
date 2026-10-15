@@ -72,6 +72,7 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
      * 启用调度时验证 cron 周期；不存在的记录是否允许创建由 allowCreate 决定。
      */
     private void syncSchedule(KnowledgeDocumentDO documentDO, boolean allowCreate) {
+        // 仅同步有效 URL 文档，结合启用状态与 Cron 计算下次时间，再按 allowCreate 决定能否新增调度记录。
         // 文件来源不参与定时拉取，文档或关键标识为空时直接跳过同步。
         if (documentDO == null) {
             return;
@@ -92,6 +93,7 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
             enabled = false;
         }
 
+        // 只有调度实际启用时才检查表达式和最小间隔，禁用状态的下次运行时间保持空。
         Date nextRunTime = null;
         if (enabled) {
             try {
@@ -110,6 +112,7 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
                         .last("LIMIT 1")
         );
 
+        // 没有调度记录且禁止创建时直接结束；已有记录则同步更新启用状态、表达式与下次运行时间。
         if (existing == null) {
             if (!allowCreate) {
                 return;

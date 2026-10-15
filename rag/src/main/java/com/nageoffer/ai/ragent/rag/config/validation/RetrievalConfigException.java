@@ -36,6 +36,7 @@ public class RetrievalConfigException extends RuntimeException {
     private final transient List<RetrievalChannelConfigValidator.Violation> violations;
 
     public RetrievalConfigException(List<RetrievalChannelConfigValidator.Violation> violations) {
+        // 异常消息记录问题数量，同时保留全部违规项，供启动失败分析器生成修正说明。
         super("检索通道配置存在矛盾（" + violations.size() + " 项）：后端未装配却启用了对应检索通道");
         this.violations = violations;
     }

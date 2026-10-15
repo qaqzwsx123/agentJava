@@ -50,6 +50,7 @@ public class AgentPromptCacheManager {
      * @return 槽位到提示词的映射，缓存不存在则返回 null
      */
     public Map<String, String> getFromCache() {
+        // 读取 Redis 中的提示词映射并反序列化，未命中或读取异常返回 null，由上层重新加载。
         try {
             String cacheJson = stringRedisTemplate.opsForValue().get(CACHE_KEY);
             if (cacheJson == null) {
@@ -67,6 +68,7 @@ public class AgentPromptCacheManager {
      * 序列化解析后的提示词槽位并设置 Redis 过期时间，缓存写入失败只记录日志。
      */
     public void saveToCache(Map<String, String> prompts) {
+        // 将解析后的提示词映射保存为带过期时间的 JSON，缓存写入失败只记录日志。
         try {
             String cacheJson = objectMapper.writeValueAsString(prompts);
             stringRedisTemplate.opsForValue().set(CACHE_KEY, cacheJson, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
@@ -79,6 +81,7 @@ public class AgentPromptCacheManager {
      * 任何智能体或槽位写操作后必须调用，否则改动直到过期才生效
      */
     public void clearCache() {
+        // 删除提示词缓存以使后续读取重新装配，删除异常不再向管理业务抛出。
         try {
             stringRedisTemplate.delete(CACHE_KEY);
             log.info("智能体提示词缓存已清除");

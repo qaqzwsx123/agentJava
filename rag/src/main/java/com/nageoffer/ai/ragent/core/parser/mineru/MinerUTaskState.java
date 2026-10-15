@@ -38,6 +38,7 @@ public enum MinerUTaskState {
      * 从 MinerU 字段值映射到枚举
      */
     public static MinerUTaskState parse(String raw) {
+        // 兼容远端多种状态拼写，归一为成功、失败、进行中或未知，空值也归为未知。
         if (raw == null) {
             return UNKNOWN;
         }

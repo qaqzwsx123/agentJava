@@ -61,6 +61,7 @@ public class DefaultFileStorageService implements FileStorageService {
     public DefaultFileStorageService(ObjectStorageClient objectStorageClient,
                                      RedissonClient redissonClient,
                                      RagStorageProperties properties) {
+        // 保存存储抽象、锁客户端与知识库桶、资产桶配置，业务入口不直接依赖具体厂商 SDK。
         this.objectStorageClient = objectStorageClient;
         this.redissonClient = redissonClient;
         this.kbBucket = properties.getKbBucket();
@@ -249,6 +250,7 @@ public class DefaultFileStorageService implements FileStorageService {
      * 组装知识库文档 key：{@code {namespace}/{uuid}.{ext}}
      */
     private String documentKey(String namespace, String originalFilename) {
+        // 把知识库命名空间作为前缀，再追加随机文件键，避免同名文件互相覆盖。
         return namespace + "/" + randomKey(originalFilename);
     }
 
@@ -256,6 +258,7 @@ public class DefaultFileStorageService implements FileStorageService {
      * 提取文件名最后一个点后的扩展名；无文件名、无点或点位于末尾时返回空字符串。
      */
     private String extractSuffix(String filename) {
+        // 取最后一个有效点号后的后缀，无后缀或点号位于末尾时返回空字符串。
         if (filename == null) return "";
         int idx = filename.lastIndexOf('.');
         return (idx < 0 || idx == filename.length() - 1) ? "" : filename.substring(idx + 1).trim();
@@ -265,6 +268,7 @@ public class DefaultFileStorageService implements FileStorageService {
      * 生成随机对象 key：{@code {32位十六进制}.{ext}}，即去掉连字符的 UUID 加原始后缀
      */
     private String randomKey(String originalFilename) {
+        // 用去短横线 UUID 生成对象键，并保留原文件后缀，降低重名覆盖概率。
         String suffix = extractSuffix(originalFilename);
         String key = UUID.randomUUID().toString().replace("-", "");
         return suffix.isBlank() ? key : key + "." + suffix;
@@ -274,6 +278,7 @@ public class DefaultFileStorageService implements FileStorageService {
      * 校验对象存储命名空间非空，避免后续对象键缺少业务隔离前缀。
      */
     private void validateNamespace(String namespace) {
+        // 命名空间必须非空白，避免文件意外写到桶根目录。
         Assert.notBlank(namespace, "namespace 不能为空");
     }
 
@@ -299,6 +304,7 @@ public class DefaultFileStorageService implements FileStorageService {
      * 优先使用调用方提供的媒体类型，缺失时根据原始文件名探测，无法判断时返回 null。
      */
     private String resolveContentType(String originalFilename, String contentType) {
+        // 显式内容类型优先，未提供时按文件名探测，文件名也缺失则不推测类型。
         if (contentType != null && !contentType.isBlank()) return contentType;
         if (originalFilename != null && !originalFilename.isBlank()) return TIKA.detect(originalFilename);
         return null;

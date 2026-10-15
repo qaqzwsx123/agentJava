@@ -33,6 +33,7 @@ public final class PromptTemplateUtils {
      * 压缩连续空白行并去掉首尾空白，空提示词统一为空字符串。
      */
     public static String cleanupPrompt(String prompt) {
+        // null 统一为空文本，将连续空行压缩为一个段落间隔后去掉首尾空白。
         if (prompt == null) {
             return "";
         }
@@ -43,6 +44,7 @@ public final class PromptTemplateUtils {
      * 替换单花括号槽位，null 槽位值按空字符串处理，没有槽位参数时保留模板。
      */
     public static String fillSlots(String template, Map<String, String> slots) {
+        // 逐个替换单大括号占位符，变量为 null 时用空字符串，未提供的占位符保持原样。
         if (template == null) {
             return "";
         }
@@ -61,6 +63,7 @@ public final class PromptTemplateUtils {
      * 将包含 {@code --- section: name ---} 分隔符的模板文件解析为 name → content 映射
      */
     public static Map<String, String> parseSections(String content) {
+        // 顺序匹配区段标题，把相邻标题间的文本归入对应名称，并保留最后一个区段内容。
         Map<String, String> sections = new LinkedHashMap<>();
         if (StrUtil.isBlank(content)) {
             return sections;

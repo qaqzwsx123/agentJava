@@ -48,6 +48,7 @@ public class KeywordProperties {
      * 与 Milvus 共享 collection、PG 共享表同构：单索引承载所有知识库，按 collection_name 字段区分
      */
     public String sharedIndex() {
+        // 统一从 ES 配置读取共享索引名称，业务集合通过索引内字段隔离。
         return es.getIndex();
     }
 

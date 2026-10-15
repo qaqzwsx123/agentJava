@@ -33,6 +33,7 @@ public record RecommendedQuestionsPayload(Status status, List<String> questions)
      * 生成推荐成功响应；问题列表为空时统一返回 EMPTY 状态。
      */
     public static RecommendedQuestionsPayload success(List<String> questions) {
+        // 非空问题列表标记成功，没有问题时统一转换为空结果状态。
         return questions == null || questions.isEmpty()
                 ? empty()
                 : new RecommendedQuestionsPayload(Status.SUCCESS, questions);
@@ -42,6 +43,7 @@ public record RecommendedQuestionsPayload(Status status, List<String> questions)
      * 构造没有可用推荐问题的响应，与生成失败状态区分。
      */
     public static RecommendedQuestionsPayload empty() {
+        // 构造正常但没有推荐问题的载荷，列表保持为空。
         return new RecommendedQuestionsPayload(Status.EMPTY, List.of());
     }
 
@@ -49,6 +51,7 @@ public record RecommendedQuestionsPayload(Status status, List<String> questions)
      * 构造推荐生成失败响应，问题列表保持为空，供前端决定展示与重试。
      */
     public static RecommendedQuestionsPayload failed() {
+        // 构造推荐生成失败的载荷，与正常空结果明确区分。
         return new RecommendedQuestionsPayload(Status.FAILED, List.of());
     }
 

@@ -56,6 +56,7 @@ public enum ChunkEnrichType {
      */
     @JsonCreator
     public static ChunkEnrichType fromValue(String value) {
+        // null 保持 null，其余先规范化，再兼容枚举名称和配置值匹配；未知输入明确抛错。
         if (value == null) {
             return null;
         }
@@ -73,10 +74,12 @@ public enum ChunkEnrichType {
      */
     @JsonValue
     public String getValue() {
+        // 返回对外配置使用的稳定值，避免依赖枚举显示名称。
         return value;
     }
 
     private static String normalize(String value) {
+        // 去掉首尾空白并转为小写，将短横线统一为下划线以兼容配置命名习惯。
         String trimmed = value.trim();
         String lower = trimmed.toLowerCase();
         return lower.replace('-', '_');

@@ -31,6 +31,7 @@ import java.util.List;
 public final class TextSplitter {
 
     private TextSplitter() {
+        // 切分能力通过静态方法使用，私有构造器阻止创建无状态实例。
     }
 
     /**
@@ -39,6 +40,7 @@ public final class TextSplitter {
      * @param overlapChars 相邻片重叠字符数，同时作为边界回溯的最大距离
      */
     public static List<String> split(String text, int maxChars, int overlapChars) {
+        // 先修复软换行，再按字符预算和重叠量切分；切点优先靠近句段边界，并确保每轮向前推进。
         if (!StringUtils.hasText(text)) {
             return List.of();
         }
@@ -84,6 +86,7 @@ public final class TextSplitter {
      * 英文点号必须后接空白或结尾才算边界，否则会把 URL 的域名点切开；回溯距离不超过 overlap，避免相邻片高度重复
      */
     private static int adjustToBoundary(String text, int start, int targetEnd, int overlap) {
+        // 仅在允许回退范围内依次寻找换行、中文句末和英文句末，找不到就采用原目标位置。
         if (targetEnd <= start) {
             return targetEnd;
         }
@@ -134,6 +137,7 @@ public final class TextSplitter {
      * 两处绝不合并：跨空行（空行是段落分隔，合并会把图片链接与其后的标题粘连）、下一行像列表项开头（{@code 2.} / {@code 10)}）
      */
     public static String normalize(String text) {
+        // 逐字符识别 URL 与普通正文，修复符合条件的链接折行和中文词内软换行，保留段落分隔。
         if (text == null || text.isEmpty()) {
             return text;
         }
@@ -197,6 +201,7 @@ public final class TextSplitter {
      * 结合换行前后字符判断 URL 是否被折断，遇到下一段是编号列表项时禁止拼接。
      */
     private static boolean shouldJoinBrokenUrl(char prev, char next, String s, int nextIndex) {
+        // 先排除下一行像列表编号的情况，再根据链接分隔符判断折行是否可安全拼接。
         if (isListItemStart(s, nextIndex)) {
             return false;
         }
@@ -214,6 +219,7 @@ public final class TextSplitter {
      * 跳过空白并识别数字后跟点或括号的列表起点，防止 URL 修复误吞下一条内容。
      */
     private static boolean isListItemStart(String s, int i) {
+        // 跳过前导空白，识别数字后接点号或括号的列表项，避免把编号误接进 URL。
         int p = i;
         while (p < s.length() && (s.charAt(p) == ' ' || s.charAt(p) == '\t')) {
             p++;
@@ -232,6 +238,7 @@ public final class TextSplitter {
      * 判断指定位置是否以 http:// 或 https:// 开始，供文本清理识别链接。
      */
     private static boolean looksLikeUrlStart(String s, int i) {
+        // 只在当前位置匹配 HTTP 或 HTTPS 前缀，作为进入链接识别状态的条件。
         return s.startsWith("http://", i) || s.startsWith("https://", i);
     }
 
@@ -239,6 +246,7 @@ public final class TextSplitter {
      * 按本实现列举的字母、数字和 URL 标点判断字符是否可继续属于链接。
      */
     private static boolean isUrlChar(char c) {
+        // 枚举 URL 常见字母、数字和保留字符，供判断链接状态是否继续。
         if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9') {
             return true;
         }
@@ -254,6 +262,7 @@ public final class TextSplitter {
      * 识别断行修复中常见的 URL 连接符，辅助判断应否去掉换行。
      */
     private static boolean isCommonUrlPunct(char c) {
+        // 识别常见链接标点，辅助链接字符状态判断。
         return c == '.' || c == '/' || c == '?' || c == '&' || c == '=' || c == '-' || c == '_' || c == '%';
     }
 
@@ -261,6 +270,7 @@ public final class TextSplitter {
      * 排除空白与标点后识别 CJK 或全角文字字符，供断行拼接规则使用。
      */
     private static boolean isCjkWordChar(char c) {
+        // 排除空字符、空白和中文标点，只把符合 Unicode 范围的字符视为可连接词内字符。
         if (c == 0 || Character.isWhitespace(c)) {
             return false;
         }
@@ -271,6 +281,7 @@ public final class TextSplitter {
      * 按 Unicode 区块判断 CJK 汉字及全角字符范围。
      */
     private static boolean isCjkOrFullWidthLetterOrDigit(char c) {
+        // 按 Unicode 区块识别汉字及全角字符，供中文软换行修复使用。
         Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
         return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
                 || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
@@ -283,6 +294,7 @@ public final class TextSplitter {
      * 识别中日韩符号、通用标点区块及显式列出的中文标点，避免将其当成词字符。
      */
     private static boolean isCjkPunctuation(char c) {
+        // 结合 Unicode 标点区块与常用中文标点显式判断，避免跨标点吞掉换行。
         Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
         return block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION
                 || block == Character.UnicodeBlock.GENERAL_PUNCTUATION

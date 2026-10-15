@@ -56,6 +56,7 @@ public class RagTraceAspect {
 
     @Around("@annotation(traceNode)")
     public Object aroundNode(ProceedingJoinPoint joinPoint, RagTraceNode traceNode) throws Throwable {
+        // 未启用追踪或没有 traceId 时直接执行，否则建立方法节点并压入父子栈，记录成功或错误后始终弹栈。
         if (!traceProperties.isEnabled()) {
             return joinPoint.proceed();
         }
@@ -85,6 +86,7 @@ public class RagTraceAspect {
                 .startTime(startTime)
                 .build());
 
+        // 进入实际方法前压入当前节点，内部带追踪的方法会以它作为父节点。
         RagTraceContext.pushNode(nodeId);
         try {
             Object result = joinPoint.proceed();
@@ -97,6 +99,7 @@ public class RagTraceAspect {
                     System.currentTimeMillis() - startMillis
             );
             return result;
+        // 失败节点记录后仍把原异常抛给业务调用方，追踪切面不吞掉业务错误。
         } catch (Throwable ex) {
             traceRecordService.finishNode(
                     traceId,
@@ -113,6 +116,7 @@ public class RagTraceAspect {
     }
 
     private String truncateError(Throwable throwable) {
+        // 组合异常类型和消息，再按配置长度截断，避免追踪错误字段过长。
         if (throwable == null) {
             return null;
         }

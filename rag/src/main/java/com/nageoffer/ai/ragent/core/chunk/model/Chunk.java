@@ -35,6 +35,7 @@ public record Chunk(
 ) {
 
     public Chunk {
+        // 校验块标识、非负序号与两种正文，缺少元数据时补空对象，保证正式块具备完整语义。
         if (chunkId == null || chunkId.isBlank()) {
             throw new IllegalArgumentException("chunkId 不能为空");
         }
@@ -55,6 +56,7 @@ public record Chunk(
      * 复制并替换元数据：块级加工（摘要 / 关键词）写扩展位用，向量文本不受影响，向量在此之前已算完
      */
     public Chunk withMetadata(ChunkMetadata newMetadata) {
+        // 保留分块标识、序号和文本，只替换元数据并返回新对象。
         return new Chunk(chunkId, index, content, embeddingText, newMetadata);
     }
 }

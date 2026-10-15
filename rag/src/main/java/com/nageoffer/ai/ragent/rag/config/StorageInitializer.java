@@ -54,6 +54,7 @@ public class StorageInitializer {
 
     @PostConstruct
     public void initBuckets() {
+        // 分别确保知识库文件桶和资产桶就绪，资产桶按公开读用途初始化。
         ensureBucket(properties.getKbBucket(), false);
         ensureBucket(properties.getAssetBucket(), true);
     }
@@ -70,6 +71,7 @@ public class StorageInitializer {
     }
 
     private void ensureBucketExists(String bucket) {
+        // 先快速检查，再获取分布式锁并二次检查后创建，避免多节点启动同时建桶；finally 只释放当前线程持有的锁。
         if (objectStorageClient.bucketExists(bucket)) {
             return;
         }

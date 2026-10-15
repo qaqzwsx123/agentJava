@@ -50,6 +50,7 @@ public enum SourceType {
      * @return 对应的枚举，如果未找到返回 null
      */
     public static SourceType fromValue(String value) {
+        // 兼容 file、localfile、local_file 等文件别名及 url，未知来源返回 null。
         if (value == null) {
             return null;
         }
@@ -68,6 +69,7 @@ public enum SourceType {
      * 解析来源类型，空值或非法值抛出异常
      */
     public static SourceType normalize(String value) {
+        // 来源必填且必须可识别，校验失败抛出明确参数异常，避免后续选择错误抓取路径。
         if (StrUtil.isBlank(value)) {
             throw new IllegalArgumentException("来源类型不能为空");
         }

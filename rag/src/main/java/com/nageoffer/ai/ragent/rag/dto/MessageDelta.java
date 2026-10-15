@@ -27,6 +27,7 @@ public record MessageDelta(String type, String delta) {
      * 消息类型
      */
     public String type() {
+        // 返回增量事件类型，供前端区分正文、思考或其他输出。
         return type;
     }
 
@@ -34,6 +35,7 @@ public record MessageDelta(String type, String delta) {
      * 增量数据
      */
     public String delta() {
+        // 返回本次新增文本，供 SSE 客户端按顺序拼接。
         return delta;
     }
 }

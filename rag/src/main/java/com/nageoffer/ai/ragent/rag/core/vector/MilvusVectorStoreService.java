@@ -98,6 +98,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      */
     @Override
     public void updateChunk(String collectionName, String docId, EmbeddedChunk chunk) {
+        // 校验向量维度并限制正文长度，组装主键、逻辑集合、元数据与向量，再按主键 upsert 到共享集合。
         Assert.isFalse(chunk == null, () -> new ClientException("Chunk 对象不能为空"));
 
         final int dim = ragDefaultProperties.getDimension();
@@ -119,6 +120,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
         row.add("metadata", metadata);
         row.add("embedding", toJsonArray(vector));
 
+        // 块的全局 ID 保持不变，使用 upsert 覆盖正文、元数据与向量，而不是追加重复块。
         UpsertReq upsertReq = UpsertReq.builder()
                 .collectionName(sharedCollection())
                 .data(List.of(row))
@@ -134,6 +136,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteDocumentVectors(String collectionName, String docId) {
+        // 删除文档时同时限定 collection_name 与 metadata 中的文档 ID，保持共享集合中的知识库隔离。
         // 共享 collection 下多库共存，doc_id 不再天然隔离，必须叠加 collection_name 限定
         String filter = "collection_name == \"" + collectionName + "\" && metadata[\"doc_id\"] == \"" + docId + "\"";
 
@@ -152,6 +155,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteChunkById(String collectionName, String chunkId) {
+        // 块 ID 为全局唯一主键，直接按 ID 删除共享集合中的对应记录。
         // id 为雪花主键，全局唯一，直接按主键删除
         String filter = "id == \"" + chunkId + "\"";
 
@@ -170,6 +174,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      */
     @Override
     public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
+        // 空列表直接结束，其余把全局块 ID 组成 IN 过滤，一次批量删除。
         if (chunkIds == null || chunkIds.isEmpty()) {
             return;
         }
@@ -192,6 +197,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      * 逐个取得并校验切片向量，保证提交插入请求前所有向量均符合目标维度。
      */
     private List<float[]> extractVectors(List<EmbeddedChunk> chunks, int expectedDim) {
+        // 逐块执行相同维度校验，保持返回向量列表与块列表顺序一致。
         List<float[]> vectors = new ArrayList<>(chunks.size());
         for (EmbeddedChunk chunk : chunks) {
             vectors.add(extractVector(chunk, expectedDim));
@@ -203,6 +209,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      * 拒绝空向量或与配置维度不一致的向量，返回已校验的浮点数组。
      */
     private float[] extractVector(EmbeddedChunk chunk, int expectedDim) {
+        // 要求向量非空且维度等于目标空间维度，校验通过才返回原向量供写入。
         float[] vector = chunk.embedding();
         if (vector == null || vector.length == 0) {
             throw new ClientException("向量不能为空");
@@ -217,6 +224,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      * 把浮点向量转成 Milvus JSON 记录需要的数组结构。
      */
     private JsonArray toJsonArray(float[] v) {
+        // 按原顺序把基本向量值写入 JSON 数组，供 Milvus 行数据序列化。
         JsonArray arr = new JsonArray(v.length);
         for (float x : v) {
             arr.add(x);
@@ -242,6 +250,7 @@ public class MilvusVectorStoreService implements VectorStoreService {
      * 全 Milvus 共用的物理 collection（所有知识库的 chunk 都写在这里，按 collection_name 标量字段区分）
      */
     private String sharedCollection() {
+        // 所有逻辑知识库统一写入配置的物理集合，逻辑归属放在字段内。
         return ragDefaultProperties.getCollectionName();
     }
 }

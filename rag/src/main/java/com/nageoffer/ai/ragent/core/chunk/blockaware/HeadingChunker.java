@@ -38,6 +38,7 @@ public class HeadingChunker implements BlockChunker<HeadingBlock> {
 
     @Override
     public Class<HeadingBlock> blockType() {
+        // 声明处理标题块，供类型分派使用。
         return HeadingBlock.class;
     }
 
@@ -46,6 +47,7 @@ public class HeadingChunker implements BlockChunker<HeadingBlock> {
      */
     @Override
     public List<ChunkDraft> chunk(HeadingBlock block, ChunkContext ctx) {
+        // 跳过空标题，限制标题级别并携带当前章节路径；展示使用 Markdown 标记，嵌入正文只保留标题文字。
         if (block == null || !StringUtils.hasText(block.text())) {
             return List.of();
         }

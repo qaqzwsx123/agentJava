@@ -58,6 +58,7 @@ public class NodeResult {
      * @return 表示执行成功且应继续执行的结果对象
      */
     public static NodeResult ok() {
+        // 构造成功且允许执行后续节点的结果，可选地附加当前阶段说明。
         return NodeResult.builder().success(true).shouldContinue(true).build();
     }
 
@@ -68,6 +69,7 @@ public class NodeResult {
      * @return 表示执行成功且应继续执行的结果对象
      */
     public static NodeResult ok(String message) {
+        // 构造成功且允许执行后续节点的结果，可选地附加当前阶段说明。
         return NodeResult.builder().success(true).shouldContinue(true).message(message).build();
     }
 
@@ -78,6 +80,7 @@ public class NodeResult {
      * @return 表示节点被跳过但应继续执行的结果对象
      */
     public static NodeResult skip(String reason) {
+        // 跳过当前阶段也视为成功并允许继续，将跳过原因记录到消息中。
         return NodeResult.builder().success(true).shouldContinue(true).message("Skipped: " + reason).build();
     }
 
@@ -88,6 +91,7 @@ public class NodeResult {
      * @return 表示执行失败且不应继续执行的结果对象
      */
     public static NodeResult fail(Throwable error) {
+        // 记录异常及其消息，标记失败并禁止继续执行后续节点。
         return NodeResult.builder()
                 .success(false)
                 .shouldContinue(false)
@@ -103,6 +107,7 @@ public class NodeResult {
      * @return 表示执行成功但应终止管道执行的结果对象
      */
     public static NodeResult terminate(String reason) {
+        // 当前阶段按成功结束，但显式停止后续节点，保留停止原因供日志展示。
         return NodeResult.builder().success(true).shouldContinue(false).message(reason).build();
     }
 }

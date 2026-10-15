@@ -42,6 +42,7 @@ public class EsClientConfig {
 
     @Bean
     public ElasticsearchClient elasticsearchClient(KeywordProperties keywordProperties) {
+        // 拆分多个 ES 地址并清理空项，创建 REST 传输和 JSON 映射器，作为共享关键词检索客户端。
         String uris = keywordProperties.getEs().getUris();
         URI[] hosts = Arrays.stream(StringUtils.commaDelimitedListToStringArray(uris))
                 .map(String::trim)

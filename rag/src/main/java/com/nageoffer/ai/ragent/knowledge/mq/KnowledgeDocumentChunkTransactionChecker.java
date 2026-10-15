@@ -49,16 +49,19 @@ public class KnowledgeDocumentChunkTransactionChecker implements TransactionChec
 
     @PostConstruct
     public void init() {
+        // 把文档分块事务回查器注册到分块消息主题。
         transactionListener.registerChecker(chunkTopic, this);
     }
 
     @Override
     public Class<KnowledgeDocumentChunkEvent> bodyType() {
+        // 声明事务消息体类型，供统一监听器正确解析分块事件。
         return KnowledgeDocumentChunkEvent.class;
     }
 
     @Override
     public boolean check(MessageWrapper<KnowledgeDocumentChunkEvent> message) {
+        // 按文档 ID 查询本地事务结果，只有文档存在且仍为 RUNNING 才认为分块消息应继续投递。
         log.info("[事务回查] 文档分块，消息体：{}", JSONUtil.toJsonStr(message));
 
         KnowledgeDocumentChunkEvent event = message.getBody();

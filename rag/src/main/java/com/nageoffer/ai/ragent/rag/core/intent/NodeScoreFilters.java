@@ -34,6 +34,7 @@ public final class NodeScoreFilters {
      * 注意：不做 score 下限过滤，调用方应确保输入已经过 INTENT_MIN_SCORE 筛选
      */
     public static List<NodeScore> kb(List<NodeScore> scores) {
+        // 只保留节点存在且属于知识库的候选，带分数参数的重载还要满足最低分门槛。
         return scores.stream()
                 .filter(ns -> ns.getNode() != null && ns.getNode().isKB())
                 .toList();
@@ -43,6 +44,7 @@ public final class NodeScoreFilters {
      * 过滤 KB 类型意图并限制最低分数
      */
     public static List<NodeScore> kb(List<NodeScore> scores, double minScore) {
+        // 只保留节点存在且属于知识库的候选，带分数参数的重载还要满足最低分门槛。
         return scores.stream()
                 .filter(ns -> ns.getScore() >= minScore)
                 .filter(ns -> ns.getNode() != null && ns.getNode().isKB())
@@ -55,6 +57,7 @@ public final class NodeScoreFilters {
      * 供关键词 / 图谱等通道统一「意图域」选库，避免多处重复该映射
      */
     public static List<String> kbCollections(List<NodeScore> scores) {
+        // 展开所有知识库意图的有效集合绑定并去重，形成后续定向检索集合范围。
         return kb(scores).stream()
                 .flatMap(ns -> ns.getNode().getEffectiveCollectionNames().stream())
                 .distinct()

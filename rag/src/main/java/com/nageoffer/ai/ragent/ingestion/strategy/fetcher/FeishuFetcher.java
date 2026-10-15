@@ -54,6 +54,7 @@ public class FeishuFetcher implements DocumentFetcher {
 
     @Override
     public SourceType supportedType() {
+        // 声明处理飞书来源，供获取器按来源类型选择实现。
         return SourceType.FEISHU;
     }
 
@@ -62,6 +63,7 @@ public class FeishuFetcher implements DocumentFetcher {
      */
     @Override
     public FetchResult fetch(DocumentSource source) {
+        // 校验链接并解析访问令牌，飞书文档链接走正文 API，其余地址直接下载，最终返回内容、MIME 和文件名。
         String location = source.getLocation();
         if (!StringUtils.hasText(location)) {
             throw new ServiceException("飞书文档地址不能为空");
@@ -98,6 +100,7 @@ public class FeishuFetcher implements DocumentFetcher {
      * 根据链接中是否包含 docx 或 docs 路径片段判断是否走飞书文档正文接口。
      */
     private boolean isDocxUrl(String location) {
+        // 根据链接中的 docx 或 docs 路径判断是否需要走飞书文档正文接口。
         return location.contains("/docx/") || location.contains("/docs/");
     }
 
@@ -105,6 +108,7 @@ public class FeishuFetcher implements DocumentFetcher {
      * 从 docs 或 docx 路径后的段提取文档 token 并去掉查询参数，无法定位时抛错。
      */
     private String extractDocToken(String location) {
+        // 找到文档路径后的令牌并去掉查询参数，无法解析时明确报错。
         String[] parts = location.split("/");
         for (int i = 0; i < parts.length; i++) {
             if ("docx".equalsIgnoreCase(parts[i]) || "docs".equalsIgnoreCase(parts[i])) {
@@ -122,6 +126,7 @@ public class FeishuFetcher implements DocumentFetcher {
      * 优先复用传入的租户或访问 token，缺失时用应用凭证申请；凭证不足返回 null。
      */
     private String resolveAccessToken(Map<String, String> credentials) {
+        // 优先复用传入的租户或访问令牌，没有时再用应用 ID 与密钥申请租户令牌。
         if (credentials == null) {
             return null;
         }
@@ -144,6 +149,7 @@ public class FeishuFetcher implements DocumentFetcher {
      * 向飞书申请租户访问令牌，检查 HTTP 响应并读取 token，失败转换为服务异常。
      */
     private String requestTenantAccessToken(String appId, String appSecret) {
+        // 向飞书令牌接口提交应用凭证，检查 HTTP 和响应体后读取令牌，异常转换为服务错误。
         try {
             JsonObject payload = new JsonObject();
             payload.addProperty("app_id", appId);
@@ -173,6 +179,7 @@ public class FeishuFetcher implements DocumentFetcher {
      * 从飞书 JSON 响应读取 data.content，缺失或无法解析时返回 null，由外层决定正文兜底。
      */
     private String extractDocxContent(byte[] bytes) {
+        // 从飞书 JSON 的 data.content 中提取正文，缺失或解析失败返回 null 供抓取入口回落。
         try {
             JsonObject root = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
             if (root.has("data")) {

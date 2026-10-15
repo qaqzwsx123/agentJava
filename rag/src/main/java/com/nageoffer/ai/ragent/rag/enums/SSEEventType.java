@@ -61,6 +61,7 @@ public enum SSEEventType {
      * SSE 事件名称（与前端约定一致）
      */
     public String value() {
+        // 返回约定的 SSE 事件名称，供服务端发送与前端监听保持一致。
         return value;
     }
 }

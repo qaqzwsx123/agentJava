@@ -56,6 +56,7 @@ public class ChunkPacker {
      * @param budget 分块预算，合并上限取 {@link ChunkBudget#maxChars()}
      */
     public List<ChunkDraft> pack(List<ChunkDraft> drafts, ChunkBudget budget) {
+        // 先按标题拆成章节，能整体容纳的章节进入缓冲；超限章节逐块打包，最后输出剩余缓冲。
         if (drafts == null || drafts.size() <= 1) {
             return drafts == null ? List.of() : drafts;
         }
@@ -105,6 +106,7 @@ public class ChunkPacker {
      * 按标题切节：标题起一节，标题之前的散块自成一节
      */
     private static List<List<ChunkDraft>> splitSections(List<ChunkDraft> drafts) {
+        // 遇到新标题时结束上一节，保持原始块顺序；文首无标题的内容也单独保留。
         List<List<ChunkDraft>> sections = new ArrayList<>();
         List<ChunkDraft> current = new ArrayList<>();
         for (ChunkDraft draft : drafts) {
@@ -129,6 +131,7 @@ public class ChunkPacker {
      */
     private static List<ChunkDraft> packWithin(List<ChunkDraft> carried, List<ChunkDraft> section,
                                                ChunkBudget budget, int minChars, List<ChunkDraft> result) {
+        // 继承上一节的缓冲，大片段单独落块并尝试带上前导语，普通片段按最大字符数累积。
         int maxChars = budget.maxChars();
         List<ChunkDraft> buffer = new ArrayList<>(carried);
         for (ChunkDraft draft : section) {
@@ -158,6 +161,7 @@ public class ChunkPacker {
      * 表格的「保证金单位为元」、代码块的用途说明都写在前一段里，甩成孤块等于把检索入口与内容拆开
      */
     private static List<ChunkDraft> pollLeadIn(List<ChunkDraft> buffer, ChunkDraft target, ChunkBudget budget) {
+        // 从缓冲尾部向前挑选可带入的前导片段，只有与目标合并后仍在容忍上限内才从缓冲移走。
         int limit = budget.maxChars();
         int taken = 0;
         int from = buffer.size();
@@ -186,6 +190,7 @@ public class ChunkPacker {
      */
     private static void flush(List<ChunkDraft> buffer, List<ChunkDraft> result,
                               ChunkBudget budget, int minChars) {
+        // 把缓冲合成一个草稿；尾块过小时尝试并到前一块，但合并长度不能超过容忍上限。
         if (buffer.isEmpty()) {
             return;
         }
@@ -208,6 +213,7 @@ public class ChunkPacker {
      * 前导语可能来自上一节，取大块那份等于把上一节的内容记到本节名下
      */
     private static ChunkDraft merge(List<ChunkDraft> parts) {
+        // 分别拼接展示内容与嵌入正文，汇总资产，章节路径取共同前缀，溯源沿用首个片段。
         StringBuilder content = new StringBuilder();
         StringBuilder body = new StringBuilder();
         boolean hasExplicitBody = false;
@@ -236,6 +242,7 @@ public class ChunkPacker {
      * 计算两个章节路径或一组草稿的共同路径前缀长度，供合并切片保留共同章节信息。
      */
     private static int commonPrefixLength(List<ChunkDraft> drafts) {
+        // 从路径起点比较共同章节层级，遇到不同标题即停止，供合并块保留共有上下文。
         List<String> first = drafts.get(0).metadata().outlinePath();
         int common = first.size();
         for (ChunkDraft draft : drafts) {
@@ -248,6 +255,7 @@ public class ChunkPacker {
      * 计算两个章节路径或一组草稿的共同路径前缀长度，供合并切片保留共同章节信息。
      */
     private static int commonPrefixLength(List<String> a, List<String> b) {
+        // 从路径起点比较共同章节层级，遇到不同标题即停止，供合并块保留共有上下文。
         int limit = Math.min(a.size(), b.size());
         int i = 0;
         while (i < limit && Objects.equals(a.get(i), b.get(i))) {
@@ -260,6 +268,7 @@ public class ChunkPacker {
      * 仅追加非空正文，已有内容时先补统一分隔符，避免空片段产生多余分隔。
      */
     private static void appendPart(StringBuilder sb, String part) {
+        // 跳过空白文本，非首段之间补统一分隔符，避免合并时把相邻段落粘连。
         if (!StringUtils.hasText(part)) {
             return;
         }
@@ -273,6 +282,7 @@ public class ChunkPacker {
      * 多个草稿拼起来的长度，含它们之间的分隔符
      */
     private static int totalLength(List<ChunkDraft> drafts) {
+        // 累加各片段正文长度及片段间分隔符长度，作为打包时的实际预算口径。
         int len = 0;
         for (int i = 0; i < drafts.size(); i++) {
             len += (i == 0 ? 0 : SEPARATOR.length()) + contentLength(drafts.get(i));
@@ -284,6 +294,7 @@ public class ChunkPacker {
      * 取得草稿有效正文的字符长度，空白正文记为零，用于打包预算计算。
      */
     private static int contentLength(ChunkDraft draft) {
+        // 空白内容按零计算，其余取展示正文的字符数。
         return StringUtils.hasText(draft.content()) ? draft.content().length() : 0;
     }
 }

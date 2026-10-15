@@ -33,6 +33,7 @@ import java.util.List;
 public record GraphEvidence(List<RetrievedChunk> matched, List<RetrievedChunk> unmatched) {
 
     public static GraphEvidence empty() {
+        // 构造没有证据块和来源引用的图谱结果，供空问题或远端失败时降级返回。
         return new GraphEvidence(List.of(), List.of());
     }
 }
