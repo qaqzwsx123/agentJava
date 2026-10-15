@@ -96,6 +96,7 @@ public class AgentTracingConfiguration {
     @Bean(destroyMethod = "close")
     public OpenTelemetrySdk agentOpenTelemetrySdk(
             @Value("${spring.application.name}") String applicationName) {
+        // 1. 显式启用追踪后必须具备上报地址和项目凭据，缺项直接拒绝启动，避免静默无链路。
         if (StrUtil.isBlank(traceProperties.getEndpoint())
                 || StrUtil.isBlank(traceProperties.getPublicKey())
                 || StrUtil.isBlank(traceProperties.getSecretKey())) {
@@ -140,6 +141,7 @@ public class AgentTracingConfiguration {
      */
     @Bean
     public OtelTracingMiddleware otelTracingMiddleware(OpenTelemetrySdk sdk) {
+        // SDK 参数保证全局实例先完成装配；返回只替换 acting 行为的中间件，其余钩子继承官方实现。
         return new RagentOtelTracingMiddleware(sdk.getTracer(INSTRUMENTATION_SCOPE));
     }
 
@@ -149,9 +151,11 @@ public class AgentTracingConfiguration {
      */
     @Bean
     public AgentTraceEnrichmentMiddleware agentTraceEnrichmentMiddleware(OpenTelemetrySdk sdk) {
+        // 1. 按配置构造唯一一份内容序列化器，字段预算、总预算和采集开关在这里统一。
         AgentTraceSerializer serializer = new AgentTraceSerializer(traceProperties.getMaxFieldChars(),
                 traceProperties.getMaxAttributeChars(),
                 traceProperties.isCaptureContent());
+        // 2. 同一实例同时交给工具体和装饰中间件，两处记录内容时使用相同的开关与限额。
         AgentToolBodyTracer.configure(serializer);
         return new AgentTraceEnrichmentMiddleware(sdk.getTracer(INSTRUMENTATION_SCOPE), serializer);
     }
@@ -161,6 +165,7 @@ public class AgentTracingConfiguration {
      */
     @PreDestroy
     public void releaseToolBodySerializer() {
+        // Spring 销毁配置时清掉静态引用，让后续调用恢复不采集内容的默认行为。
         AgentToolBodyTracer.configure(null);
     }
 
@@ -171,8 +176,10 @@ public class AgentTracingConfiguration {
      * 实例标识与上面三项相反，永远写：留空就没有「这条链路哪台产出」这个维度，多实例下两台混作一族
      */
     static Resource resource(AgentTraceProperties properties, BuildProperties build, String applicationName) {
+        // 1. 在默认资源上补服务名，保留 SDK 已探测到的其他基础资源属性。
         ResourceBuilder builder = Resource.getDefault().toBuilder()
                 .put(SERVICE_NAME, applicationName);
+        // 2. 版本优先取显式配置，否则读取构建信息；版本和环境缺失时省略属性，不写空串。
         String version = StrUtil.blankToDefault(properties.getServiceVersion(),
                 build == null ? null : build.getVersion());
         if (StrUtil.isNotBlank(version)) {
@@ -181,6 +188,7 @@ public class AgentTracingConfiguration {
         if (StrUtil.isNotBlank(properties.getEnvironment())) {
             builder.put(DEPLOYMENT_ENVIRONMENT, properties.getEnvironment());
         }
+        // 3. 实例标识始终写入，方便区分同服务名、同版本下的不同进程。
         builder.put(SERVICE_INSTANCE_ID, resolveInstanceId(properties));
         return builder.build();
     }
@@ -189,6 +197,7 @@ public class AgentTracingConfiguration {
      * 显式配置优先，其次容器注入的 HOSTNAME，K8s 下它就是 Pod 名，随重建而变正合实例语义
      */
     private static String resolveInstanceId(AgentTraceProperties properties) {
+        // 优先使用显式实例 ID，其次 HOSTNAME；两者都为空才使用本进程启动时生成的随机标识。
         String resolved = StrUtil.blankToDefault(properties.getInstanceId(), System.getenv("HOSTNAME"));
         return StrUtil.isNotBlank(resolved) ? resolved : FALLBACK_INSTANCE_ID;
     }
@@ -198,6 +207,7 @@ public class AgentTracingConfiguration {
      * 必须留出高一档的余量，与应用预算取同值会让 SDK 在我们补好收尾的 JSON 上再切一刀，切出半截串
      */
     private SpanLimits hardLimits() {
+        // 把应用总预算放大两倍作为 SDK 最后一道硬上限，并用 long 计算后封顶，避免整数溢出。
         int hardLimit = (int) Math.min((long) traceProperties.getMaxAttributeChars() * 2, Integer.MAX_VALUE);
         return SpanLimits.builder()
                 .setMaxAttributeValueLength(hardLimit)
@@ -205,6 +215,7 @@ public class AgentTracingConfiguration {
     }
 
     private String basicCredential() {
+        // 按公钥:私钥拼接 UTF-8 字节并做 Base64 编码，形成 HTTP Basic 请求头；不在日志中输出凭据。
         String raw = traceProperties.getPublicKey() + ":" + traceProperties.getSecretKey();
         return "Basic " + Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }

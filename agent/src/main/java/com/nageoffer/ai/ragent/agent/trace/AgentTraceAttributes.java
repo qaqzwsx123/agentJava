@@ -73,5 +73,6 @@ final class AgentTraceAttributes {
     static final String LEVEL_ERROR = "ERROR";
 
     private AgentTraceAttributes() {
+        // 只提供追踪属性常量，不需要创建实例。
     }
 }

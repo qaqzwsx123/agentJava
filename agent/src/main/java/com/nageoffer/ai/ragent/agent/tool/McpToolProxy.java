@@ -50,15 +50,18 @@ public class McpToolProxy extends McpTool {
     private final McpClientWrapper client;
 
     public McpToolProxy(McpToolBinding binding) {
+        // 将当前绑定的描述、输入输出 Schema、连接及只读属性交给父类，代理不再另建远程连接。
         super(binding.toolId(), binding.description(), binding.inputSchema(),
                 binding.remote().definition().outputSchema(), binding.remote().client(), null,
                 binding.remote().client().getName(), binding.readOnly());
+        // 保存已合并好的权限要求和连接，后续校验与实际远程调用都复用这份绑定。
         this.needsConfirm = binding.needsConfirm();
         this.client = binding.remote().client();
     }
 
     @Override
     public Mono<PermissionDecision> checkPermissions(Map<String, Object> toolInput, PermissionContextState context) {
+        // 是否确认已经在目录合并时算好；这里只返回 ASK 或 ALLOW，不从模型入参重新推断权限。
         return Mono.just(needsConfirm
                 ? PermissionDecision.ask("该操作执行前需要你确认")
                 : PermissionDecision.allow("该工具无需执行前确认"));
@@ -129,6 +132,7 @@ public class McpToolProxy extends McpTool {
     }
 
     private String maskedBySkill(RuntimeContext context) {
+        // 从服务端运行上下文读取遮蔽表；只有当前工具对应的值是技能代码字符串时才判为被遮蔽。
         Object masked = context.get(AgentSkillMaskingMiddleware.MASKED_TOOLS_ATTRIBUTE);
         return masked instanceof Map<?, ?> map && map.get(getName()) instanceof String skillCode
                 ? skillCode : null;

@@ -1,19 +1,4 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 
 package com.nageoffer.ai.ragent.agent.skill;
 
@@ -52,6 +37,9 @@ public class SkillLoadTool implements AgentTool {
 
     private static final String SKILL_CODE_PARAM = "skill_code";
 
+    /**
+     * 工具描述头部：告诉模型什么时候该加载技能、什么时候不必加载
+     */
     private static final String DESCRIPTION_HEADER = """
             加载一份技能手册。技能是针对具体办事场景写好的操作步骤，用户要办下面某件事时，先加载手册再照着做。
             不看手册就容易办错的工具（如提交、预订），只有加载对应手册后才会出现在可用工具里：直接动手会漏掉必须先问清楚的信息。
@@ -66,8 +54,12 @@ public class SkillLoadTool implements AgentTool {
         return TOOL_NAME;
     }
 
+    /**
+     * 动态拼接工具描述：固定头部 + 当前所有已启用技能的清单
+     */
     @Override
     public String getDescription() {
+        // 把每个启用技能格式化成 "- 技能代码（技能名称）：描述"
         String manifest = skillRegistry.listEnabled().stream()
                 .map(skill -> "- %s（%s）：%s".formatted(
                         skill.skillCode(), skill.name(), StrUtil.emptyIfNull(skill.description())))
@@ -75,15 +67,23 @@ public class SkillLoadTool implements AgentTool {
         return DESCRIPTION_HEADER + "\n" + manifest;
     }
 
+    /**
+     * 构建工具入参 schema：只需要一个 skill_code 参数，取值限定在当前启用技能代码内
+     */
     @Override
     public Map<String, Object> getParameters() {
+        // 定义 skill_code 字段：类型为字符串，描述提示模型从可用技能清单里选
         Map<String, Object> skillCode = new LinkedHashMap<>();
         skillCode.put("type", "string");
         skillCode.put("description", "技能标识，取值见本工具说明里的可用技能清单");
+
+        // 如果当前有启用技能，就把它们的代码作为 enum 限制，避免模型乱填
         List<String> codes = skillRegistry.listEnabled().stream().map(AgentSkill::skillCode).toList();
         if (!codes.isEmpty()) {
             skillCode.put("enum", codes);
         }
+
+        // 整个入参是一个 object，只有一个必填字段 skill_code，不允许额外属性
         return Map.of(
                 "type", "object",
                 "properties", Map.of(SKILL_CODE_PARAM, skillCode),
@@ -93,11 +93,16 @@ public class SkillLoadTool implements AgentTool {
 
     @Override
     public boolean isReadOnly() {
+        // 加载手册不修改任何业务数据，属于只读操作
         return true;
     }
 
+    /**
+     * 异步调用入口：用 tracer 包一层，记录工具执行耗时与结果
+     */
     @Override
     public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        // 追踪工具调用体，并把实际执行放到 boundedElastic 线程池，避免阻塞事件循环
         return AgentToolBodyTracer.trace(this, param, () -> Mono.fromCallable(() -> execute(param))
                 .subscribeOn(Schedulers.boundedElastic()));
     }
@@ -106,35 +111,57 @@ public class SkillLoadTool implements AgentTool {
      * 正文调用时才从注册表取，改手册无需重建 Agent
      */
     private ToolResultBlock execute(ToolCallParam param) {
+        // 参数为空直接失败
         if (param == null) {
             return failure(null, "工具调用参数不能为空");
         }
+
+        // 取出工具调用 ID，用于回填结果
         String toolCallId = param.getToolUseBlock() == null ? null : param.getToolUseBlock().getId();
+
+        // 从入参中提取 skill_code，并做 trim
         Object raw = param.getInput() == null ? null : param.getInput().get(SKILL_CODE_PARAM);
         String skillCode = raw instanceof String value ? value.trim() : null;
+
+        // skill_code 不能为空
         if (StrUtil.isBlank(skillCode)) {
             return failure(toolCallId, "工具参数 skill_code 不能为空");
         }
+
+        // 按代码查找技能，找不到或已停用则返回失败
         AgentSkill skill = skillRegistry.findByCode(skillCode);
         if (skill == null) {
             return failure(toolCallId, "技能不存在或已停用：" + skillCode + "，可用技能见本工具说明里的清单");
         }
+
+        // 找到技能，返回成功结果，正文带上手册内容
         return success(toolCallId, skill);
     }
 
+    /**
+     * 构造成功结果：返回手册正文，并在 metadata 中写入已加载技能代码
+     */
     private ToolResultBlock success(String toolCallId, AgentSkill skill) {
         String text = "已加载技能「" + skill.name() + "」。以下是这件事的办理手册，接下来按它执行：\n\n"
                 + StrUtil.emptyIfNull(skill.content());
+        // metadata 中的 LOADED_SKILL_METADATA_KEY 会被遮蔽中间件读取，用于解锁该技能下的工具
         return block(toolCallId, text,
                 Map.of(LOADED_SKILL_METADATA_KEY, skill.skillCode()), ToolResultState.SUCCESS);
     }
 
+    /**
+     * 构造失败结果：只返回错误文本，不带 metadata
+     */
     private ToolResultBlock failure(String toolCallId, String text) {
         return block(toolCallId, text, Map.of(), ToolResultState.ERROR);
     }
 
+    /**
+     * 统一构造 ToolResultBlock
+     */
     private ToolResultBlock block(String toolCallId, String text, Map<String, Object> metadata,
                                   ToolResultState state) {
+        // 输出内容是一个文本块
         List<ContentBlock> output = List.of(TextBlock.builder().text(text).build());
         return new ToolResultBlock(toolCallId, TOOL_NAME, output, metadata, state);
     }

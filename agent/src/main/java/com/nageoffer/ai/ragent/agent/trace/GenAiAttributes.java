@@ -75,5 +75,6 @@ public final class GenAiAttributes {
     public static final String PROVIDER_OPENAI = "openai";
 
     private GenAiAttributes() {
+        // 本类集中声明 GenAI 属性键与取值，不提供实例行为。
     }
 }

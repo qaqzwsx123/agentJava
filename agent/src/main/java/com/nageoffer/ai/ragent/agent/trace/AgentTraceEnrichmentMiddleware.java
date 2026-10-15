@@ -327,12 +327,14 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      * 只看已定终局的：中途覆写时还在跑的那几条不算异常，先写上 WARNING 后面也降不回来
      */
     private static void writeWorstLevel(Span batchSpan, List<ToolCallRecord> calls) {
+        // 1. 只收集已经定终局且非成功的成员，运行中的工具不提前判为异常。
         List<ToolCallRecord> settled = calls.stream()
                 .filter(call -> !call.status.isOpen() && call.status != AgentToolStatus.DONE)
                 .toList();
         if (settled.isEmpty()) {
             return;
         }
+        // 2. 任一失败就把批次级别提升为 ERROR，其余非成功终态使用 WARNING，并补可读说明。
         boolean error = settled.stream().anyMatch(call -> call.status == AgentToolStatus.FAILED);
         batchSpan.setAttribute(AgentTraceAttributes.LEVEL,
                 error ? AgentTraceAttributes.LEVEL_ERROR : AgentTraceAttributes.LEVEL_WARNING);
@@ -346,6 +348,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      * 整批同一个结局时说清「未执行」，混合结局才逐条列，只报状态读不出哪几个没跑
      */
     private static String statusMessage(List<ToolCallRecord> calls, List<ToolCallRecord> settled) {
+        // 1. 整批均等待或均被拒时使用统一说明；混合结局则逐条列出工具名、调用序号和状态。
         if (settled.size() == calls.size()) {
             if (settled.stream().allMatch(call -> call.status == AgentToolStatus.AWAITING)) {
                 return AWAITING_PERMISSION_MESSAGE;
@@ -361,6 +364,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
     }
 
     private void writeUsage(Span span, ChatUsage usage) {
+        // 缺少用量事件时不编造 0；有用量则交给序列化器拆分缓存与非缓存输入。
         if (usage == null) {
             return;
         }
@@ -374,6 +378,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      * 必须追加不能覆盖：ToolCallDeltaEvent 给的是增量而非累积快照，覆盖只会剩最后一片
      */
     private static void appendArguments(Map<String, StringBuilder> pending, ToolCallDeltaEvent delta) {
+        // 先跳过空增量，再按调用 ID 追加原始 JSON 片段；同名工具并行时也各自累积。
         if (StrUtil.isEmpty(delta.getDelta())) {
             return;
         }
@@ -386,7 +391,9 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      * 取走即移除，同一批里同名工具调两次不会读到上一次的残留
      */
     private Map<String, Object> describeToolCall(Map<String, StringBuilder> pending, ToolCallEndEvent call) {
+        // 1. 结束事件到达后取走对应调用的累积入参，避免同一调用留下可被后续误读的缓存。
         StringBuilder raw = pending.remove(ToolBatchRoster.callKey(call.getToolCallId()));
+        // 2. 完整 JSON 入参由序列化器恢复结构；半截 JSON 使用明确占位，不伪装成正常参数。
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", StrUtil.nullToEmpty(call.getToolCallId()));
         item.put("name", StrUtil.nullToEmpty(call.getToolCallName()));
@@ -395,6 +402,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
     }
 
     private void markCompletionStart(Span span, AtomicBoolean firstDelta) {
+        // 正文或思考首次出现增量时仅记录一次 ISO 时间，后续片段不覆盖首字时间。
         if (firstDelta.compareAndSet(false, true)) {
             span.setAttribute(AgentTraceAttributes.COMPLETION_START_TIME, Instant.now().toString());
         }
@@ -417,11 +425,13 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      * 确认续跑由一条带确认结果元数据的空消息驱动，与普通提问只能靠它区分
      */
     private static boolean isConfirmResume(List<Msg> msgs) {
+        // 确认续跑正文可以为空，因此检查确认结果元数据，而不是根据消息文本判断。
         return msgs != null && msgs.stream().anyMatch(msg -> msg.getMetadata() != null
                 && msg.getMetadata().containsKey(Msg.METADATA_CONFIRM_RESULTS));
     }
 
     private static String toolNames(List<ToolSchema> tools) {
+        // 把最终可见工具名按当前顺序拼成属性值；没有工具列表时返回空串。
         return tools == null ? "" : tools.stream().map(ToolSchema::getName).collect(Collectors.joining(","));
     }
 
@@ -430,6 +440,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      * span 状态只有 OK/ERROR 两档，分不出这一轮是被用户停掉还是真报错，只能另开一把键
      */
     private static void endSpan(Span span, AtomicBoolean ended, StatusCode status, Throwable error, String outcome) {
+        // 1. CAS 保证完成、异常、取消三种回调最多一条真正收口，防止重复结束和状态互相覆盖。
         if (!ended.compareAndSet(false, true)) {
             return;
         }
@@ -449,15 +460,18 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
      */
     private static Runnable cancelQuietly(String stage, Runnable body) {
         return () -> {
+            // 取消线程可能与产出线程同时访问缓冲，只尽力回写当前可读内容。
             try {
                 body.run();
             } catch (Exception e) {
+                // 回写失败只留警告，不把追踪异常继续传播到正在取消的业务流。
                 log.warn("取消时回写追踪属性失败, 环节: {}", stage, e);
             }
         };
     }
 
     private static Span currentSpan(ContextView ctxView) {
+        // 复用统一的 OTel 上下文解析，取得外层已经创建的当前 span，本方法不额外建节点。
         return Span.fromContext(AgentRunTracer.otelContext(ctxView));
     }
 
@@ -483,19 +497,23 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
         private Msg finalMsg;
 
         private RootOutput(Span span) {
+            // 关联本次运行的根 span；回答缓冲只属于这个订阅，不放进共享中间件字段。
             this.span = span;
         }
 
         private void appendAnswer(String delta) {
+            // 1. 将当前文本增量追加到回答缓冲，并累计距上次刷新新增的字符数。
             String safe = StrUtil.nullToEmpty(delta);
             answer.append(safe);
             pending += safe.length();
+            // 2. 累积到 1024 字符再刷新，避免每个 token 都重新序列化整段回答。
             if (pending >= FLUSH_THRESHOLD_CHARS) {
                 flush();
             }
         }
 
         private void finish(Msg result) {
+            // 保存最终消息后强制刷新，补齐最后不足刷新阈值的正文及必要的结构化结果。
             finalMsg = result;
             flush();
         }
@@ -505,6 +523,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 于是整段流下来的开销随正文长度平方增长，越长的回答被拖得越狠
          */
         private void flush() {
+            // 清零本次刷新计数，再按内容开关与预算把当前回答和最终结果写入根 span。
             pending = 0;
             span.setAttribute(AgentTraceAttributes.OBSERVATION_OUTPUT,
                     serializer.rootOutput(answer, finalMsg));
@@ -534,6 +553,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
         private AgentToolStatus status = AgentToolStatus.PENDING;
 
         private ToolCallRecord(int callIndex, ToolUseBlock call) {
+            // 以名册中的调用块初始化 ID、工具名和入参；输出与执行状态由后续事件补全。
             this.callIndex = callIndex;
             this.toolCallId = call == null ? null : call.getId();
             this.name = call == null ? null : call.getName();
@@ -563,6 +583,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
         private final AgentToolExecutionFacts facts;
 
         private ToolBatchRoster(List<ToolUseBlock> toolCalls, AgentToolExecutionFacts facts) {
+            // 1. 固定本批事实源和模型给出的工具顺序；空工具列表按空名册处理。
             this.facts = facts;
             List<ToolUseBlock> source = toolCalls == null ? List.of() : toolCalls;
             List<ToolCallRecord> records = new ArrayList<>(source.size());
@@ -574,6 +595,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
                 records.add(record);
                 byId.putIfAbsent(callKey(record.toolCallId), record);
             }
+            // 2. 列表负责稳定展示顺序，byId 只负责回查；事件到达顺序不参与名册排序。
             this.calls = List.copyOf(records);
         }
 
@@ -581,16 +603,19 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 开头事件只证明这条进过执行队列，归批是事实源的事，被规则拒掉的那条也留在同一批里
          */
         private void start(String toolCallId, String toolName) {
+            // 1. 只更新名册内已有调用；找不到记录就忽略，不根据事件临时增加成员。
             ToolCallRecord record = find(toolCallId);
             if (record == null) {
                 return;
             }
+            // 2. 这里仅表示收到框架开始事件；是否真正进入工具体，稍后仍要读取事实源确认。
             record.started = true;
             record.status = AgentToolStatus.RUNNING;
             record.name = StrUtil.nullToDefault(toolName, record.name);
         }
 
         private void append(String toolCallId, String delta) {
+            // 按调用 ID 找到名册项后追加正文片段；未知 ID 忽略，避免结果串到其他调用。
             ToolCallRecord record = find(toolCallId);
             if (record != null) {
                 record.output.append(StrUtil.nullToEmpty(delta));
@@ -598,6 +623,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
         }
 
         private void end(String toolCallId, String toolName, ToolResultState state) {
+            // 1. 根据调用 ID 找原记录，再把框架终态转换为业务状态，并补全工具名。
             ToolCallRecord record = find(toolCallId);
             if (record == null) {
                 return;
@@ -610,11 +636,13 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 框架只在整批没有待确认工具时才执行，故挂起时全批都没跑，落库侧也是整批一起改
          */
         private void awaitAll() {
+            // 只把仍开放的调用改为等待确认；已经有终局的成员不会被改回等待。
             calls.stream().filter(call -> call.status.isOpen())
                     .forEach(call -> call.status = AgentToolStatus.AWAITING);
         }
 
         private void denyAll() {
+            // 整批拒绝事件代表本批没有工具执行，把名册中所有成员统一标记为 DENIED。
             calls.forEach(call -> call.status = AgentToolStatus.DENIED);
         }
 
@@ -622,6 +650,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 收尾时仍未定终局的判成 interrupted，与落库块同一条规则；已挂起、已拒绝的不动
          */
         private void settleOpen() {
+            // 收尾时将仍待执行或执行中的成员统一标为中断，保留已成功、失败、等待或拒绝的终态。
             calls.stream().filter(call -> call.status.isOpen())
                     .forEach(call -> call.status = AgentToolStatus.INTERRUPTED);
         }
@@ -631,6 +660,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 光看开头事件会把框架前置短路的那几条算成跑过，批级结局与这里就各执一词
          */
         private boolean executed(ToolCallRecord call) {
+            // 1. 被明确拒绝的调用一定未执行；其他状态优先根据工具体写入的开始时刻判断。
             if (call.status == AgentToolStatus.DENIED) {
                 return false;
             }
@@ -644,6 +674,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 批次号只有事实源一个来源，它还没归批时留空，写个占位串会让人以为归过批了
          */
         private String batchIdOf(String toolCallId) {
+            // 事实源缺失或调用 ID 为空时不猜批次；有效时读取共享事实中已登记的批次 ID。
             if (facts == null || StrUtil.isBlank(toolCallId)) {
                 return null;
             }
@@ -654,6 +685,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 入参是模型请求的原样，此刻还没有批可归，批次号留给产出侧写
          */
         private List<Map<String, Object>> describeInputs() {
+            // 按固定名册顺序生成每条调用的序号、ID、名称与入参，入参受内容开关和字段预算约束。
             return calls.stream().map(call -> {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("callIndex", call.callIndex);
@@ -669,6 +701,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
          * 那正是一次静默成功的写操作的样子
          */
         private List<Map<String, Object>> describeOutputs() {
+            // 1. 按名册逐条生成结局；成功正文与失败正文分开，等待、被拒和未执行项也保留。
             return calls.stream().map(call -> {
                 boolean failed = call.status == AgentToolStatus.FAILED;
                 String text = call.output.isEmpty() ? null : serializer.truncate(call.output);
@@ -678,6 +711,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
                 item.put("toolCallId", call.toolCallId);
                 item.put("name", call.name);
                 item.put("state", call.status.value());
+                // 2. 单独写实际执行标记，防止权限拒绝或前置短路被误读为已经执行过的失败。
                 item.put("executed", executed(call));
                 item.put("result", failed ? null : text);
                 item.put("error", failed ? text : null);
@@ -686,10 +720,12 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
         }
 
         private ToolCallRecord find(String toolCallId) {
+            // 使用统一的调用键查名册索引，空 ID 的处理规则与入参累积保持一致。
             return byId.get(callKey(toolCallId));
         }
 
         private static String callKey(String toolCallId) {
+            // 缺失或空白 ID 归入同一个匿名键，只作为框架无法提供 ID 时的兜底。
             return StrUtil.blankToDefault(toolCallId, FALLBACK_CALL_KEY);
         }
     }

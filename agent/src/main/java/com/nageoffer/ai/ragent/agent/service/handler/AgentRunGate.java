@@ -57,20 +57,13 @@ public class AgentRunGate {
         // 值同时记录任务和会话；键只使用 userId，因此该用户跨会话共用一个运行位。
         String slotValue = taskId + SLOT_SEPARATOR + conversationId;
         //是按 userId，不是按 conversationId。也就是一个用户全局只能跑一个 Agent，而不是"每个会话各一个"。
-        //拿到 Redis 桶对象
-        RBucket<String> slot = redissonClient.getBucket(runningKey(userId));
+        RBucket<String> slot = redissonClient.getBucket(runningKey(userId));  //拿到 Redis 桶对象
         // SET NX 与过期时间一次提交，多个节点竞争时只有一个请求取得名额。
         if (!slot.setIfAbsent(slotValue, ttl())) {
             throw new ClientException("当前会话处理中，请稍后再发起新的对话");
         }
-        //完全等价
-        // return new Runnable() {
-        //    @Override
-        //    public void run() {
-        //        release(userId, slotValue);
-        //    }
-        //};
-        return () -> release(userId, slotValue);
+        //   () -> release(userId, slotValue) 的意思是： 创建一个 Runnable 对象，它的 run() 方法被调用时，会执行 release(userId, slotValue)。
+        return () -> release(userId, slotValue); // 把一段逻辑打包成一个对象返回出去，等以后需要的时候再run()执行。返回类型是 Runnable
     }
 
     /**
@@ -78,16 +71,25 @@ public class AgentRunGate {
      * 运行位的取值格式只有闸门自己知道，外部拿到的始终是 taskId
      */
     public String runningTaskId(String userId, String conversationId) {
+        // 根据 userId 拿到该用户对应的 Redis 运行位（Bucket）
+        // key 形如 runningKey(userId)，存储的值格式为：taskId + SLOT_SEPARATOR + conversationId
         RBucket<String> slot = redissonClient.getBucket(runningKey(userId));
+        // 读取运行位当前的值；如果为空，说明该用户当前没有正在跑的任务
         String slotValue = slot.get();
         if (StrUtil.isBlank(slotValue)) {
             return null;
         }
-        // 仅返回属于目标会话的任务，防止删除某个会话时取消同用户的另一个会话。
+        // 运行位的值由闸门自己写入，外部只关心 taskId，因此需要按分隔符解析
+        // 查找分隔符的位置，分隔符前是 taskId，分隔符后是 conversationId
         int separator = slotValue.indexOf(SLOT_SEPARATOR);
+        // 两种情况都返回 null：
+        // 1. separator < 0：值格式异常，没有分隔符，无法解析；
+        // 2. 分隔符后的 conversationId 与传入的 conversationId 不匹配：
+        //    说明当前用户正在跑的任务属于另一个会话，不能误判为当前会话的任务。
         if (separator < 0 || !slotValue.substring(separator + 1).equals(conversationId)) {
             return null;
         }
+        // 走到这里说明运行位属于当前会话，返回分隔符前面的 taskId
         return slotValue.substring(0, separator);
     }
 

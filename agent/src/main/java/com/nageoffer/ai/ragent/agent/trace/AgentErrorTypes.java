@@ -47,10 +47,12 @@ public enum AgentErrorTypes {
     private final String value;
 
     AgentErrorTypes(String value) {
+        // 保存用于追踪属性的固定错误取值，枚举名只用于 Java 代码表达。
         this.value = value;
     }
 
     public String value() {
+        // 读取约定的属性值，避免把枚举的大写名称直接写入追踪后端。
         return value;
     }
 
@@ -66,6 +68,7 @@ public enum AgentErrorTypes {
      * 取消的两种成因靠中断时刻是否写入区分，不看异常消息里有没有 timeout 字样
      */
     public static String ofCancelledSpan(Long terminationAt) {
+        // 有业务中止事实就记 cancelled；没有该事实时按当前约定归为 timeout，不解析异常文案。
         return terminationAt == null ? TIMEOUT.value : CANCELLED.value;
     }
 }

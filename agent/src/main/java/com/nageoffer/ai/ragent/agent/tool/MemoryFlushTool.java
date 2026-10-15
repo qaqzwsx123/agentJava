@@ -54,11 +54,13 @@ public class MemoryFlushTool implements AgentTool {
 
     @Override
     public String getName() {
+        // 返回固定工具名 flush_memory，模型通过它触发整理，具体内容由服务端仲裁决定。
         return TOOL_NAME;
     }
 
     @Override
     public String getDescription() {
+        // 返回目录中的记忆整理描述，用于提示模型何时调用该工具。
         return description;
     }
 
@@ -67,6 +69,7 @@ public class MemoryFlushTool implements AgentTool {
      */
     @Override
     public Map<String, Object> getParameters() {
+        // 工具不接收模型提供的记忆正文；空属性表并禁止额外字段，避免把内容决定权交给调用参数。
         return Map.of(
                 "type", "object",
                 "properties", Map.of(),
@@ -75,14 +78,17 @@ public class MemoryFlushTool implements AgentTool {
 
     @Override
     public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        // 用同一套工具体追踪记录执行事实，订阅时再在弹性线程池运行包含 JDBC 和模型调用的整理流程。
         return AgentToolBodyTracer.trace(this, param, () -> Mono.fromCallable(() -> execute(param))
                 .subscribeOn(Schedulers.boundedElastic()));
     }
 
     private ToolResultBlock execute(ToolCallParam param) {
+        // 1. 检查工具调用参数，缺失时直接返回错误，不进入记忆抽取流程。
         if (param == null) {
             return buildResult(null, "工具调用参数不能为空", true);
         }
+        // 2. 调用 ID 用于结果配对；用户与会话身份只从服务端 RuntimeContext 取，模型不能指定。
         String toolCallId = Optional.ofNullable(param.getToolUseBlock())
                 .map(ToolUseBlock::getId)
                 .orElse(null);
@@ -93,11 +99,13 @@ public class MemoryFlushTool implements AgentTool {
         String conversationId = Optional.ofNullable(runtimeContext)
                 .map(RuntimeContext::getSessionId)
                 .orElse(null);
+        // 3. 身份不完整时拒绝整理，避免把记忆写到错误用户或会话。
         if (StrUtil.isBlank(userId) || StrUtil.isBlank(conversationId)) {
             log.warn("记忆整理工具拿不到会话身份, 本次不整理");
             return buildResult(toolCallId, "当前会话无法整理记忆，本次内容未能写入", true);
         }
         try {
+            // 4. 主动 FLUSH 绕过后台消息数门槛，但仍执行相同的仲裁、容量与事务校验。
             AgentMemoryOutcome outcome = memoryPipeline.extract(userId, conversationId, AgentMemoryTriggerType.FLUSH);
             // 刷新认「记忆集变没变」不认「落了几条决策」：合并落库而决策全灭时 applied 为零、库已经变了
             if (outcome.mutated()) {
@@ -106,6 +114,7 @@ public class MemoryFlushTool implements AgentTool {
             log.info("记忆整理工具调用完成, userId: {}, conversationId: {}, 结局: {}, 落库: {}",
                     userId, conversationId, outcome.status(), outcome.applied());
             return render(toolCallId, outcome);
+        // 5. 兜底把未处理异常转成工具错误结果，不将异常直接抛回模型执行链。
         } catch (Exception e) {
             log.error("记忆整理工具调用异常, userId: {}, conversationId: {}", userId, conversationId, e);
             return buildResult(toolCallId, "记忆整理异常，本次内容未能写入", true);
@@ -116,6 +125,7 @@ public class MemoryFlushTool implements AgentTool {
      * 落库已成事实，刷新失败只让本轮后续推理看到旧视图，不该把成功报成失败
      */
     private void refreshSnapshot(RuntimeContext runtimeContext, String userId) {
+        // 刷新的是本次运行上下文中的记忆视图，使后续推理可读到更新内容；异常只记录，不撤销已完成的提交。
         try {
             runtimeContext.put(AgentUserMemoryMiddleware.SNAPSHOT_KEY, memoryPipeline.reloadSnapshot(userId));
         } catch (Exception e) {
@@ -127,6 +137,7 @@ public class MemoryFlushTool implements AgentTool {
      * 没写进去的一律 ERROR，不留 default 确保新增枚举值编译期报错
      */
     private ToolResultBlock render(String toolCallId, AgentMemoryOutcome outcome) {
+        // 按管道结局生成可供模型理解的文本和状态；已处理但没有新增内容也属于正常完成。
         return switch (outcome.status()) {
             case WRITTEN -> buildResult(toolCallId, "记忆已更新，本次生效 " + outcome.applied() + " 条", false);
             case SETTLED_EMPTY -> buildResult(toolCallId, outcome.mutated()
@@ -145,6 +156,7 @@ public class MemoryFlushTool implements AgentTool {
     }
 
     private ToolResultBlock buildResult(String toolCallId, String text, boolean isError) {
+        // 统一设置调用 ID、工具名、文本和成功/失败状态，便于框架关联到原始工具调用。
         return ToolResultBlock.builder()
                 .id(toolCallId)
                 .name(TOOL_NAME)

@@ -50,10 +50,12 @@ public class AgentMcpClients {
 
     @PostConstruct
     public void init() {
+        // 1. Spring 创建 Bean 后读取服务清单；没有配置时直接结束，不建立任何远程连接。
         List<AgentMcpProperties.ServerConfig> servers = properties.getServers();
         if (servers == null) {
             return;
         }
+        // 2. 按配置顺序连接，重名工具的保留顺序也由这个连接顺序决定。
         for (AgentMcpProperties.ServerConfig server : servers) {
             connect(server);
         }
@@ -117,11 +119,13 @@ public class AgentMcpClients {
      * 按工具 ID 从已初始化的客户端工具映射中取出绑定对象；未注册时返回 null。
      */
     public RemoteTool get(String toolId) {
+        // 按工具名查启动阶段发现的绑定；不存在时返回 null，由工具目录决定是否挂载。
         return tools.get(toolId);    //Map<String, RemoteTool>
     }
 
     @PreDestroy
     public void close() {
+        // 应用关闭时逐个释放已保存的客户端；单个关闭失败只记日志，继续处理其他连接。
         for (McpClientWrapper client : clients) {
             try {
                 client.close();
