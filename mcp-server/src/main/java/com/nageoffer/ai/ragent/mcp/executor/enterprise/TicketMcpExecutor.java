@@ -97,6 +97,7 @@ public class TicketMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification ticketToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -104,6 +105,7 @@ public class TicketMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("region", "地区筛选：华东、华南、华北、西南、西北，不填则查询全国")
                         .options(List.of("华东", "华南", "华北", "西南", "西北")))
@@ -121,6 +123,7 @@ public class TicketMcpExecutor {
                         .defaultTo(10))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询客户技术支持工单数据，支持按地区、状态、优先级、产品、客户等维度筛选，支持汇总概览、工单列表、统计分析等多种查询")
@@ -130,6 +133,7 @@ public class TicketMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 解析查询类型和筛选条件，取得当天的模拟客服工单，再分别生成概览、列表或分类统计。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -157,6 +161,7 @@ public class TicketMcpExecutor {
                     TOOL_ID, queryType, region, status, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("查询", e);
@@ -165,6 +170,7 @@ public class TicketMcpExecutor {
 
     private String buildSummaryResult(List<TicketRecord> data, String region, String status,
                                       String priority, String product) {
+        // 统计当前筛选范围的总量及各状态数量，用已解决与已关闭数量计算解决率。
         int total = data.size();
         long pending = data.stream().filter(t -> STATUS_PENDING.equals(t.status)).count();
         long inProgress = data.stream().filter(t -> STATUS_IN_PROGRESS.equals(t.status)).count();
@@ -190,6 +196,7 @@ public class TicketMcpExecutor {
         sb.append(String.format("  已解决: %d 个\n", resolved));
         sb.append(String.format("  已关闭: %d 个\n\n", closed));
 
+        // 有数据时才计算解决率，已解决和已关闭都计入分子，避免空集合除零。
         if (total > 0) {
             double resolveRate = (resolved + closed) * 100.0 / total;
             sb.append(String.format("解决率: %.1f%%\n", resolveRate));
@@ -199,6 +206,7 @@ public class TicketMcpExecutor {
             sb.append(String.format("\n⚠ 紧急/高优先级工单: %d 个（紧急 %d，高 %d）\n", urgent + high, urgent, high));
         }
 
+        // 未固定产品或地区时继续展示分组概览，已经限定的维度不重复展开。
         Map<String, Long> byProduct = data.stream()
                 .collect(Collectors.groupingBy(t -> t.product, Collectors.counting()));
         if (product == null && !byProduct.isEmpty()) {
@@ -221,6 +229,7 @@ public class TicketMcpExecutor {
     }
 
     private String buildListResult(List<TicketRecord> data, int limit) {
+        // 先按优先级、再按创建时间排列工单，截取指定条数输出，帮助先看到需要处理的事项。
         List<TicketRecord> sorted = data.stream()
                 .sorted((a, b) -> {
                     int pa = PRIORITIES.indexOf(a.priority);
@@ -246,6 +255,7 @@ public class TicketMcpExecutor {
     }
 
     private String buildStatsResult(List<TicketRecord> data) {
+        // 汇总问题分类、产品解决情况和工程师待处理量，供分析工单分布和处理负载。
         StringBuilder sb = new StringBuilder();
         sb.append("【工单统计分析】\n\n");
 
@@ -254,6 +264,7 @@ public class TicketMcpExecutor {
             return sb.toString();
         }
 
+        // 先按问题分类统计数量及占比，让用户看到主要问题来源。
         Map<String, Long> byCategory = data.stream()
                 .collect(Collectors.groupingBy(t -> t.category, Collectors.counting()));
         sb.append("【问题分类统计】\n");
@@ -263,6 +274,7 @@ public class TicketMcpExecutor {
                         e.getKey(), e.getValue(), e.getValue() * 100.0 / data.size())));
 
         sb.append("\n【各产品解决率】\n");
+        // 再按产品分组计算各自解决情况，各组使用自己的工单量作为分母。
         Map<String, List<TicketRecord>> byProduct = data.stream()
                 .collect(Collectors.groupingBy(t -> t.product));
         byProduct.forEach((product, tickets) -> {
@@ -273,6 +285,7 @@ public class TicketMcpExecutor {
         });
 
         sb.append("\n【处理人工单量排名】\n");
+        // 工程师负载仅统计待处理和处理中的工单，再排序展示待办较多的人员。
         Map<String, Long> byEngineer = data.stream()
                 .filter(t -> STATUS_PENDING.equals(t.status) || STATUS_IN_PROGRESS.equals(t.status))
                 .collect(Collectors.groupingBy(t -> t.engineer, Collectors.counting()));
@@ -286,6 +299,7 @@ public class TicketMcpExecutor {
 
     private List<TicketRecord> filterData(List<TicketRecord> data, String region, String status,
                                           String priority, String product, String customerName) {
+        // 区域、状态、优先级和产品使用匹配筛选，客户名称使用包含匹配，空条件不限制结果。
         return data.stream()
                 .filter(t -> region == null || region.equals(t.region))
                 .filter(t -> status == null || status.equals(t.status))
@@ -296,6 +310,7 @@ public class TicketMcpExecutor {
     }
 
     private List<TicketRecord> getOrGenerateData() {
+        // 当天已有缓存则直接复用；日期变化后重新生成近一段时间的模拟工单并替换缓存。
         String key = "tickets_" + LocalDate.now();
         if (cachedData != null && key.equals(cacheKey)) return cachedData;
         cachedData = generateMockData();
@@ -304,11 +319,13 @@ public class TicketMcpExecutor {
     }
 
     private List<TicketRecord> generateMockData() {
+        // 用当天日期设置随机种子，在工作日生成模拟工单，并结合优先级和工单年龄设置状态分布。
         List<TicketRecord> records = new ArrayList<>();
         LocalDate today = LocalDate.now();
         Random random = new Random(today.toEpochDay());
         int ticketSeq = 1;
 
+        // 回看三十个自然日，周末不生成工单；每个工作日生成若干演示记录。
         for (int d = 0; d < 30; d++) {
             LocalDate date = today.minusDays(d);
             if (date.getDayOfWeek().getValue() > 5) continue;

@@ -63,6 +63,7 @@ public class BitCouponQueryMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification queryCouponsToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -70,6 +71,7 @@ public class BitCouponQueryMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(number("amount", "本次结算总金额，填了才会逐张试算能不能用、能抵多少"))
                 .optional(string("categoryAmounts", "本次结算的品类小计，形如 手机:3999,耳机:1200，从购物车查询的「品类小计」一行照抄；"
@@ -79,6 +81,7 @@ public class BitCouponQueryMcpExecutor {
                         .defaultTo(DEFAULT_STATUS))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询当前登录用户的优惠券，返回名称、券码、类型、门槛、适用品类与有效期。"
@@ -91,6 +94,7 @@ public class BitCouponQueryMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 读取用户券包与可选试算金额，规范化状态和品类金额后按有效状态筛选，再生成优惠试算结果。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -114,6 +118,7 @@ public class BitCouponQueryMcpExecutor {
                     System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildResult(filtered, status, amount, categoryAmounts));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("优惠券查询", e);
@@ -121,6 +126,7 @@ public class BitCouponQueryMcpExecutor {
     }
 
     private String normalizeStatus(String requested) {
+        // 仅接受约定的券状态，缺省或不识别的值回落到未使用，保证后续筛选有确定条件。
         String trimmed = StrUtil.trimToNull(requested);
         return trimmed != null && STATUSES.contains(trimmed) ? trimmed : DEFAULT_STATUS;
     }
@@ -129,6 +135,7 @@ public class BitCouponQueryMcpExecutor {
      * 认 `手机:3999` 和光写 `手机` 两种写法，后者金额留空按合计金额兜底判门槛
      */
     private Map<String, BigDecimal> parseCategoryAmounts(String raw) {
+        // 拆分“品类:金额”并兼容中文冒号；只提供品类或金额解析失败时保留 null，试算时可回落到合计金额。
         Map<String, BigDecimal> result = new LinkedHashMap<>();
         for (String piece : BitToolSupport.csv(raw)) {
             int index = piece.indexOf(':');
@@ -149,6 +156,7 @@ public class BitCouponQueryMcpExecutor {
 
     private String buildResult(List<HeldCouponResult> coupons, String status, BigDecimal amount,
                                Map<String, BigDecimal> categoryAmounts) {
+        // 展示每张券的门槛、适用范围和有效期；有试算金额时复用下单规则，比较可用券并给出最大优惠。
         if (coupons.isEmpty()) {
             return STATUS_ALL.equals(status)
                     ? "当前账号名下没有优惠券"
@@ -175,9 +183,11 @@ public class BitCouponQueryMcpExecutor {
                         coupon.getOrderNo(), BitToolSupport.dateTime(coupon.getUseTime())));
             }
 
+            // 未提供金额或券已使用、已过期时只展示规则，不参与本次可用优惠比较。
             if (amount == null || !DEFAULT_STATUS.equals(effective)) {
                 continue;
             }
+            // 复用下单规则试算优惠；只在优惠额严格更大时替换推荐券，相同优惠保持先遇到的券。
             BitCouponRules.Verdict verdict = BitCouponRules.judge(coupon, amount, categoryAmounts);
             sb.append(String.format("   本单试算: %s%n", verdict.reason()));
             if (verdict.usable() && verdict.discount().compareTo(bestDiscount) > 0) {
@@ -186,6 +196,7 @@ public class BitCouponQueryMcpExecutor {
             }
         }
 
+        // 全部券比较完成后再输出推荐及实付试算，查询过程不核销任何优惠券。
         if (amount != null) {
             sb.append(String.format("%n结算金额: %s%n", BitToolSupport.money(amount)));
             sb.append(best == null

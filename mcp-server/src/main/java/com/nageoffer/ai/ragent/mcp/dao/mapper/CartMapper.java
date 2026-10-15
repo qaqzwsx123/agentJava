@@ -45,6 +45,9 @@ public interface CartMapper extends BaseMapper<CartDO> {
             WHERE c.user_id = #{userId}
             """;
 
+    /**
+     * 联查当前用户的购物车、SKU 和商品品类，返回当前售价与库存，按加入时间倒序展示。
+     */
     @Select(LINE_SQL + " ORDER BY c.create_time DESC")
     List<CartLineResult> selectLines(@Param("userId") String userId);
 
@@ -84,6 +87,7 @@ public interface CartMapper extends BaseMapper<CartDO> {
      * 所以主键和时间得在这里自己补。撞上 ON CONFLICT 时这个 id 会被丢掉，不影响已有行
      */
     default int upsert(String userId, String skuCode, int quantity, BigDecimal addedPrice) {
+        // 补齐新购物车行所需的 ID 和时间，再交给 SQL 按用户与 SKU 冲突更新；已有行保留最初加入时的价格。
         return upsert(IdWorker.getId(), userId, skuCode, quantity, addedPrice,
                 new Timestamp(System.currentTimeMillis()));
     }

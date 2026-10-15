@@ -30,6 +30,7 @@ public interface TicketMapper extends BaseMapper<TicketDO> {
      * 按单号前缀数当天已有多少张，用来拼下一个流水号
      */
     default long countByNoPrefix(String prefix) {
+        // 统计符合工单号前缀的已有记录，调用方据此计算当天演示工单编号的序号部分。
         return selectCount(Wrappers.<TicketDO>lambdaQuery().likeRight(TicketDO::getTicketNo, prefix));
     }
 }

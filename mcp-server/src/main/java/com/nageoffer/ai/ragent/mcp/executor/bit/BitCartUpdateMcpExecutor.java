@@ -62,6 +62,7 @@ public class BitCartUpdateMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification setCartItemToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -69,6 +70,7 @@ public class BitCartUpdateMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("skuCode", "商品 SKU 型号，如 BIT-A18，来自商品查询或购物车查询")
                         .title("商品型号"))
@@ -77,6 +79,7 @@ public class BitCartUpdateMcpExecutor {
                         .title("目标数量"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("设置当前登录用户购物车中某个商品的数量，填 0 即移除。"
@@ -88,6 +91,7 @@ public class BitCartUpdateMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 把数量解释为目标数量并校验范围：0 表示移除，正数则查询商品后新增或更新购物车行。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -109,6 +113,7 @@ public class BitCartUpdateMcpExecutor {
             }
 
             String result;
+            // 目标数量为零时直接执行移除；新增与修改路径才需要检查商品信息。
             if (quantity == 0) {
                 result = remove(userId, skuCode);
             } else {
@@ -128,6 +133,7 @@ public class BitCartUpdateMcpExecutor {
                     TOOL_ID, skuCode, quantity, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("购物车调整", e);
@@ -138,6 +144,7 @@ public class BitCartUpdateMcpExecutor {
      * 本来就不在车里也算成功：目标状态是「车里没有它」，这一条本就是幂等的
      */
     private String remove(String userId, String skuCode) {
+        // 删除当前用户与指定 SKU 对应的购物车行；即使本来不存在，也按已移除返回，便于重复操作。
         int removed = cartMapper.delete(Wrappers.<CartDO>lambdaQuery()
                 .eq(CartDO::getUserId, userId).eq(CartDO::getSkuCode, skuCode));
         return removed > 0
@@ -146,11 +153,13 @@ public class BitCartUpdateMcpExecutor {
     }
 
     private ProductSkuDO loadProduct(String skuCode) {
+        // 按 SKU 读取商品详情，不存在时返回 null；是否在售由 handleCall 检查，这里不扣库存。
         return productSkuMapper.selectOne(Wrappers.<ProductSkuDO>lambdaQuery()
                 .eq(ProductSkuDO::getSkuCode, skuCode));
     }
 
     private String upsert(String userId, ProductSkuDO product, int quantity) {
+        // 保存目标数量并展示当前价格；更新已有行时保留加入时价格，库存不够只提醒，不预占库存。
         CartDO existing = cartMapper.selectOne(Wrappers.<CartDO>lambdaQuery()
                 .eq(CartDO::getUserId, userId).eq(CartDO::getSkuCode, product.getSkuCode()));
         Integer before = existing == null ? null : existing.getQuantity();

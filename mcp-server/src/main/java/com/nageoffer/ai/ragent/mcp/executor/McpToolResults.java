@@ -42,6 +42,7 @@ public final class McpToolResults {
     public static final String META_USER_ID = "com.nageoffer.ragent/userId";
 
     private McpToolResults() {
+        // 结果构造与参数读取通过静态方法复用，不允许创建工具类实例。
     }
 
     /**
@@ -51,6 +52,7 @@ public final class McpToolResults {
      * 只服务同一个应用，用它圈定数据范围成立；哪天要对外开放，得换成 OAuth 而不是加固这里
      */
     public static String userId(CallToolRequest request) {
+        // 从 MCP 请求的 _meta 中读取约定用户标识，只接受非空白字符串并去除首尾空白；缺失时返回 null。
         Map<String, Object> meta = request == null || request.meta() == null ? Map.of() : request.meta();
         Object value = meta.get(META_USER_ID);
         return value instanceof String userId && StrUtil.isNotBlank(userId) ? StrUtil.trim(userId) : null;
@@ -64,6 +66,7 @@ public final class McpToolResults {
      * 真因记进服务端日志并带上工具名，好把「整条链断了」和「这一个工具漏带身份」分开
      */
     public static CallToolResult identityRequired(String toolId) {
+        // 记录缺失身份的工具名称，并返回统一错误文本，调用方据此在查询或写入前结束处理。
         log.warn("调用方未透传登录身份，已回绝本次调用, toolId={}", toolId);
         return error("系统暂时无法确认你的身份，这次没有执行，请稍后重试");
     }
@@ -77,12 +80,14 @@ public final class McpToolResults {
      * {@link McpToolException} 是例外：那是抛出方自己拼的文案，已声明可以给模型看
      */
     public static CallToolResult failure(String action, Exception e) {
+        // 仅对明确的业务异常透出原因，其他异常返回统一失败提示；详细堆栈由调用方记录。
         return e instanceof McpToolException
                 ? error(action + "失败: " + e.getMessage())
                 : error(action + "失败，请稍后重试");
     }
 
     public static CallToolResult success(String text) {
+        // 把业务文本包装成 TextContent，并将 isError 标为 false，作为正常工具结果返回。
         return CallToolResult.builder()
                 .content(List.of(new TextContent(text)))
                 .isError(false)
@@ -90,6 +95,7 @@ public final class McpToolResults {
     }
 
     public static CallToolResult error(String message) {
+        // 把失败说明包装成 TextContent，并将 isError 标为 true，供模型识别本次调用失败。
         return CallToolResult.builder()
                 .content(List.of(new TextContent(message)))
                 .isError(true)
@@ -97,10 +103,12 @@ public final class McpToolResults {
     }
 
     public static Map<String, Object> args(CallToolRequest request) {
+        // 请求参数为空时返回空 Map，让执行器可以统一按键读取并自行处理默认值。
         return request.arguments() != null ? request.arguments() : Map.of();
     }
 
     public static LocalDate parseDate(String value) {
+        // 对非空文本按 ISO 日期格式解析，非法日期返回 null，交给具体业务校验给出适合的提示。
         if (StrUtil.isBlank(value)) {
             return null;
         }

@@ -35,5 +35,6 @@ public final class McpToolAnnotations {
     public static final ToolAnnotations WRITE = new ToolAnnotations(null, false, false, false, false, null);
 
     private McpToolAnnotations() {
+        // 工具注解统一通过静态常量复用，私有构造器阻止外部创建没有用途的实例。
     }
 }

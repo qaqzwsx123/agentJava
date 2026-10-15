@@ -44,6 +44,7 @@ public class JsonbStringTypeHandler extends BaseTypeHandler<String> {
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, String parameter, JdbcType jdbcType)
             throws SQLException {
+        // 将原始 JSON 字符串包装成 PostgreSQL 的 jsonb 类型后绑定参数；这里不负责解析或重新组织 JSON。
         PGobject json = new PGobject();
         json.setType(JSONB);
         json.setValue(parameter);
@@ -52,16 +53,19 @@ public class JsonbStringTypeHandler extends BaseTypeHandler<String> {
 
     @Override
     public String getNullableResult(ResultSet rs, String columnName) throws SQLException {
+        // 通过 JDBC 的 getString 读取 jsonb 文本；数据库字段为 NULL 时直接返回 null。
         return rs.getString(columnName);
     }
 
     @Override
     public String getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+        // 通过 JDBC 的 getString 读取 jsonb 文本；数据库字段为 NULL 时直接返回 null。
         return rs.getString(columnIndex);
     }
 
     @Override
     public String getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+        // 通过 JDBC 的 getString 读取 jsonb 文本；数据库字段为 NULL 时直接返回 null。
         return cs.getString(columnIndex);
     }
 }

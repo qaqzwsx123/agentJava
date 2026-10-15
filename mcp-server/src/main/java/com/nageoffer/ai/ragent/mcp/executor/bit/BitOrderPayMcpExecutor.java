@@ -55,6 +55,7 @@ public class BitOrderPayMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification payOrderToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -62,11 +63,13 @@ public class BitOrderPayMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("orderNo", "要支付的订单号，取自下单返回或订单查询")
                         .title("订单号"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("为当前登录用户的待支付订单完成支付，支付后订单进入已支付待发货。"
@@ -78,6 +81,7 @@ public class BitOrderPayMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 校验用户和订单号后，用条件更新将该用户的待支付订单改为已支付；这里模拟支付，不调用真实支付渠道。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -90,11 +94,13 @@ public class BitOrderPayMcpExecutor {
                 return BitToolSupport.rejected("请先确认要支付哪一笔订单，订单号取自下单返回或订单查询");
             }
 
+            // 数据库只更新当前用户的待支付订单，更新行数为零时重新查询并说明状态。
             int paid = orderMapper.pay(orderNo, userId);
             if (paid == 0) {
                 return BitToolSupport.rejected(explainFailure(orderNo, userId));
             }
 
+            // 成功后读取订单实际金额组装支付回执，不采信模型自行计算的价格。
             OrderDO order = loadOrder(orderNo, userId);
             log.info("MCP 工具调用完成, toolId={}, orderNo={}, elapsed={}ms",
                     TOOL_ID, orderNo, System.currentTimeMillis() - startMs);
@@ -107,6 +113,7 @@ public class BitOrderPayMcpExecutor {
                     这是演示环境的模拟支付，不产生真实扣款。仓库会尽快安排发货，发货后可用物流查询跟进""",
                     orderNo, BitToolSupport.money(order == null ? BigDecimal.ZERO : order.getPayAmount())));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("订单支付", e);
@@ -117,6 +124,7 @@ public class BitOrderPayMcpExecutor {
      * 没付成必须说清是哪一种没付成：超时被取消和已经付过，用户的下一步完全不同
      */
     private String explainFailure(String orderNo, String userId) {
+        // 条件更新未命中后重新查询所属订单，区分不存在、已支付、已取消及其他不允许支付的状态。
         OrderDO order = loadOrder(orderNo, userId);
         if (order == null) {
             return "未找到订单 " + orderNo;
@@ -131,6 +139,7 @@ public class BitOrderPayMcpExecutor {
     }
 
     private OrderDO loadOrder(String orderNo, String userId) {
+        // 按用户与订单号读取订单，直接返回查询结果；找不到时为 null，由调用方处理。
         return orderMapper.selectByNo(orderNo, userId);
     }
 

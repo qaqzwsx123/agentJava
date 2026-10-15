@@ -81,6 +81,7 @@ public class BitOrderCreateMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification createOrderToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -88,6 +89,7 @@ public class BitOrderCreateMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("skuCodes", "要下单的商品 SKU 型号，多个用逗号分隔，如 BIT-A18,BIT-W3。"
                         + "不传表示购物车里的全部商品一起下单")
@@ -104,6 +106,7 @@ public class BitOrderCreateMcpExecutor {
                         .title("收货地址"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("用当前登录用户购物车里的商品创建订单，下单后为待支付状态，需要再调用支付工具完成支付。"
@@ -115,6 +118,7 @@ public class BitOrderCreateMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 从请求元数据取得用户身份，整理商品、优惠券和收货信息，然后在业务库事务中执行完整下单流程。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -129,6 +133,7 @@ public class BitOrderCreateMcpExecutor {
                     StrUtil.trimToNull(MapUtil.getStr(args, "receiverPhone")),
                     StrUtil.trimToNull(MapUtil.getStr(args, "receiverAddress")));
 
+            // 把多个 Mapper 的写操作放入同一业务库事务，业务拒绝也由回调显式标记回滚。
             CallToolResult result = bitTransactionTemplate.execute(
                     status -> placeOrder(status, userId, skuCodes, couponCode, input));
 
@@ -136,6 +141,7 @@ public class BitOrderCreateMcpExecutor {
                     TOOL_ID, skuCodes.size(), couponCode != null, System.currentTimeMillis() - startMs);
             return result;
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("下单", e);
@@ -149,6 +155,7 @@ public class BitOrderCreateMcpExecutor {
      */
     private CallToolResult placeOrder(TransactionStatus status, String userId,
                                       List<String> skuCodes, String couponCode, Receiver input) {
+        // 先锁定本次选中的购物车行并检查可购买性；后续任何业务拒绝都标记事务回滚，撤销已经完成的修改。
         List<CartLineResult> lines = loadLines(userId, skuCodes);
         CallToolResult rejection = checkLines(lines, skuCodes);
         if (rejection != null) {
@@ -156,6 +163,7 @@ public class BitOrderCreateMcpExecutor {
             return rejection;
         }
 
+        // 按数据库当前单价重新计算总额和各品类金额，优惠资格不采信模型传入的金额。
         BigDecimal total = BigDecimal.ZERO;
         Map<String, BigDecimal> categoryAmounts = new LinkedHashMap<>();
         for (CartLineResult line : lines) {
@@ -165,6 +173,7 @@ public class BitOrderCreateMcpExecutor {
         }
 
         BigDecimal discount = BigDecimal.ZERO;
+        // 有优惠券才读取当前用户持有的券，复用券包查询相同的时间、品类和门槛规则。
         String couponLabel = null;
         if (couponCode != null) {
             HeldCouponResult coupon = userCouponMapper.selectHeldOne(userId, couponCode);
@@ -183,12 +192,14 @@ public class BitOrderCreateMcpExecutor {
                     coupon.getName(), coupon.getCouponCode(), BitToolSupport.money(discount));
         }
 
+        // 优先使用本次输入，缺少字段再取历史订单；没有完整收货信息就停止下单。
         Receiver receiver = resolveReceiver(userId, input);
         if (receiver == null) {
             status.setRollbackOnly();
             return BitToolSupport.rejected("没有可用的收货信息，请向用户确认收货人、手机号和完整地址后再下单");
         }
 
+        // 逐个 SKU 用“仍在售且库存足够”的条件原子扣减，不能只依赖前面查询到的库存快照。
         for (CartLineResult line : lines) {
             int deducted = productSkuMapper.deductStock(line.getSkuCode(), line.getQuantity());
             if (deducted == 0) {
@@ -198,6 +209,7 @@ public class BitOrderCreateMcpExecutor {
             }
         }
 
+        // 库存扣减成功后创建待支付订单，并把本次价格与数量保存到订单明细作为快照。
         String orderNo = nextOrderNo();
         BigDecimal payAmount = total.subtract(discount).max(BigDecimal.ZERO);
         orderMapper.insert(OrderDO.builder()
@@ -214,6 +226,7 @@ public class BitOrderCreateMcpExecutor {
         }
 
         if (couponCode != null) {
+            // 条件核销仍未使用的券；若被其他订单抢先使用，回滚本次订单、明细和库存扣减。
             int used = userCouponMapper.use(orderNo, userId, couponCode);
             if (used == 0) {
                 status.setRollbackOnly();
@@ -222,6 +235,7 @@ public class BitOrderCreateMcpExecutor {
             }
         }
 
+        // 只清理本次买到的购物车行；部分 SKU 下单不会删除购物车中的其他商品。
         List<String> ordered = lines.stream().map(CartLineResult::getSkuCode).toList();
         cartMapper.delete(Wrappers.<CartDO>lambdaQuery()
                 .eq(CartDO::getUserId, userId).in(CartDO::getSkuCode, ordered));
@@ -233,6 +247,7 @@ public class BitOrderCreateMcpExecutor {
     }
 
     private List<CartLineResult> loadLines(String userId, List<String> skuCodes) {
+        // 查询当前用户全部或指定 SKU 的购物车行，并通过 FOR UPDATE 锁住这些购物车记录直到事务结束。
         return cartMapper.selectLinesForUpdate(userId, skuCodes);
     }
 
@@ -240,11 +255,13 @@ public class BitOrderCreateMcpExecutor {
      * 下架与库存不足在这里一次说清，别让用户下单失败三次才知道是同一件商品的问题
      */
     private CallToolResult checkLines(List<CartLineResult> lines, List<String> skuCodes) {
+        // 先检查购物车是否为空以及指定 SKU 是否全部存在，再逐项检查在售状态和库存；全部通过返回 null。
         if (lines.isEmpty()) {
             return BitToolSupport.rejected(skuCodes.isEmpty()
                     ? "购物车是空的，先把要买的商品加入购物车再下单"
                     : "购物车里没有这些商品: " + String.join("、", skuCodes));
         }
+        // 指定了部分型号时要求它们全部在购物车里，避免静默漏掉用户想买的商品。
         if (!skuCodes.isEmpty()) {
             List<String> missing = new ArrayList<>(skuCodes);
             lines.forEach(line -> missing.removeIf(each -> each.equalsIgnoreCase(line.getSkuCode())));
@@ -254,6 +271,7 @@ public class BitOrderCreateMcpExecutor {
                         String.join("、", missing)));
             }
         }
+        // 先给出可理解的下架或库存不足原因，真正扣库存时仍需再做数据库条件判断。
         for (CartLineResult line : lines) {
             if (!"在售".equals(line.getStatus())) {
                 return BitToolSupport.rejected(String.format(
@@ -278,6 +296,7 @@ public class BitOrderCreateMcpExecutor {
      * 三个字段逐项回落到最近一笔订单，本轮传了哪项就用哪项
      */
     private Receiver resolveReceiver(String userId, Receiver input) {
+        // 本次提供的收货字段优先使用，缺少的逐项沿用最近订单；合并后仍不齐全则返回 null 拒绝下单。
         if (input.complete()) {
             return input;
         }
@@ -294,11 +313,13 @@ public class BitOrderCreateMcpExecutor {
     }
 
     private String nextOrderNo() {
+        // 让 Mapper 按数据库现有数字订单号和起始号段计算下一个号码，再转换为订单使用的字符串。
         return String.valueOf(orderMapper.selectNextOrderNo(ORDER_NO_BASE));
     }
 
     private String buildReceipt(String orderNo, List<CartLineResult> lines, BigDecimal total, BigDecimal discount,
                                 BigDecimal payAmount, String couponLabel, Receiver receiver, Receiver input) {
+        // 按创建时保存的商品价格快照输出明细和优惠，收货信息按来源处理展示，并提示支付期限。
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("订单已创建，当前为待支付%n%n订单号: %s%n%n商品明细:%n", orderNo));
         for (CartLineResult line : lines) {
@@ -322,6 +343,7 @@ public class BitOrderCreateMcpExecutor {
             sb.append("（未填写的收货信息沿用了最近一笔订单）\n");
         }
 
+        // 从配置读取待支付时限，提示超时释放资源，并明确此处是模拟支付。
         sb.append(String.format("%n请提醒用户在 %d 分钟内完成支付，超时订单会自动取消并退回库存与优惠券。"
                         + "演示环境为模拟支付，不产生真实扣款",
                 bitProperties.getPendingOrder().getTimeout().toMinutes()));
@@ -329,6 +351,7 @@ public class BitOrderCreateMcpExecutor {
     }
 
     private Object[] concat(String userId, List<String> rest) {
+        // 把用户 ID 放在参数数组首位，再追加其余字符串参数，返回可用于参数绑定的 Object 数组。
         List<Object> params = new ArrayList<>();
         params.add(userId);
         params.addAll(rest);
@@ -339,6 +362,7 @@ public class BitOrderCreateMcpExecutor {
     private record Receiver(String name, String phone, String address) {
 
         boolean complete() {
+            // 仅判断姓名、电话和地址是否都非 null，供收货信息合并流程判断是否齐全。
             return name != null && phone != null && address != null;
         }
     }

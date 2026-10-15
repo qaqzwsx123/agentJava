@@ -75,6 +75,7 @@ public class BitOrderQueryMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification queryOrderToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -82,12 +83,14 @@ public class BitOrderQueryMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("orderNo", "订单号，如 88231；不填则返回最近若干笔订单摘要"))
                 .optional(integer("limit", "不填订单号时返回几笔，默认 5，最多 20")
                         .defaultTo(DEFAULT_LIMIT))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询当前登录用户的订单。传订单号返回单笔详情，含状态、下单支付发货签收四个时间、"
@@ -100,6 +103,7 @@ public class BitOrderQueryMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 确认当前用户身份后区分单号查询与最近订单查询，条数经过限幅，所有订单查询均限定所属用户。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -118,6 +122,7 @@ public class BitOrderQueryMcpExecutor {
                     TOOL_ID, orderNo, limit, System.currentTimeMillis() - startMs);
             return result == null ? BitToolSupport.notFound("订单 " + orderNo) : McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("订单查询", e);
@@ -128,6 +133,7 @@ public class BitOrderQueryMcpExecutor {
      * 返回 null 表示这一单不存在或不属于当前用户，两种情况在调用方看来必须没有区别
      */
     private String queryDetail(String userId, String orderNo) {
+        // 按用户和订单号读取订单及商品明细，组织金额、状态、时间和脱敏收货信息，没有订单时返回正常空结果。
         OrderDO order = orderMapper.selectByNo(orderNo, userId);
         List<OrderDO> heads = order == null ? List.of() : List.of(order);
         if (heads.isEmpty()) {
@@ -170,6 +176,7 @@ public class BitOrderQueryMcpExecutor {
     }
 
     private String queryRecent(String userId, int limit) {
+        // 先批量取最近订单，再一次性查询这些订单的商品并按订单号分组，避免每张订单各查一次明细。
         List<OrderDO> heads = orderMapper.selectRecent(userId, limit);
         if (heads.isEmpty()) {
             return "当前账号名下还没有订单";
@@ -198,6 +205,7 @@ public class BitOrderQueryMcpExecutor {
     }
 
     private List<OrderItemDO> queryItems(List<String> orderNos) {
+        // 没有订单号时直接返回空列表；有订单号才执行 IN 查询，避免空条件造成无效或过宽查询。
         if (orderNos.isEmpty()) {
             return List.of();
         }
@@ -213,6 +221,7 @@ public class BitOrderQueryMcpExecutor {
      * 两个窗口一起报：只说七天无理由过了，模型会以为售后彻底没门，实际第 8 到 15 天还收质量问题
      */
     private String returnWindow(OrderDO head) {
+        // 以签收时间为基准计算当前售后窗口和剩余天数；未签收或无签收时间时按对应分支说明。
         if (head.getReceiveTime() == null) {
             return null;
         }
@@ -232,6 +241,7 @@ public class BitOrderQueryMcpExecutor {
     }
 
     private void appendIfPresent(StringBuilder sb, String label, Timestamp value) {
+        // 只有时间字段不为空才追加这一行，避免把未发生的支付、发货或签收时间显示出来。
         if (value != null) {
             sb.append(String.format("%s: %s%n", label, BitToolSupport.dateTime(value)));
         }

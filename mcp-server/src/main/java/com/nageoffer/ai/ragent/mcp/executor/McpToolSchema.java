@@ -39,21 +39,26 @@ public final class McpToolSchema {
     private final List<String> required = new ArrayList<>();
 
     private McpToolSchema() {
+        // 通过 object 工厂创建构建器，私有构造器统一收口初始化入口。
     }
 
     public static McpToolSchema object() {
+        // 创建新的 Schema 构建器，每个工具独立维护自己的属性顺序和必填字段列表。
         return new McpToolSchema();
     }
 
     public static Property string(String name, String description) {
+        // 创建字符串属性描述，参数名称和说明交给 Property 构造器统一检查。
         return new Property(name, "string", description);
     }
 
     public static Property integer(String name, String description) {
+        // 创建整数属性描述，后续可继续配置展示标题、候选值或默认值。
         return new Property(name, "integer", description);
     }
 
     public static Property number(String name, String description) {
+        // 创建数值属性描述，供金额等允许小数的参数声明使用。
         return new Property(name, "number", description);
     }
 
@@ -61,11 +66,13 @@ public final class McpToolSchema {
      * 必填参数，参数名会进 schema 的 required 列表
      */
     public McpToolSchema required(Property property) {
+        // 先记录必填属性名，再把属性定义放入有序集合，最终写入 JSON Schema 的 required 列表。
         required.add(property.name);
         return put(property);
     }
 
     public McpToolSchema optional(Property property) {
+        // 仅登记属性定义而不加入必填列表；参数缺省时的处理仍由具体执行器负责。
         return put(property);
     }
 
@@ -76,6 +83,7 @@ public final class McpToolSchema {
      * 省掉它模型就可能自造参数名，而自造的键在 handleCall 里会被静默忽略
      */
     public JsonSchema build() {
+        // 将当前属性和必填项复制为只读结构，并关闭额外属性声明；这些描述不能代替服务端业务校验。
         return new JsonSchema("object", unmodifiableOrdered(properties), List.copyOf(required),
                 false, null, null);
     }
@@ -85,10 +93,12 @@ public final class McpToolSchema {
      * 与确认卡的字段顺序每次启动都不一样
      */
     private static Map<String, Object> unmodifiableOrdered(Map<String, Object> source) {
+        // 先复制到 LinkedHashMap 保留声明顺序，再封装为不可修改视图，避免构建结果随外部 Map 变化。
         return Collections.unmodifiableMap(new LinkedHashMap<>(source));
     }
 
     private McpToolSchema put(Property property) {
+        // 按属性名保存定义，发现重复声明时直接抛错，防止工具 Schema 中同名字段被悄悄覆盖。
         if (properties.put(property.name, property.toMap()) != null) {
             throw new IllegalStateException("MCP 工具参数重名: " + property.name);
         }
@@ -107,6 +117,7 @@ public final class McpToolSchema {
         private final Map<String, Object> attributes = new LinkedHashMap<>();
 
         private Property(String name, String type, String description) {
+            // 检查名称与说明均非空，再记录字段类型和描述，作为后续链式配置的基础。
             if (StrUtil.isBlank(name)) {
                 throw new IllegalArgumentException("MCP 工具参数名不允许为空");
             }
@@ -124,6 +135,7 @@ public final class McpToolSchema {
          * 写工具的参数都该给：确认卡上让用户看 {@code receiverPhone} 不如看「收货手机号」
          */
         public Property title(String title) {
+            // 为参数补充面向用户的展示标题，返回当前属性以继续链式配置。
             attributes.put("title", title);
             return this;
         }
@@ -132,16 +144,19 @@ public final class McpToolSchema {
          * 取值白名单
          */
         public Property options(List<String> options) {
+            // 复制枚举候选列表后放入字段定义，防止调用者后续修改原列表影响 Schema。
             attributes.put("enum", List.copyOf(options));
             return this;
         }
 
         public Property defaultTo(Object defaultValue) {
+            // 将默认值登记到 Schema，供模型理解缺省选择；运行时是否采用该值仍由执行器处理。
             attributes.put("default", defaultValue);
             return this;
         }
 
         private Map<String, Object> toMap() {
+            // 复制并冻结当前属性定义，保持字段顺序，防止工具发布后属性被继续修改。
             return unmodifiableOrdered(attributes);
         }
     }

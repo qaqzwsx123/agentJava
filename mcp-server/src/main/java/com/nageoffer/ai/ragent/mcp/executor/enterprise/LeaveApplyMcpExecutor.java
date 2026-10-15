@@ -66,6 +66,7 @@ public class LeaveApplyMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification leaveSubmitToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -73,6 +74,7 @@ public class LeaveApplyMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("leaveType", "假期类型：年假、调休、病假、事假")
                         .title("假期类型")
@@ -85,6 +87,7 @@ public class LeaveApplyMcpExecutor {
                         .title("请假事由"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("为当前登录员工提交请假申请，提交后进入直属经理审批流程。"
@@ -96,6 +99,7 @@ public class LeaveApplyMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 解析请假类型、起止日期和原因，校验后生成演示申请号；当前只返回回执，不扣减余额或写入审批系统。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -115,6 +119,7 @@ public class LeaveApplyMcpExecutor {
             }
 
             assert start != null;
+            // 包含开始日和结束日，按自然日计数；这里不扣除周末，也不做半天假折算。
             long days = ChronoUnit.DAYS.between(start, end) + 1;
             String applicationNo = nextApplicationNo();
 
@@ -124,6 +129,7 @@ public class LeaveApplyMcpExecutor {
                     System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildReceipt(applicationNo, leaveType, start, end, days, reason));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("提交", e);
@@ -134,6 +140,7 @@ public class LeaveApplyMcpExecutor {
      * 校验不通过返回给模型的中文说明，让它回头问用户而不是自行补全
      */
     private String validate(String leaveType, LocalDate start, LocalDate end, String reason) {
+        // 检查支持的假种、原因和日期格式，再限制结束日期不得早于开始日期以及单次跨度上限。
         if (leaveType == null || !LEAVE_TYPES.contains(leaveType)) {
             return "假期类型缺失或不受支持，请确认后重新提交，可选值：" + String.join("、", LEAVE_TYPES);
         }
@@ -155,6 +162,7 @@ public class LeaveApplyMcpExecutor {
 
     private String buildReceipt(String applicationNo, String leaveType,
                                 LocalDate start, LocalDate end, long days, String reason) {
+        // 使用调用方按包含首尾两天计算的自然日天数，组装固定演示员工和审批人的申请回执。
         return "【请假申请已提交】\n\n" +
                 String.format("申请单号: %s%n", applicationNo) +
                 String.format("申请人: %s%n", CURRENT_EMPLOYEE) +
@@ -166,6 +174,7 @@ public class LeaveApplyMcpExecutor {
     }
 
     private String nextApplicationNo() {
+        // 用当天日期和随机序号构造演示请假单号，供本次回执和日志关联。
         return String.format("LV-%s-%04d", LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE),
                 RandomUtil.randomInt(10000));
     }

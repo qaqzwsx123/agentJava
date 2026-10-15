@@ -60,6 +60,7 @@ public class BitAfterSaleQueryMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification queryAfterSaleToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -67,11 +68,13 @@ public class BitAfterSaleQueryMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("afterSaleNo", "售后单号，如 AS88237001"))
                 .optional(string("orderNo", "订单号，查这一单下的全部售后单"))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询当前登录用户的售后单进度，返回售后单号、对应订单与商品、售后类型、原因、"
@@ -83,6 +86,7 @@ public class BitAfterSaleQueryMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 读取当前用户和可选的售后单号、订单号，在所属用户范围内查询，再将数据库结果整理为工具文本。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -107,6 +111,7 @@ public class BitAfterSaleQueryMcpExecutor {
                     ? BitToolSupport.notFound("订单 " + orderNo + " 的售后单")
                     : McpToolResults.success("当前账号名下还没有售后单");
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("售后查询", e);
@@ -114,10 +119,12 @@ public class BitAfterSaleQueryMcpExecutor {
     }
 
     private List<AfterSaleDetailResult> query(String userId, String afterSaleNo, String orderNo) {
+        // 把用户和筛选条件交给关联订单的查询，限制最多返回的记录数，避免一次输出过长的售后历史。
         return afterSaleMapper.selectDetails(userId, afterSaleNo, orderNo, MAX_ROWS);
     }
 
     private String buildResult(List<AfterSaleDetailResult> rows) {
+        // 逐条输出售后单号、关联商品、申请原因和处理进度；没有记录属于正常查询结果。
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("【售后单 %d 张】%n", rows.size()));
         for (AfterSaleDetailResult row : rows) {

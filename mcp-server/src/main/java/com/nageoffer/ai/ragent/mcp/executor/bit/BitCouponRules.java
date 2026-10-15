@@ -42,12 +42,14 @@ final class BitCouponRules {
     private static final String TYPE_DISCOUNT = "折扣";
 
     private BitCouponRules() {
+        // 所有规则均以静态方法复用，禁止创建无状态的规则工具类实例。
     }
 
     /**
      * 库里存的状态只说「有没有被用掉」，过没过期一律按当前时间现判
      */
     static String effectiveStatus(HeldCouponResult coupon) {
+        // 已使用状态优先保留；其余券根据截止时间判定是否过期，尚未到生效时间的限制留给 judge 校验。
         if (STATUS_USED.equals(coupon.getHeldStatus())) {
             return STATUS_USED;
         }
@@ -61,6 +63,7 @@ final class BitCouponRules {
      * 持券状态与有效期也在这儿再判一遍：下单走的就是这条路，不能指望调用方先筛干净
      */
     static Verdict judge(HeldCouponResult coupon, BigDecimal amount, Map<String, BigDecimal> categoryAmounts) {
+        // 按使用状态、生效时间、适用品类和金额门槛依次判断；失败返回原因，通过后返回优惠额和适用金额说明。
         String effective = effectiveStatus(coupon);
         if (!STATUS_UNUSED.equals(effective)) {
             return new Verdict(false, BigDecimal.ZERO, String.format("不可用，该券%s", effective));
@@ -86,6 +89,7 @@ final class BitCouponRules {
             }
         }
 
+        // 优先使用适用品类小计判门槛；未提供该品类金额时按上面的回落说明使用合计金额，仅供参考。
         BigDecimal threshold = coupon.getThreshold() == null ? BigDecimal.ZERO : coupon.getThreshold();
         if (base.compareTo(threshold) < 0) {
             return new Verdict(false, BigDecimal.ZERO,
@@ -103,6 +107,7 @@ final class BitCouponRules {
     }
 
     static String rule(HeldCouponResult coupon) {
+        // 把优惠类型和金额门槛转换成满减或折扣说明，供查询和回执复用同一套描述。
         String threshold = coupon.getThreshold() == null || coupon.getThreshold().signum() <= 0
                 ? "无门槛"
                 : "满 " + BitToolSupport.money(coupon.getThreshold());
@@ -115,6 +120,7 @@ final class BitCouponRules {
      * 0.90 读成「九」而不是「0.90」，模型照抄出去才不会说成「零点九折」
      */
     static String discountLabel(BigDecimal discountValue) {
+        // 将折扣系数换算为中文折数，去掉多余的小数零，避免把 0.9 直接显示成 0.9 折。
         BigDecimal tenth = discountValue.multiply(BigDecimal.TEN).setScale(1, RoundingMode.HALF_UP);
         return tenth.stripTrailingZeros().toPlainString();
     }

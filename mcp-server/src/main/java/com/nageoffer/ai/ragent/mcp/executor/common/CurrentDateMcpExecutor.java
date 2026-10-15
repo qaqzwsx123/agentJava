@@ -59,15 +59,18 @@ public class CurrentDateMcpExecutor {
     private final Clock clock;
 
     public CurrentDateMcpExecutor() {
+        // 默认构造使用 UTC 时钟作为时间来源；真正输出哪一天由 handleCall 选择的时区决定。
         this(Clock.systemUTC());
     }
 
     CurrentDateMcpExecutor(Clock clock) {
+        // 接受可替换的 Clock 并检查非空，便于测试固定日期以及处理不同时区的日期边界。
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Bean
     public McpServerFeatures.SyncToolSpecification currentDateToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -75,11 +78,13 @@ public class CurrentDateMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .optional(string("timezone", "IANA 时区名称，如 Asia/Shanghai、UTC；不填默认 Asia/Shanghai")
                         .defaultTo(DEFAULT_ZONE_ID.getId()))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询指定时区的当前公历日期和星期，默认使用 Asia/Shanghai；"
@@ -90,6 +95,7 @@ public class CurrentDateMcpExecutor {
     }
 
     CallToolResult handleCall(CallToolRequest request) {
+        // 缺省使用上海时区，指定值则解析为 ZoneId；用注入时钟计算当地日期，非法时区返回明确的参数错误。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -109,6 +115,7 @@ public class CurrentDateMcpExecutor {
         } catch (DateTimeException e) {
             return McpToolResults.error("无效的时区名称，请使用 IANA 时区，如 Asia/Shanghai、UTC");
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("日期查询", e);

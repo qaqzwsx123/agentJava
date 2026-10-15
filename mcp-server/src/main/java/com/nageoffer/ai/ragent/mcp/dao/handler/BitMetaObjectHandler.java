@@ -32,6 +32,7 @@ public class BitMetaObjectHandler implements MetaObjectHandler {
 
     @Override
     public void insertFill(MetaObject metaObject) {
+        // 一次取得当前时间，按严格填充规则补齐创建时间和更新时间，已有有效字段值按框架规则处理。
         Timestamp now = new Timestamp(System.currentTimeMillis());
         strictInsertFill(metaObject, "createTime", () -> now, Timestamp.class);
         strictInsertFill(metaObject, "updateTime", () -> now, Timestamp.class);
@@ -39,6 +40,7 @@ public class BitMetaObjectHandler implements MetaObjectHandler {
 
     @Override
     public void updateFill(MetaObject metaObject) {
+        // 更新时设置当前更新时间，让通过 MyBatis-Plus 执行的修改能够记录最近变更时间。
         setFieldValByName("updateTime", new Timestamp(System.currentTimeMillis()), metaObject);
     }
 }

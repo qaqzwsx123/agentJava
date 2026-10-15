@@ -79,6 +79,7 @@ public class MeetingRoomMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification meetingRoomQueryToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildQueryTool())
                 .callHandler((exchange, request) -> handleQuery(request))
@@ -87,6 +88,7 @@ public class MeetingRoomMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification meetingRoomBookToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildBookTool())
                 .callHandler((exchange, request) -> handleBook(request))
@@ -94,6 +96,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private Tool buildQueryTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("date", "查询日期，格式 yyyy-MM-dd，如 2026-09-07"))
                 .optional(string("startTime", "时段开始时间，格式 HH:mm，如 14:00，不填则返回全天占用情况"))
@@ -101,6 +104,7 @@ public class MeetingRoomMcpExecutor {
                 .optional(integer("capacity", "最少容纳人数，不填则不限"))
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(QUERY_TOOL_ID)
                 .description("查询指定日期各会议室的占用与空闲情况，支持按时段和容纳人数筛选，"
@@ -111,6 +115,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private Tool buildBookTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .required(string("roomId", "会议室ID（不是会议室名称），如 A701，需取自空闲查询结果")
                         .title("会议室ID")
@@ -125,6 +130,7 @@ public class MeetingRoomMcpExecutor {
                         .title("会议主题"))
                 .build();
 
+        // 显式声明为写操作，客户端可据此识别可能改变业务状态的工具。
         return Tool.builder()
                 .name(BOOK_TOOL_ID)
                 .description("为当前登录员工预订会议室，预订成功后会占用该时段并通知参会人。"
@@ -135,6 +141,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private CallToolResult handleQuery(CallToolRequest request) {
+        // 解析日期、人数和可选时段，校验时间先后关系后查询内存中的会议室及模拟占用安排。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -161,6 +168,7 @@ public class MeetingRoomMcpExecutor {
                     QUERY_TOOL_ID, date, startTime, endTime, capacity, System.currentTimeMillis() - startMs);
             return McpToolResults.success(result);
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     QUERY_TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("查询", e);
@@ -168,6 +176,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private CallToolResult handleBook(CallToolRequest request) {
+        // 校验会议室、日期、时段和主题，再检查模拟占用冲突；通过后只生成演示回执，不持久化预订或更新排期。
         long startMs = System.currentTimeMillis();
         try {
             Map<String, Object> args = McpToolResults.args(request);
@@ -196,6 +205,7 @@ public class MeetingRoomMcpExecutor {
                     System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildBookReceipt(bookingNo, room, day, from, to, topic));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     BOOK_TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("预订", e);
@@ -206,6 +216,7 @@ public class MeetingRoomMcpExecutor {
      * 校验不通过返回给模型的中文说明，冲突时连同已占用时段一起给，让它换时段而不是硬试
      */
     private String validateBooking(Room room, String roomId, LocalDate day, Integer from, Integer to, String topic) {
+        // 依次检查房间是否存在、日期与时间是否有效、是否在开放时间内，以及时长和主题是否符合限制。
         if (room == null) {
             return "会议室ID " + roomId + " 不存在，请先用空闲查询确认可用的会议室ID";
         }
@@ -228,6 +239,7 @@ public class MeetingRoomMcpExecutor {
         if (StrUtil.isBlank(topic)) {
             return "会议主题为必填项，请向用户确认后再提交";
         }
+        // 基础参数全部合格后，再检查模拟排期的交叉时段；首尾相接不会被视为冲突。
         List<int[]> conflicts = occupiedSlots(room, day).stream()
                 .filter(slot -> overlaps(from, to, slot))
                 .toList();
@@ -239,6 +251,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private String buildQueryResult(LocalDate day, Integer from, Integer to, Integer capacity) {
+        // 按人数要求筛选会议室，展示当天占用时段；给齐起止时间时额外判断所选时段是否空闲。
         List<Room> candidates = ROOMS.stream()
                 .filter(room -> capacity == null || room.capacity() >= capacity)
                 .toList();
@@ -260,9 +273,11 @@ public class MeetingRoomMcpExecutor {
             return sb.toString();
         }
 
+        // 遍历满足容量要求的房间，分别计算所选日期的模拟占用与当前时段可用性。
         int freeCount = 0;
         for (Room room : candidates) {
             List<int[]> slots = occupiedSlots(room, day);
+            // 只有起止时间都存在时才判断冲突；否则保留房间并展示当天占用安排。
             boolean free = from == null || to == null
                     || slots.stream().noneMatch(slot -> overlaps(from, to, slot));
             if (free) {
@@ -285,6 +300,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private String buildBookReceipt(String bookingNo, Room room, LocalDate day, int from, int to, String topic) {
+        // 用本次参数和演示预订号拼接确认文本；调用方当前没有真实会议室系统的写入动作。
         return "【会议室预订成功】\n\n" +
                 String.format("预订号: %s%n", bookingNo) +
                 String.format("预订人: %s%n", CURRENT_EMPLOYEE) +
@@ -300,6 +316,7 @@ public class MeetingRoomMcpExecutor {
      * 同一「会议室 + 日期」的占用固定不变，否则查完再订会撞上一份新随机结果
      */
     private List<int[]> occupiedSlots(Room room, LocalDate day) {
+        // 以会议室与日期作为随机种子生成稳定的模拟占用时段，保持时段有序并限制在开放时间范围内。
         Random random = new Random((room.id() + "_" + day).hashCode());
         int count = random.nextInt(3);
         List<int[]> slots = new ArrayList<>();
@@ -318,6 +335,7 @@ public class MeetingRoomMcpExecutor {
     }
 
     private Room findRoom(String roomId) {
+        // 规范会议室编号后从固定会议室列表查找，找不到则返回 null 交给参数校验提示。
         if (StrUtil.isBlank(roomId)) {
             return null;
         }
@@ -326,21 +344,25 @@ public class MeetingRoomMcpExecutor {
     }
 
     private String nextBookingNo() {
+        // 用日期和随机序号生成演示预订号，用于回执和日志关联。
         return String.format("MR-%s-%04d", LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE),
                 RandomUtil.randomInt(10000));
     }
 
     private static boolean overlaps(int from, int to, int[] slot) {
+        // 采用严格区间交叉条件判断冲突，前一场结束时间等于后一场开始时间时允许相接。
         return from < slot[1] && to > slot[0];
     }
 
     private static String describeSlots(List<int[]> slots) {
+        // 把一组占用区间转成便于阅读的时间段列表，空集合按无占用展示。
         return slots.stream()
                 .map(slot -> minute(slot[0]) + "-" + minute(slot[1]))
                 .collect(Collectors.joining("，"));
     }
 
     private static String describeDuration(int minutes) {
+        // 把分钟时长换算成小时与分钟说明，供预订回执展示会议持续时间。
         int hours = minutes / 60;
         int rest = minutes % 60;
         if (hours == 0) {
@@ -350,10 +372,12 @@ public class MeetingRoomMcpExecutor {
     }
 
     private static String minute(int minuteOfDay) {
+        // 将一天内的分钟数拆成小时和分钟，并补零格式化为 HH:mm。
         return LocalTime.of(minuteOfDay / 60, minuteOfDay % 60).format(HH_MM);
     }
 
     private static Integer parseMinute(String value) {
+        // 按约定时间格式解析并转换为一天内的分钟数，空值或非法时间返回 null 供上层统一校验。
         if (StrUtil.isBlank(value)) {
             return null;
         }

@@ -45,6 +45,7 @@ public class BitPendingOrderTimeoutTask {
 
     @Scheduled(fixedDelayString = "${ragent.bit.pending-order.scan-interval:1m}")
     public void releaseExpired() {
+        // 定时取出超过待支付期限的订单号，逐个复用释放逻辑；取消仍要求待支付状态，避免误撤销刚完成支付的订单。
         long timeoutSeconds = bitProperties.getPendingOrder().getTimeout().getSeconds();
         try {
             List<String> expired = orderMapper.selectExpiredPendingNos(timeoutSeconds + " seconds");

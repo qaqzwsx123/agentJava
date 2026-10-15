@@ -52,12 +52,15 @@ public class BitOrderReleaser {
      * 输的一方拿 false 回去照实说，而不是抛异常
      */
     public boolean release(String orderNo, String expectedStatus) {
+        // 在同一事务内尝试把预期状态改为已取消；只有条件更新成功的一次调用，才继续归还订单库存和优惠券。
         return Boolean.TRUE.equals(bitTransactionTemplate.execute(status -> {
             int cancelled = orderMapper.cancel(orderNo, expectedStatus);
             if (cancelled == 0) {
                 return false;
             }
+            // 只有抢到状态变更的调用才能归还库存，重复取消或超时任务重试不会再次增加库存。
             int stockRows = productSkuMapper.restoreStockByOrder(orderNo);
+            // 按订单关联退回已核销的券，与订单状态和库存修改一并提交。
             int couponRows = userCouponMapper.restoreByOrder(orderNo);
             log.info("订单已取消并释放资源, orderNo={}, from={}, 回补商品={}, 退回券={}",
                     orderNo, expectedStatus, stockRows, couponRows);

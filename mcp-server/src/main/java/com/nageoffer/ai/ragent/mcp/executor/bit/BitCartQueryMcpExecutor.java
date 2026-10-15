@@ -55,6 +55,7 @@ public class BitCartQueryMcpExecutor {
 
     @Bean
     public McpServerFeatures.SyncToolSpecification queryCartToolSpecification() {
+        // 把工具定义和请求处理函数绑定为同步调用规格，交由 Spring 收集并注册到 MCP 服务。
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(buildTool())
                 .callHandler((exchange, request) -> handleCall(request))
@@ -62,9 +63,11 @@ public class BitCartQueryMcpExecutor {
     }
 
     private Tool buildTool() {
+        // 先声明参数类型、必填项及展示说明，供模型发现工具时理解输入；实际调用仍会执行下面的业务校验。
         JsonSchema inputSchema = McpToolSchema.object()
                 .build();
 
+        // 显式声明为只读工具，查询结果不会在此方法中触发业务写入。
         return Tool.builder()
                 .name(TOOL_ID)
                 .description("查询当前登录用户的购物车，返回每件商品的型号、数量、加购价、现价、价差、库存情况，"
@@ -76,6 +79,7 @@ public class BitCartQueryMcpExecutor {
     }
 
     private CallToolResult handleCall(CallToolRequest request) {
+        // 确认请求携带用户身份后读取该用户的购物车，商品名称、价格和库存均取本次数据库查询结果。
         long startMs = System.currentTimeMillis();
         String userId = McpToolResults.userId(request);
         if (userId == null) {
@@ -88,6 +92,7 @@ public class BitCartQueryMcpExecutor {
                     TOOL_ID, lines.size(), System.currentTimeMillis() - startMs);
             return McpToolResults.success(buildResult(lines));
         } catch (Exception e) {
+            // 异常详情留在服务端日志中，向模型返回统一的工具失败说明。
             log.error("MCP 工具调用失败, toolId={}, elapsed={}ms",
                     TOOL_ID, System.currentTimeMillis() - startMs, e);
             return McpToolResults.failure("购物车查询", e);
@@ -95,6 +100,7 @@ public class BitCartQueryMcpExecutor {
     }
 
     private String buildResult(List<CartLineResult> lines) {
+        // 逐行计算当前价格小计并汇总总额和品类金额，同时标明下架、缺货、库存不足与价格变化。
         if (lines.isEmpty()) {
             return "购物车是空的";
         }
@@ -107,6 +113,7 @@ public class BitCartQueryMcpExecutor {
         BigDecimal total = BigDecimal.ZERO;
         int unavailable = 0;
 
+        // 逐项按当前价格计算小计；总额仍列出全部行，不可下单的商品另外标记并统计。
         for (int i = 0; i < lines.size(); i++) {
             CartLineResult line = lines.get(i);
             BigDecimal subtotal = line.getPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
@@ -114,6 +121,7 @@ public class BitCartQueryMcpExecutor {
             categoryAmount.merge(line.getCategory(), subtotal, BigDecimal::add);
 
             String stockLabel = BitToolSupport.stockLabel(line.getStatus(), line.getStock());
+            // 可下单要求同时满足在售和库存覆盖目标数量，购物车中存在商品并不表示已经锁定库存。
             boolean buyable = "在售".equals(line.getStatus()) && line.getStock() >= line.getQuantity();
             if (!buyable) {
                 unavailable++;
@@ -130,6 +138,7 @@ public class BitCartQueryMcpExecutor {
 
         sb.append(String.format("%n合计（按现价）: %s%n", BitToolSupport.money(total)));
         // 排版成 `手机:3999.00,耳机:1200.00`，优惠券试算的 categoryAmounts 可以整行照抄
+        // 把各品类小计整理成可复用文本，后续券包试算可据此判断品类券门槛。
         List<String> parts = categoryAmount.entrySet().stream()
                 .map(entry -> entry.getKey() + ":" + BitToolSupport.money(entry.getValue()))
                 .toList();
@@ -141,6 +150,7 @@ public class BitCartQueryMcpExecutor {
     }
 
     private String priceDiff(CartLineResult line) {
+        // 比较加入购物车时的单价与当前单价，区分涨价、降价和未变化，并按差额绝对值展示金额。
         if (line.getAddedPrice() == null) {
             return "";
         }
