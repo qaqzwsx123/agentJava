@@ -140,8 +140,8 @@ public class ReActAgentProvider {
                 .maxIters(agentProperties.getMaxIters())           // ReAct 循环上限，超出熔断收尾
                 .maxRetries(agentProperties.getMaxRetries())       // 单次模型调用最大尝试次数
                 .stateStore(agentStateStore);                      // 状态存储（PG），保证重建不丢历史
-        // 追踪包在最外层：span 要盖住记忆与压缩才量得到耗时
-        otelTracingMiddleware.ifAvailable(builder::middleware); //给 Agent 运行打追踪 span，接入 OpenTelemetry 体系，把每一步（模型调用、工具调用、记忆、压缩等）的耗时/链路记录下来，用于可观测性（接 Jaeger、Zipkin、SkyWalking 等）。
+        // 追踪包在最外层：span 要盖住记忆与压缩才量得到耗时, 使用 OpenTelemetry 记录执行链路，并按配置上报到 Langfuse。。
+        otelTracingMiddleware.ifAvailable(builder::middleware); //给 Agent 运行打追踪 span，接入 OpenTelemetry 体系，把每一步（模型调用、工具调用、记忆、压缩等）的耗时/链路记录下来，存在追踪中间件时将其注册到 Agent，
         traceEnrichmentMiddleware.ifAvailable(builder::middleware); //在追踪基础上补充业务信息（比如把 userId、conversationId、taskId 等塞进 span），让追踪数据更能反映业务上下文。
         // 按顺序挂载业务中间件：洋葱模型，外层先执行，顺序影响行为
         return builder

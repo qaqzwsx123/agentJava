@@ -59,9 +59,9 @@ agent:
     long-term-enabled: true # 是否启用长期记忆
     evictable-tools: [ search_knowledge ]  # 可被驱逐的工具列表
   trace:  #$agent.trace 配置块是 Agent 引擎的链路追踪（Observability）配置，用来把 Agent 每一次运行的内部步骤上报到 Langfuse
-    enabled: false  #  # 是否启用 Langfuse 追踪；开启前先起 resources/docker/langfuse 那套服务
+    enabled: true  #  # 是否启用 Langfuse 追踪；开启前先起 resources/docker/langfuse 那套服务
     capture-content: true  # 记录提示词与工具出入参；纯骨架改 false
-    endpoint: http://localhost:3000/api/public/otel/v1/traces
+    endpoint: http://192.168.137.100:3000/api/public/otel/v1/traces
     public-key: pk-lf-ragent-local     # 与 compose 里的 LANGFUSE_INIT_PROJECT_PUBLIC_KEY 一致
     secret-key: sk-lf-ragent-local     # 与 compose 里的 LANGFUSE_INIT_PROJECT_SECRET_KEY 一致
     max-field-chars: 32768
@@ -92,7 +92,7 @@ rag:
       public-url:  # 虚拟主机式基址（含 bucket 子域），如 https://ragent-assets.oss-cn-hangzhou.aliyuncs.com；留空由 endpoint 推导
 
   vector:
-    type: pg  # 可选 milvus / pg
+    type: pg  # 可选 milvus / pg  ，pg代表使用 PostgreSQL + pgvector
 
   keyword:
     type: none    # 关键词检索类型：none / es

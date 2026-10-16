@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.nageoffer.ai.ragent.agent.trace;
 
 import cn.hutool.core.util.StrUtil;
@@ -91,32 +74,47 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
 
     private final Tracer tracer;
     private final AgentTraceSerializer serializer;
-
+    // 基于 OpenTelemetry (OTel) 的 Agent 运行链路追踪拦截器。
+    //在 Agent 真正执行之前，为本次运行建立一个“根 Span（Trace 追踪的起点）”；
+    // 在 Agent 执行过程中（也就是事件流 Flux 中），实时捕获并记录关键信息（比如输入问题、输出回答、报错信息等），最终实现全链路的监控与可观测性。
     @Override
     public Flux<AgentEvent> onAgent(Agent agent, RuntimeContext ctx, AgentInput input,
                                     Function<AgentInput, Flux<AgentEvent>> next) {
+        // 延迟获取响应式上下文，确保能拿到当前正确的 OTel Span
         return Flux.deferContextual(ctxView -> {
             Span span = currentSpan(ctxView);
+            // 如果没有有效的追踪 Span（例如未开启追踪），直接放行，不做任何额外处理
             if (!span.getSpanContext().isValid()) {
                 return next.apply(input);
             }
+
+            // 判断本次运行类型：是用户正常提问，还是确认卡片后的续跑
             // trace 名与运行方式同源：各写一个三元表达式迟早有一处漏改，读的人也就分不清该信哪个
             String runKind = isConfirmResume(input.msgs())
                     ? RagentAttributes.RUN_KIND_CONFIRM_RESUME : RagentAttributes.RUN_KIND_ASK;
+
+            // 设置追踪元数据：Trace 名称、观测类型、运行类型
             span.setAttribute(AgentTraceAttributes.TRACE_NAME, RagentAttributes.TRACE_NAME_PREFIX + runKind);
             span.setAttribute(AgentTraceAttributes.OBSERVATION_TYPE, AgentTraceAttributes.TYPE_AGENT);
             span.setAttribute(RagentAttributes.RUN_KIND, runKind);
+
             // 契约版本只写根 span：语义换代后查询侧凭它区分两代数据，不必靠某个属性有没有来猜
             span.setAttribute(RagentAttributes.CONTRACT_VERSION, RagentAttributes.CONTRACT_VERSION_VALUE);
+            // 记录本次的输入问题
             span.setAttribute(AgentTraceAttributes.OBSERVATION_INPUT, describeQuestion(input.msgs()));
+            // 写入用户/会话等身份标识
             AgentRunTracer.writeIdentity(span, ctx);
 
             // 中断发生在响应式链之外的 HTTP 线程上，那里只够得着 RuntimeContext，根 span 与轮次计数器都寄存进去
             // 轮数由 onReasoning 逐轮回写，不留到终止回调：取消信号自外向内传，外层先 end span 会把补写吞掉
             AgentRunTracer.bindRoot(ctx, span);
 
+            // 创建输出收集器，用于在流式过程中实时拼凑完整的回答
             RootOutput output = new RootOutput(span);
+
+            // 执行后续逻辑（真正的 Agent 运行），并挂载各种生命周期钩子
             return next.apply(input)
+                    // 处理流式事件：逐块拼接回答文本，并记录异常或警告信息
                     .doOnNext(event -> {
                         if (event instanceof TextBlockDeltaEvent delta) {
                             output.appendAnswer(delta.getDelta());
@@ -125,6 +123,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
                         } else if (event instanceof AgentResultEvent result) {
                             output.finish(result.getResult());
                         } else if (event instanceof ExceedMaxItersEvent exceed) {
+                            // 达到迭代上限，标记为警告，提示可能存在循环或未完成任务
                             span.setAttribute(AgentTraceAttributes.LEVEL, AgentTraceAttributes.LEVEL_WARNING);
                             span.setAttribute(AgentTraceAttributes.STATUS_MESSAGE,
                                     "Agent ReAct循环达到迭代上限，迭代次数：" + exceed.getMaxIters());
@@ -134,8 +133,8 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
                     .doOnComplete(() -> AgentRunTracer.markCompleted(ctx))
                     // 失败路径根本不发 AgentResultEvent，正文只能靠这里补完，否则整条 trace 只剩一句报错
                     .doOnError(e -> {
-                        output.flush();
-                        AgentRunTracer.markFailed(ctx);
+                        output.flush(); // 补完已产生的文本
+                        AgentRunTracer.markFailed(ctx); // 标记追踪失败
                         span.setAttribute(AgentTraceAttributes.LEVEL, AgentTraceAttributes.LEVEL_ERROR);
                         span.setAttribute(AgentTraceAttributes.STATUS_MESSAGE, String.valueOf(e.getMessage()));
                     })
@@ -145,6 +144,7 @@ public class AgentTraceEnrichmentMiddleware implements MiddlewareBase {
                     .doOnCancel(cancelQuietly("root_output", output::flush));
         });
     }
+
 
     /**
      * 官方没有轮次这一层，由这里补建，官方随后建的 chat 会认它作父
