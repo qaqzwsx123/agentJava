@@ -104,15 +104,15 @@ rag:
       search-analyzer: ik_smart  #后者用于分析搜索文本
 
   graph:    #图谱
-    type: lightrag  # 图谱后端总开关，可选 none / lightrag。lightrag 即接入后端供「后台可视化 / 检索读取」；是否参与检索、是否写入分别由 rag.search.channels.graph.enabled 与下方 ingestion.enabled 独立控制
+    type: lightrag  # 启用图谱接入和整篇文档同步；是否参与问答检索由 rag.search.channels.graph.enabled 控制
     lightrag:
       base-url: http://192.168.137.100:9621
       query-mode: hybrid
-    embedding-model: qwen3.7-text-embedding  # 与 LightRAG 的 SiliconFlow Qwen3-Embedding-8B 配置一致
+    embedding-model: qwen3.7-text-embedding  # 图谱服务的独立模型，由服务器 .env 决定；不随下方 Java 向量模型切换
 
   default:
     collection-name: rag_default_store
-    dimension: 1536  # 向量维度
+    dimension: 1024  # Flash 向量模型维度；PG 向量列同步为 vector(1024)，仅重建后的向量参与检索
     metric-type: COSINE # 相似度度量方式
     sse-timeout-ms: 300000  # SSE 全局超时（毫秒），默认 5 分钟
 
@@ -289,22 +289,29 @@ ai:
         timeout-ms: 180000
 
   embedding:
-    default-model: qwen37-embedding  # 默认嵌入模型 ，使用新人额度模型qwen3.7-text-embedding
+    default-model: qwen37-embedding  # 内部模型 ID；实际调用有剩余免费额度的 Flash 版本
     candidates:
       - id: qwen37-embedding
         provider: bailian
-        model: qwen3.7-text-embedding
+        model: qwen3.7-text-embedding-flash
         dimension: ${rag.default.dimension}
         priority: 1
+      # 兼容已有知识库保存的旧内部 ID；向量表为空后切换，仍调用同一个 Flash 模型
+      - id: qwen-emb-8b
+        provider: bailian
+        model: qwen3.7-text-embedding-flash
+        dimension: ${rag.default.dimension}
+        priority: 10
       - id: qwen-emb-local
         provider: ollama
         model: qwen3-embedding:8b-fp16
         dimension: ${rag.default.dimension}
         priority: 2
+        enabled: false  # 当前 Ollama 尚未安装此向量模型，避免 404 回退
 
 
   rerank:
-    default-model: qwen3-rerank  # 默认重排序模型，qwen3-rerank使用新人额度
+    default-model: qwen3-rerank  # 内部模型 ID；实际调用下面的 qwen3.7-text-rerank
     candidates:
       - id: qwen3-rerank
         provider: bailian

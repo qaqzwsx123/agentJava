@@ -637,7 +637,7 @@ CREATE TABLE t_knowledge_vector (
     collection_name VARCHAR(64) NOT NULL,
     content         TEXT,
     metadata        JSONB,
-    embedding       vector(1536)
+    embedding       vector(1024)
 );
 
 CREATE INDEX idx_kv_collection_name ON t_knowledge_vector (collection_name);
