@@ -196,6 +196,8 @@ public class LightRagClient {
      * @param text       文档全文
      * @param fileSource 来源标识（建议传 docId）
      */
+    //就是发送 HTTP 请求：
+    //POST http://192.168.137.100:9621/documents/text  Java 项目执行到这里，是把文档交给另一个服务处理。
     public void insertText(String text, String fileSource) {
         // 有效文本才提交图谱文档，附可选来源编码；同步失败仅记告警，不向量写入调用方继续抛出。
         if (StrUtil.isBlank(text)) {

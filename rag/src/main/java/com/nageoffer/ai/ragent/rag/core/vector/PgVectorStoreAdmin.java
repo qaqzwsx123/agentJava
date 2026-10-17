@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")
+@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")//检查向量表、创建所需索引、清理集合数据
 public class PgVectorStoreAdmin implements VectorStoreAdmin {
 
 

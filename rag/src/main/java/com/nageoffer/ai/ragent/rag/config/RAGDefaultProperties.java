@@ -23,36 +23,27 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * RAG 系统默认配置
- *
- * <p>
  * 用于管理 RAG 系统的默认向量数据库配置，包括集合名称、向量维度和度量类型等
- * </p>
- *
- * <pre>
  * 示例配置：
- *
  * rag:
  *   default:
  *     collection-name: default_collection
  *     dimension: 768
  *     metric-type: COSINE
- * </pre>
  */
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "rag.default")
+@ConfigurationProperties(prefix = "rag.default") //读取默认 配置 rag.default.collection-name
 public class RAGDefaultProperties {
 
     /**
      * 默认向量集合名称
-     * <p>
      * 用于指定在向量数据库中存储向量数据的默认集合（Collection）名称
      */
     private String collectionName;
 
     /**
      * 向量维度
-     * <p>
      * 指定向量的维数，需要与所使用的 Embedding 模型输出维度保持一致
      * 例如：2048、4096 等
      */
@@ -60,7 +51,6 @@ public class RAGDefaultProperties {
 
     /**
      * 向量相似度度量类型
-     * <p>
      * 用于计算向量之间相似度的度量方法，常见取值：
      * <ul>
      *   <li>{@code COSINE}：余弦相似度</li>
@@ -72,7 +62,6 @@ public class RAGDefaultProperties {
 
     /**
      * SSE 全局超时时间（毫秒）
-     * <p>
      * 兜底防止 SSE 连接泄漏，超时后自动关闭连接。默认 5 分钟
      */
     private Long sseTimeoutMs = 5 * 60 * 1000L;

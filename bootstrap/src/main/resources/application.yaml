@@ -59,7 +59,7 @@ agent:
     long-term-enabled: true # 是否启用长期记忆
     evictable-tools: [ search_knowledge ]  # 可被驱逐的工具列表
   trace:  #$agent.trace 配置块是 Agent 引擎的链路追踪（Observability）配置，用来把 Agent 每一次运行的内部步骤上报到 Langfuse
-    enabled: true  #  # 是否启用 Langfuse 追踪；开启前先起 resources/docker/langfuse 那套服务
+    enabled: false  #  # 是否启用 Langfuse 追踪；开启前先起 resources/docker/langfuse 那套服务
     capture-content: true  # 记录提示词与工具出入参；纯骨架改 false
     endpoint: http://192.168.137.100:3000/api/public/otel/v1/traces
     public-key: pk-lf-ragent-local     # 与 compose 里的 LANGFUSE_INIT_PROJECT_PUBLIC_KEY 一致
@@ -94,20 +94,21 @@ rag:
   vector:
     type: pg  # 可选 milvus / pg  ，pg代表使用 PostgreSQL + pgvector
 
-  keyword:
+#关键词检索和图谱检索，是在现有向量检索之外增加的两种“找资料的方法”
+  keyword:   #关键词检索
     type: none    # 关键词检索类型：none / es
     es:
-      uris: http://127.0.0.1:9200
+      uris: http://192.168.137.100:9200
       index: rag_keyword_store  # 全库共享索引，按 collection_name 字段区分知识库
-      analyzer: ik_max_word
-      search-analyzer: ik_smart
+      analyzer: ik_max_word   #使用 IK 中文分词器：前者用于建索引
+      search-analyzer: ik_smart  #后者用于分析搜索文本
 
-  graph:
-    type: none  # 图谱后端总开关，可选 none / lightrag。lightrag 即接入后端供「后台可视化 / 检索读取」；是否参与检索、是否写入分别由 rag.search.channels.graph.enabled 与下方 ingestion.enabled 独立控制
+  graph:    #图谱
+    type: lightrag  # 图谱后端总开关，可选 none / lightrag。lightrag 即接入后端供「后台可视化 / 检索读取」；是否参与检索、是否写入分别由 rag.search.channels.graph.enabled 与下方 ingestion.enabled 独立控制
     lightrag:
-      base-url: http://127.0.0.1:9621
+      base-url: http://192.168.137.100:9621
       query-mode: hybrid
-    embedding-model: qwen-emb-8b  # 与 LightRAG 的 SiliconFlow Qwen3-Embedding-8B 配置一致
+    embedding-model: qwen3.7-text-embedding  # 与 LightRAG 的 SiliconFlow Qwen3-Embedding-8B 配置一致
 
   default:
     collection-name: rag_default_store
@@ -140,58 +141,78 @@ rag:
     title-max-length: 30 # 标题最大长度
 
   semaphore:
-    document-upload:
-      name: rag:document:upload
-      max-concurrent: 10
-      max-wait-seconds: 5
-      lease-seconds: 300
+    document-upload: # 限流规则名称/业务作用域：专门用于“文档上传”场景
+      name: rag:document:upload              # 分布式信号量唯一标识：多实例共享同一个信号量时使用该 key
+      max-concurrent: 10                     # 最大并发许可数：同一时刻最多允许 10 个文档上传任务同时执行
+      max-wait-seconds: 5                    # 最大等待秒数：拿不到许可时最多等待 5 秒，超时则快速失败/抛异常
+      lease-seconds: 300                     # 许可租约有效期：获取许可后租约为 300 秒；持有者崩溃未释放时，到期后许可自动回收
+      # 长任务通常需要后台心跳续期，避免租约在任务完成前过期
 
   knowledge:
     schedule:
-      scan-delay-ms: 10000 # 扫描延迟 10s
-      lock-seconds: 900 # 锁定时长 15 分钟
-      batch-size: 20 # 批处理大小
-      min-interval-seconds: 60 # 最小间隔 60s
+      scan-delay-ms: 10000        # 扫描延迟：任务启动后延迟 10 秒再扫描，或每轮扫描前延迟 10s
+      lock-seconds: 900           # 分布式锁/任务锁时长：锁定 15 分钟，防止多实例重复扫描或重复处理
+      batch-size: 20              # 批处理大小：每批最多处理 20 条知识/文档记录
+      min-interval-seconds: 60    # 最小调度间隔：两次扫描之间至少间隔 60 秒，避免扫描过于频繁
 
   search:
-    # 检索漏斗三段预算，各自独立、单调收窄，启动时校验 recall-budget ≥ default-top-k 且 rerank-candidate-limit ≥ default-top-k
-    default-top-k: 10           # ③ 最终进 LLM 的条数（产品语义的 topK）
-    recall-budget: 20           # ① 每通道召回条数（绝对值，向量意图路/关键词/图谱共用）；须 ≥ default-top-k，0=回退 default-top-k
+    # 执行顺序（YAML 书写顺序 ≠ 执行顺序，这里刻意按执行时间线排）
+    # 第0步 scope 定范围 → 第1步 channels 并行召回 → 第2步 fusion 融合
+    # → 第3步截断 rerank-candidate-limit → 第4步 Rerank 精排
+    # → 第5步 evidence 闸门 → 第6步取 default-top-k 进 LLM
+    # ==========================================================
+
+    # ---------- 第0步：scope，最先执行，决定“本次看哪些知识库” ----------
     # 检索作用域：本次请求该看哪些知识库，与用什么模态检索无关，故与 channels 平级、三条通道共读
     # 判定只看 KB 意图最高分，不看意图个数；关掉任一通道都不影响其余通道的作用域
     scope:
       min-intent-score: 0.4        # 低于此分的意图节点不参与「是否收窄」的判定
-      confidence-threshold: 0.6    # KB 意图最高分低于此值 → 退化为全库检索
+      confidence-threshold: 0.6    # 最高分 ≥ 0.6 → 定向检索（只查命中的库）；< 0.6 → 退化为全库检索，不冒险收窄
       supplement-ratio: 0.25       # 定向时各通道从自身产出额度划给「未命中库」的保底比例，兜住意图判错；0=关闭补充路，命中库已覆盖全库时自动不补
+
+    # ---------- 第1步：channels + recall-budget，多通道并行宽召回 ----------
+    recall-budget: 20              # ① 每通道召回条数（绝对值，向量意图路/关键词/图谱共用）；须 ≥ default-top-k，0=回退 default-top-k
     channels:
-      timeout-ms: 15000     # 单通道查询超时上限（毫秒）
+      timeout-ms: 15000            # 单通道查询超时上限（毫秒），超时只影响本通道，不拖垮整体
       vector:
-        enabled: true       # 向量通道总开关
+        enabled: true              # 向量通道总开关
       keyword:
-        enabled: false      # 检索范围读引擎解析好的作用域，与向量通道同源
+        enabled: false             # 检索范围读引擎解析好的作用域，与向量通道同源
       graph:
-        enabled: false    # 图谱检索通道开关：false 不参与问答召回（后端仍在，后台可视化照常）；置 true 前需先开 rag.graph.type=lightrag
+        enabled: true              # 图谱检索通道开关：false 不参与问答召回（后端仍在，后台可视化照常）；置 true 前需先开 rag.graph.type=lightrag
       web-search:
         enabled: false
         count: 5
         timeout-seconds: 10
         api-key: ${YDC_API_KEY:}
+
+    # ---------- 第2步：fusion，RRF 融合成一个候选池 ----------
     fusion:
-      strategy: rrf               # 融合策略：RRF
-      rrf-k: 20                   # 候选池通常仅 20~40 条，k=60 会过度平滑名次；调低至 20 让头部更有区分度（配合「检索归因」日志校准）
-      rerank-candidate-limit: 40  # ② RRF 融合后送入 Rerank 的候选池上限，<=0 不截断（经验值 40~100）
+      strategy: rrf                # 融合策略：RRF
+      rrf-k: 20                    # 候选池通常仅 20~40 条，k=60 会过度平滑名次；调低至 20 让头部更有区分度（配合「检索归因」日志校准）
       channel-weights:
-        vector: 1.0
-        keyword: 1.0
-        graph: 0.8
-        web-search: 0.5
+        vector: 1.0                # 向量通道：满权重，语义召回是主力，可控可信
+        keyword: 1.0               # 关键词通道：满权重，精确词匹配可信度高（当前 enabled=false，不生效）
+        graph: 0.8                 # 图谱通道：打 8 折，关系推理有价值但实体/关系抽取可能有误差，防止压过向量召回
+        web-search: 0.5            # 联网检索：打 5 折，外部结果质量参差、时效不可控，仅作兜底补充
+      # ---------- 第3步：融合后截断，控制精排成本 ----------
+      rerank-candidate-limit: 40   # ② RRF 融合后送入 Rerank 的候选池上限，<=0 不截断（经验值 40~100）
+
+    # ---------- 第4步：Rerank 精排（无独立配置，模型由 ai.rerank 决定） ----------
+
+    # ---------- 第5步：evidence 闸门，整批丢弃的兜底 ----------
     # 证据相关性闸门：检索只保证返回最像的 N 条，库里没答案时照样满额返回，这里补一道相关度下限
     evidence:
-      min-rerank-score: 0.2   # 整批最高精排分低于此值则整批丢弃，0=关闭；随 reranker 而变，换模型看「检索归因 - 精排分布」重测
+      min-rerank-score: 0.2        # 整批最高精排分低于此值则整批丢弃，0=关闭；随 reranker 而变，换模型看「检索归因 - 精排分布」重测
 
+    # ---------- 第6步：default-top-k，最终截断进 LLM（配置写在最后、执行也最后） ----------
+    # 检索漏斗三段预算，各自独立、单调收窄，启动时校验 recall-budget ≥ default-top-k 且 rerank-candidate-limit ≥ default-top-k
+    default-top-k: 10              # ③ 最终进 LLM 的条数（产品语义的 topK）
+
+  # agent.trace 是Agent 整体运行上报 Langfuse 的外部追踪，rag.trace 是RAG 检索漏斗的内部追踪/错误记录
   trace:
-    enabled: true
-    max-error-length: 1000
+    enabled: true              # 是否记录 RAG 检索链路的追踪信息
+    max-error-length: 1000     # 单条错误信息最多保留 1000 字符
 
   # 图片解析（图生文）配置
   # 产出一段自包含的知识文本：既说清"图是什么"，又完整保留所有文字与层级
@@ -218,7 +239,7 @@ ai:
         embedding: /v1/embeddings
     bailian:
       url: https://dashscope.aliyuncs.com
-      api-key: ${BAILIAN_API_KEY:}
+      api-key: sk-0e820ca33e424b8c988c0ad5fe7b511e #百炼 api-key
       endpoints:
         chat: /compatible-mode/v1/chat/completions
         rerank: /api/v1/services/rerank/text-rerank/text-rerank
@@ -244,23 +265,10 @@ ai:
 
   chat:
     candidates:    # 聊天模型候选列表
-      - id: qwen-plus
-        provider: bailian
-        model: qwen-plus-latest
-      - id: qwen-flash
-        provider: bailian
-        model: qwen-flash
       - id: qwen3-local
         provider: ollama
         model: qwen3.5:2b
         supports-thinking: true
-      - id: qwen3-max
-        provider: bailian
-        model: qwen3-max
-        supports-thinking: true
-      - id: gpt-5.4
-        provider: aihubmix
-        model: gpt-5.4
       - id: deepseek-flash
         provider: deepseek
         model: deepseek-flash
@@ -281,11 +289,11 @@ ai:
         timeout-ms: 180000
 
   embedding:
-    default-model: qwen-emb-8b  # 默认嵌入模型
+    default-model: qwen37-embedding  # 默认嵌入模型 ，使用新人额度模型qwen3.7-text-embedding
     candidates:
-      - id: qwen-emb-8b
+      - id: qwen37-embedding
         provider: bailian
-        model: text-embedding-v4
+        model: qwen3.7-text-embedding
         dimension: ${rag.default.dimension}
         priority: 1
       - id: qwen-emb-local
@@ -293,18 +301,14 @@ ai:
         model: qwen3-embedding:8b-fp16
         dimension: ${rag.default.dimension}
         priority: 2
-      - id: text-embedding-3-large
-        provider: aihubmix
-        model: text-embedding-3-large
-        dimension: ${rag.default.dimension}
-        priority: 3
+
 
   rerank:
-    default-model: qwen3-rerank  # 默认重排序模型
+    default-model: qwen3-rerank  # 默认重排序模型，qwen3-rerank使用新人额度
     candidates:
       - id: qwen3-rerank
         provider: bailian
-        model: qwen3-rerank
+        model: qwen3.7-text-rerank  #使用新人额度 重排序模型
         priority: 1
       - id: rerank-noop
         provider: noop
