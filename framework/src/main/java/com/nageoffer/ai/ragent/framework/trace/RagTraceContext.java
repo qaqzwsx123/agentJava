@@ -26,7 +26,7 @@ import java.util.Deque;
  * RAG Trace 上下文
  * 使用 TTL 在异步线程池中透传 traceId 与节点栈
  */
-public final class RagTraceContext {
+public final class RagTraceContext { //当前追踪的上下文。保存 traceId、taskId 和节点栈，帮助各步骤关联到同一次请求，并确定父子关系
 
     private static final TransmittableThreadLocal<String> TRACE_ID = new TransmittableThreadLocal<>();
     private static final TransmittableThreadLocal<String> TASK_ID = new TransmittableThreadLocal<>();
