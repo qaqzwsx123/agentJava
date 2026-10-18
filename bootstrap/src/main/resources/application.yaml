@@ -368,7 +368,7 @@ rocketmq:
   name-server: 192.168.137.100:9876
   producer:
     group: ragent-producer${unique-name:}_pg # 生产者组
-    send-message-timeout: 2000  # 发送超时 2s
+    send-message-timeout: 10000  # 发送超时 10s，给首次路由查询和连接建立留出时间
 
 # ============================================================
 # Milvus 向量库配置

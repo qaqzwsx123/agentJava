@@ -493,6 +493,34 @@ export function KnowledgeDocumentsPage() {
     loadDocuments();
   }, [loadDocuments]);
 
+  const hasRunningDocuments = documents.some((doc) => doc.status?.toLowerCase() === "running");
+
+  useEffect(() => {
+    if (!kbId || !hasRunningDocuments) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const data = await getDocumentsPage(kbId, {
+          current,
+          size: PAGE_SIZE,
+          status: statusFilter,
+          keyword: keyword || undefined
+        });
+        if (!cancelled) setPageData(data);
+      } catch (error) {
+        console.error("自动刷新文档状态失败", error);
+      } finally {
+        if (!cancelled) timer = setTimeout(poll, 2000);
+      }
+    };
+    timer = setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [kbId, current, statusFilter, keyword, hasRunningDocuments]);
+
   useEffect(() => {
     if (detailTarget) {
       setDetailName(detailTarget.docName || "");
