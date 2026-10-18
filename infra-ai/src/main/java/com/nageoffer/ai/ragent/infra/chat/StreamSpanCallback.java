@@ -24,6 +24,7 @@ import com.nageoffer.ai.ragent.framework.trace.RagStreamTraceSupport.StreamSpan;
  * 让 *-stream-chat trace 节点记录从开始到 onComplete / onError 的真实耗时
  */
 public final class StreamSpanCallback extends ForwardingStreamCallback {
+    // 将流式完成、错误和取消事件连接到追踪节点，使追踪耗时覆盖流的实际执行过程。
 
     private final StreamSpan span;
 

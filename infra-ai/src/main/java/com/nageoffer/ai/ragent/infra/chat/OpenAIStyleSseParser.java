@@ -29,6 +29,7 @@ import lombok.NoArgsConstructor;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class OpenAIStyleSseParser {
+    // 模型 SSE 数据解析器。识别正文、思考内容、结束原因和 [DONE]；只解析上游协议，不向浏览器发送消息。
 
     private static final String DATA_PREFIX = "data:";
     private static final String DONE_MARKER = "[DONE]";
@@ -110,6 +111,7 @@ public final class OpenAIStyleSseParser {
     }
 
     record ParsedEvent(String content, String reasoning, boolean completed) {
+        // 保存一行 SSE 解析出的正文、思考增量和完成标志，供流读取循环判断需要触发哪些回调。
 
         static ParsedEvent empty() {
             // 表示这一行没有可分发内容，且不能据此结束整个流。

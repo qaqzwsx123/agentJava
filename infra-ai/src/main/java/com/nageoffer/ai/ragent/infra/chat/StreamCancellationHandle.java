@@ -35,6 +35,7 @@ package com.nageoffer.ai.ragent.infra.chat;
  * - 取消后应确保底层模型推理取消并释放资源（线程、连接等）
  */
 public interface StreamCancellationHandle {
+    // 流式取消接口。供调用方通过 cancel() 停止当前模型请求，具体实现负责取消底层连接和读取任务。
 
     /**
      * 取消当前流式推理任务

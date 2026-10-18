@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OllamaEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
+    // Ollama 向量适配器。复用兼容协议请求模板，不要求 API Key，并省略父类默认添加的 encoding_format 字段。
 
     public OllamaEmbeddingClient(OkHttpClient syncHttpClient) {
         // 复用共享同步客户端调用本地兼容端点，协议解析仍交给父类。

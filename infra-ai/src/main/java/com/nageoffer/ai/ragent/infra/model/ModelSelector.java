@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class ModelSelector {
+    // 生成有序候选模型列表：聊天按档位选择，向量、重排和视觉按默认模型及优先级选择，并过滤未启用或当前不可用的候选。
 
     private final AIModelProperties properties;
     private final ModelHealthStore healthStore;

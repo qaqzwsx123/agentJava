@@ -35,4 +35,5 @@ public record ModelTarget(
         AIModelProperties.ProviderConfig provider,
         Long timeoutMs
 ) {
+    // 保存一次调用的明确目标，包括模型 ID、候选配置、供应商配置和超时预算；本身不发送请求。
 }

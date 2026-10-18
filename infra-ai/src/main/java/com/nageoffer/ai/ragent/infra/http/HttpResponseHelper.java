@@ -33,6 +33,7 @@ import java.nio.charset.StandardCharsets;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class HttpResponseHelper {
+    // 统一读取 HTTP 响应正文、解析 JSON，并检查供应商配置、API Key 和模型名是否存在。
 
     private static final Gson GSON = new Gson();
 

@@ -26,6 +26,7 @@ import com.nageoffer.ai.ragent.infra.model.ModelTarget;
  * 定义了与AI模型进行对话的核心方法
  */
 public interface ChatClient {
+    // 具体供应商客户端的统一接口。定义供应商标识、同步聊天和流式聊天；调用时已经有明确的 ModelTarget。
 
     /**
      * 获取服务提供商名称

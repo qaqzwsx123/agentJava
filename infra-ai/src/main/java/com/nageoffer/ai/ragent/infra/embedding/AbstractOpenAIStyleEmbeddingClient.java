@@ -46,6 +46,7 @@ import java.util.List;
  */
 @Slf4j
 public abstract class AbstractOpenAIStyleEmbeddingClient implements EmbeddingClient {
+    // 公共向量请求模板。组装文本、模型、维度和鉴权，发送 HTTP 并解析浮点向量，同时按供应商设置拆分和合并批次。
 
     protected final OkHttpClient httpClient;
 

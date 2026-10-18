@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class StreamCancellationHandles {
+    // 创建取消句柄的工具类。提供空操作句柄和 OkHttp 取消句柄，将取消标志与 HTTP 请求关联，并保证取消动作最多执行一次。
 
     private static final StreamCancellationHandle NOOP = () -> {
     };
@@ -43,6 +44,7 @@ public final class StreamCancellationHandles {
     }
 
     private static final class OkHttpCancellationHandle implements StreamCancellationHandle {
+        // 封装单次 OkHttp 请求的取消动作，通过原子标志防止重复取消，同时通知读取循环退出并取消 HTTP 调用。
 
         private final Call call;
         private final AtomicBoolean cancelled;

@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Component
 @RequiredArgsConstructor
 public class ModelHealthStore {
+    // 在当前进程内记录模型连续失败、熔断和半开探测状态，控制调用许可，持续失败时暂停调用，探测成功后恢复。
 
     private final AIModelProperties properties;
 
@@ -44,6 +45,7 @@ public class ModelHealthStore {
      * 模型调用许可，halfOpenToken 为 0 时不持有半开探测名额
      */
     public record CallPermit(String modelId, long halfOpenToken) {
+        // 保存一次模型调用的许可及半开探测令牌，用于在取消时只释放当前请求持有的探测名额。
     }
 
     /**
@@ -173,6 +175,7 @@ public class ModelHealthStore {
     }
 
     private static class ModelHealth {
+        // 保存单个模型的可变健康记录，包括连续失败次数、熔断状态、恢复时间和半开探测占用信息。
         private int consecutiveFailures;
         private long openUntil;
         private boolean halfOpenInFlight;
@@ -190,6 +193,7 @@ public class ModelHealthStore {
     }
 
     private enum State {
+        // 定义熔断器的正常放行 CLOSED、暂停调用 OPEN 和恢复探测 HALF_OPEN 三种状态。
         CLOSED,
         OPEN,
         HALF_OPEN

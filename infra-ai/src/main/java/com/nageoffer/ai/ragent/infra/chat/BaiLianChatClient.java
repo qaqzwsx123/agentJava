@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class BaiLianChatClient extends AbstractOpenAIStyleChatClient {
+    // 百炼聊天适配器。复用父类请求流程，并允许父类添加 enable_thinking 思考开关。
 
     @Override
     public String provider() {

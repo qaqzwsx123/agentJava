@@ -25,6 +25,7 @@ import lombok.Getter;
  */
 @Getter
 public class ModelClientException extends RuntimeException {
+    // 封装模型调用异常，携带错误分类、HTTP 状态码和原始原因，供外层统一记录及处理。
 
     /**
      * 错误类型

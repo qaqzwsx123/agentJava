@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 public class LlmFirstPacketProbe {
+    // 等待首包的独立 Spring Bean。让首包等待过程可被 AOP 记录，避免同类内部调用无法触发追踪切面的问题。
 
     /**
      * 委托探测桥在指定时间预算内等待首包、错误或无内容结束信号，并保留线程中断语义。

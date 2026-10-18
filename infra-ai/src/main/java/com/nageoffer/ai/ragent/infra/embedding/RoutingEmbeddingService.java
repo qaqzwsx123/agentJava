@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 @Service
 @Primary
 public class RoutingEmbeddingService implements EmbeddingService {
+    // 选择向量模型和供应商客户端，再执行单条或批量向量化；明确指定模型 ID 时只尝试该模型，避免隐式切换导致向量空间不兼容。
 
     private final ModelSelector selector;
     private final ModelRoutingExecutor executor;

@@ -21,6 +21,7 @@ package com.nageoffer.ai.ragent.infra.token;
  * Token 统计服务接口
  */
 public interface TokenCounterService {
+    // 统一文本 Token 计数接口，通过 countTokens(text) 为上下文和文本预算判断提供计数能力。
 
     /**
      * 统计文本的 Token 数

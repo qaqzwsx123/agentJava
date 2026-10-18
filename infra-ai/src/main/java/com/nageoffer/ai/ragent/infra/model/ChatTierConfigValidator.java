@@ -43,6 +43,7 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class ChatTierConfigValidator implements InitializingBean {
+    // 启动时检查聊天档位配置，校验模型 ID、候选引用、所需档位和深度思考候选；结构性错误阻止启动，部分软性问题仅告警。
 
     private final AIModelProperties properties;
 
