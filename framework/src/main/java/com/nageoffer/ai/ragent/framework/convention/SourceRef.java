@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
+//在将 Java 对象转换成 JSON 字符串（序列化）时，如果某个字段的值为 null，则直接忽略该字段，不将其输出到最终的 JSON 结果中
 public class SourceRef {
 
     /**

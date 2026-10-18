@@ -24,7 +24,7 @@ import java.util.function.Consumer;
 /**
  * 消息队列生产者接口
  */
-public interface MessageQueueProducer {
+public interface MessageQueueProducer { //发送消息的统一接口，定义普通发送 send() 和事务发送 sendInTransaction()
 
     /**
      * 发送消息

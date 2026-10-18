@@ -25,21 +25,16 @@ import java.util.List;
 
 /**
  * 对话消息实体
- *
- * <p>
  * 用于统一抽象「大模型对话」中的一条消息，包含角色和消息内容：
- * <ul>
  *   <li>{@link Role#SYSTEM}：系统提示词，用于为大模型设定行为、规则</li>
  *   <li>{@link Role#USER}：用户输入消息</li>
  *   <li>{@link Role#ASSISTANT}：大模型（助手）回复内容</li>
- * </ul>
  * 该结构适合在不同模型/厂商之间做一层通用抽象
- * </p>
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatMessage {
+public class ChatMessage {//角色、正文、思考内容、来源、消息状态等；角色分为 SYSTEM、USER、ASSISTANT
 
     /**
      * 消息角色类型

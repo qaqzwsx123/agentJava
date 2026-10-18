@@ -1,19 +1,4 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 
 package com.nageoffer.ai.ragent.framework.distributedid;
 
@@ -39,12 +24,12 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SnowflakeIdInitializer {
+public class SnowflakeIdInitializer {  //SnowflakeIdInitializer 在这个RagentApplication的扫描范围内，且标注了 @Component，因此这个类会被创建为 Spring Bean。
 
     private final StringRedisTemplate stringRedisTemplate;
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    @PostConstruct
+    @PostConstruct  //init() 标注了 @PostConstruct这个注解，Spring 完成这个 Bean 的依赖注入后会自动执行。
     public void init() {
         // 启动时先准备 Redis Lua 脚本；workerId 与 datacenterId 由脚本一次执行共同分配。
         // 加载Lua脚本

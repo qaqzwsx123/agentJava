@@ -29,7 +29,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class RocketMQAutoConfiguration {
-
+    //将 RocketMQ 生产者、事务监听器装配成 Spring Bean，供业务层注入使用
     @Bean
     public DelegatingTransactionListener delegatingTransactionListener() {
         // 创建按事务 ID 分派本地回调、按 topic 分派回查逻辑的共享监听器。

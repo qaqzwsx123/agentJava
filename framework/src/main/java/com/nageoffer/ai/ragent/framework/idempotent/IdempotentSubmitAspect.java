@@ -1,19 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 package com.nageoffer.ai.ragent.framework.idempotent;
 
@@ -45,10 +29,10 @@ import java.util.Objects;
 /**
  * 防止用户重复提交表单信息切面控制器
  */
-@Aspect
+@Aspect //告诉 Spring：“我是一个切面，请把我管理起来，我要负责拦截某些方法”。
 @Component
 @RequiredArgsConstructor
-public final class IdempotentSubmitAspect {
+public final class IdempotentSubmitAspect { //执行防重复提交逻辑，使用 Redisson 分布式锁
 
     private final RedissonClient redissonClient;
     private final Gson gson = new GsonBuilder()
@@ -64,17 +48,19 @@ public final class IdempotentSubmitAspect {
                     })
             .create();
 
-    @Value("${ragent.eval.enabled:false}")
+    @Value("${ragent.eval.enabled:false}") //如果从配置里面找到这个则是拿到这个配置的值 ，否则是 采用默认值false
     private boolean evalEnabled;
 
     /**
      * 增强方法标记 {@link IdempotentSubmit} 注解逻辑
      */
     @Around("@annotation(com.nageoffer.ai.ragent.framework.idempotent.IdempotentSubmit)")
+    //Spring 大哥，请帮我盯着项目里所有的方法。只要哪个方法上带有 @IdempotentSubmit 这个注解（@annotation），
+    // 在别人调用它之前，请先强行把执行权交给我（idempotentSubmit 方法）！
     public Object idempotentSubmit(ProceedingJoinPoint joinPoint) throws Throwable {
         // 1. 评测开关开启时直接执行原逻辑，便于评测重复调用同一接口；正常模式继续进行防重检查。
         if (evalEnabled) {
-            return joinPoint.proceed();
+            return joinPoint.proceed(); // 如果配置文件里开了评测开关，直接放行去跑原方法
         }
         // 2. 读取防重策略，再按显式业务键或请求特征生成分布式锁键。
         IdempotentSubmit idempotentSubmit = getIdempotentSubmitAnnotation(joinPoint);

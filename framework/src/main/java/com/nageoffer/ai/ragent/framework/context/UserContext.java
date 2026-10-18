@@ -23,7 +23,7 @@ import com.nageoffer.ai.ragent.framework.exception.ClientException;
 /**
  * 用户上下文容器（基于 TTL 传递当前线程的登录用户）
  */
-public final class UserContext {
+public final class UserContext {//将 LoginUser 绑定到当前线程，供业务代码随时读取:UserContext.getUsername() 获取操作人
 
     private static final TransmittableThreadLocal<LoginUser> CONTEXT = new TransmittableThreadLocal<>();
 

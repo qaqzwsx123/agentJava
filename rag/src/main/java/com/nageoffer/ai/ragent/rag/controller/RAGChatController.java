@@ -49,7 +49,9 @@ public class RAGChatController {
     @IdempotentSubmit(
             key = "T(com.nageoffer.ai.ragent.framework.context.UserContext).getUserId()",
             message = "当前会话处理中，请稍后再发起新的对话"
-    )
+    ) //这个IdempotentSubmit是 基于 Spring AOP + Redisson 分布式锁 + 自定义注解”实现的防重复提交
+    //在方法执行前，根据特定的“标识”去 Redis 里抢锁。抢到了就执行，抢不到就说明有人在执行同样的操作，直接拒绝
+    //括号里面的是一个 Java 类的全限定名，T(com.xxx).a() 请把它当成一个类（Class）来处理，而不是一个普通的字符串变量。
     @GetMapping(value = "/rag/v3/chat", produces = "text/event-stream;charset=UTF-8")
     public SseEmitter chat(@RequestParam @ChatQuestion String question,
                            @RequestParam(required = false) String conversationId,
