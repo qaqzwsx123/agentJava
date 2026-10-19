@@ -32,6 +32,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class AgentProfileListVO {
+    // 智能体列表，附带当前执行架构供页面标注哪些槽位生效；供前端查询和展示。
 
     /**
      * 取自 ragent.engine.type，部署级配置，页面只读展示

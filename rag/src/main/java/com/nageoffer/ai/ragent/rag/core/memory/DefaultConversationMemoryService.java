@@ -32,6 +32,7 @@ import java.util.concurrent.Executor;
 @Slf4j
 @Service
 public class DefaultConversationMemoryService implements ConversationMemoryService {
+    // 默认会话记忆编排：并行读取摘要和近期历史，组合供模型使用的消息；写入新消息后按配置触发摘要压缩。
 
     private final ConversationMemoryStore memoryStore;
     private final ConversationMemorySummaryService summaryService;

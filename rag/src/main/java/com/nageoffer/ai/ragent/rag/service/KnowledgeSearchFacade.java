@@ -50,6 +50,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class KnowledgeSearchFacade {
+    // Agent 知识检索门面：依次改写、识别知识意图、检查澄清、多通道检索并合成工具答案；合成模型不可用时返回已检索资料。
 
     private static final String EMPTY_RESULT = "未在知识库中检索到与该问题相关的内容。";
 

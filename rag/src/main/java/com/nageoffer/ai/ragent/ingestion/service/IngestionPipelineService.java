@@ -28,6 +28,7 @@ import com.nageoffer.ai.ragent.ingestion.domain.pipeline.PipelineDefinition;
  * 数据清洗流水线服务接口
  */
 public interface IngestionPipelineService {
+    // 摄取流水线服务接口：约定流水线及其节点配置的创建、更新、查询、分页和删除，并为任务执行提供可运行的管道定义。
 
     /**
      * 创建流水线

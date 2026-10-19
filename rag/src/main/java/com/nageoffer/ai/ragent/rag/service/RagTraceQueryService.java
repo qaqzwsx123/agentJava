@@ -29,6 +29,7 @@ import java.util.List;
  * RAG Trace 查询服务
  */
 public interface RagTraceQueryService {
+    // RAG 追踪查询接口：提供运行记录分页、单轮详情和节点列表，供后台观察调用链、执行状态及耗时。
 
     IPage<RagTraceRunVO> pageRuns(RagTraceRunPageRequest request);
 

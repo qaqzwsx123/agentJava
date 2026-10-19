@@ -29,6 +29,7 @@ import java.util.Date;
  * Cron 工具类
  */
 public final class CronScheduleHelper {
+    // Cron 时间计算工具：校验并计算指定时刻后的下一次执行时间，检查任务间隔是否小于允许下限，供刷新计划校验和重排。
 
     private CronScheduleHelper() {
         // Cron 计算以静态方法提供，私有构造器阻止实例化工具类。

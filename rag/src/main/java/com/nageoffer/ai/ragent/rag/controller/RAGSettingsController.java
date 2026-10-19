@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequiredArgsConstructor
 public class RAGSettingsController {
+    // RAG 设置控制器，负责系统引擎、后端选型、检索管线与 AI 模型配置的只读查询。
 
     private final OrchestrationProperties orchestrationProperties;
     private final RagStorageProperties ragStorageProperties;

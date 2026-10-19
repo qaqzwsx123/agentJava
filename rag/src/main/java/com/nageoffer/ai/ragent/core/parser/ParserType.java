@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ParserType {
+    // 解析器类型枚举：集中定义 Tika、Markdown、Excel、CSV、MinerU 和图片解析器的名称，供各实现返回统一标识以及日志和结果元数据记录。
 
     /**
      * Tika 解析器（用于 Text 等基础格式）

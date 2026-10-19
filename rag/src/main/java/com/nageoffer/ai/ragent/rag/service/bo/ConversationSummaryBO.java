@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class ConversationSummaryBO {
+    // 会话摘要业务参数：绑定会话、用户、摘要正文和覆盖的最后消息 ID，供摘要服务持久化压缩结果并确定后续历史边界。
 
     /**
      * 会话 ID

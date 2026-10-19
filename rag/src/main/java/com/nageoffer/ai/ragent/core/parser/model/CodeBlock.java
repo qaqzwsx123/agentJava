@@ -27,4 +27,5 @@ public record CodeBlock(
         String language,
         String code
 ) implements Block {
+    // 代码结构单元：保存来源、编程语言和原始代码，由 CodeChunker 保留代码格式并按需要沿完整行切分；自身只承载数据，不执行分块。
 }

@@ -60,6 +60,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MultiChannelRetrievalEngine {
+    // 多通道检索引擎 负责协调多个检索通道和后置处理器： 1. 并行执行所有启用的检索通道 2. 依次执行后置处理器链 3. 返回最终的检索结果。
 
     private final List<SearchChannel> searchChannels;
     private final List<SearchResultPostProcessor> postProcessors;

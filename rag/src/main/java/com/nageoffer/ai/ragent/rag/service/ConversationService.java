@@ -28,6 +28,7 @@ import java.util.List;
  * 提供会话的创建、重命名和删除功能
  */
 public interface ConversationService {
+    // 会话管理接口：提供会话创建或活跃时间更新、列表查询、重命名和删除，并关联当前用户的会话归属。
 
     /**
      * 根据用户ID获取会话列表

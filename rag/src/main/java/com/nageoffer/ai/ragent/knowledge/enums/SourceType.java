@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum SourceType {
+    // 知识库文档来源枚举：统一文件、URL 等来源类型的编码和归一化，供上传、查询及定时刷新判断来源行为。
 
     /**
      * 本地文件上传

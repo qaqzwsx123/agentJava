@@ -26,6 +26,7 @@ import jakarta.validation.ConstraintValidatorContext;
  * 校验摘要相关配置的合理性
  */
 public class MemoryConfigValidator implements ConstraintValidator<ValidMemoryConfig, MemoryProperties> {
+    // 会话记忆配置校验器：检查摘要开关、保留轮数、触发阈值及摘要长度等参数组合，避免不合理压缩配置进入运行期。
 
     @Override
     public boolean isValid(MemoryProperties config, ConstraintValidatorContext context) {

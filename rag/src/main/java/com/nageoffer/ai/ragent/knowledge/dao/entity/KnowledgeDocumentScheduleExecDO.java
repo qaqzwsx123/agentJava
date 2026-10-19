@@ -38,6 +38,7 @@ import java.util.Date;
 @Builder
 @TableName("t_knowledge_document_schedule_exec")
 public class KnowledgeDocumentScheduleExecDO {
+    // 文档定时刷新执行记录持久化实体：承载记录 ID、刷新计划 ID、文档 ID、知识库 ID、状态等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

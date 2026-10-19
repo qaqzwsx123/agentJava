@@ -55,6 +55,7 @@ import java.util.List;
 @Slf4j
 @Component
 public class WebSearchChannel implements SearchChannel {
+    // 联网检索通道视图：展示联网开关、融合权重、返回数量和超时等参数，供设置页观察联网召回配置。
 
     /**
      * API Key 环境变量名（团队约定，勿改）

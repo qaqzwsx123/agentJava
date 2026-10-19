@@ -21,6 +21,7 @@ package com.nageoffer.ai.ragent.rag.enums;
  * 对话消息排序枚举
  */
 public enum ConversationMessageOrder {
+    // 会话消息排序方式：定义消息查询的顺序编码，供历史读取和页面消息列表使用一致排序规则。
 
     /**
      * 升序排列

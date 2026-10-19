@@ -51,6 +51,7 @@ import java.util.regex.Pattern;
 @Service
 @RequiredArgsConstructor
 public class AgentSkillAdminServiceImpl implements AgentSkillAdminService {
+    // 智能体技能管理实现：维护技能正文、启停和工具绑定，校验可引用的 MCP 工具，变更后清理技能缓存并记录审计信息。
 
     /**
      * 技能标识是模型加载正文时报的名字，限定小写字母开头的蛇形串，中文和空格模型报不准

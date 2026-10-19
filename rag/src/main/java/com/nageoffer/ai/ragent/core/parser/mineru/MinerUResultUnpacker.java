@@ -85,6 +85,7 @@ import java.util.zip.ZipInputStream;
 @Slf4j
 @Component
 public class MinerUResultUnpacker {
+    // MinerU 结果解包器：从 ZIP 读取 Markdown 和图片，将图片上传资产存储并可选生成视觉描述，再解析正文、替换图片地址，产出结构化 ParsedDocument。
 
     private static final Parser MARKDOWN_PARSER = Parser.builder()
             .extensions(List.of(TablesExtension.create()))
@@ -141,6 +142,7 @@ public class MinerUResultUnpacker {
      * 单文件 zip 内容快照
      */
     private record ZipContents(String markdown, Map<String, byte[]> images) {
+        // MinerU 结果包的内存快照：保存读取到的 Markdown 正文和按 ZIP 内路径索引的图片字节，供后续上传资产及构建结构块使用。
     }
 
     /**
@@ -282,6 +284,7 @@ public class MinerUResultUnpacker {
      * 文本里，两者的链接都已替换成资产桶 URL
      */
     private static final class UnpackVisitor extends AbstractVisitor {
+        // MinerU Markdown 访问器：将语法树转换为有序 Block，按结果包内路径关联已上传图片的 URL 和可选描述，同时保留表格、代码、列表及 HTML 结构。
 
         private final Provenance provenance;
         private final Map<String, String> imageUrlMap;

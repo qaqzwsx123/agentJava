@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
  */
 @Data
 public class KnowledgeChunkVO {
+    // 知识库 Chunk 视图对象；组织记录 ID、知识库 ID、文档 ID、分块序号、正文等返回字段，供前端查询和展示。
 
     /**
      * ID

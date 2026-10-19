@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ProcessMode {
+    // 文档处理模式枚举：区分普通分块与流水线处理，提供输入值解析和默认归一化，决定后续执行路径。
 
     /**
      * 分块策略模式（默认）

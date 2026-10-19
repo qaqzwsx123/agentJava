@@ -25,6 +25,7 @@ import java.util.List;
  * 切分上下文：调度器遍历 Block 列表时构造并传给每个 chunker，章节路径由 {@link HeadingHandler} 累积
  */
 public record ChunkContext(List<String> outlinePath, ChunkBudget budget) {
+    // 分块上下文：把当前章节路径和分块预算传给具体分块器，使切出的内容保留所属章节，并按统一的字符数、重叠量等规则处理。
 
     public ChunkContext {
         // 把章节路径复制为只读列表，空路径统一为空列表，避免外部修改正在传递的上下文。

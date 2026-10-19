@@ -26,6 +26,7 @@ import java.util.List;
  * 负责管理和存储用户对话历史记录，提供对话上下文的加载、追加等功能
  */
 public interface ConversationMemoryService {
+    // 对话记忆服务接口 负责管理和存储用户对话历史记录，提供对话上下文的加载、追加等功能。
 
     /**
      * 加载对话历史记录

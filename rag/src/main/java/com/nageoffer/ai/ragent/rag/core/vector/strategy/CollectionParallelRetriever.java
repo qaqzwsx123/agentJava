@@ -35,6 +35,7 @@ import java.util.concurrent.Executor;
  */
 @Slf4j
 public class CollectionParallelRetriever {
+    // 逐库并行检索器 后端不支持跨库单查时的兜底取数路：对给定 collection 集合并行各取一份、汇总排序 单库失败只损失该库结果，不影响其余库。
 
     private final VectorRetrieverService retrieverService;
     private final Executor executor;
@@ -67,6 +68,7 @@ public class CollectionParallelRetriever {
                                                          int topK,
                                                          float[] queryVector) {
         record RetrievalFuture(String collection, CompletableFuture<List<RetrievedChunk>> future) {
+            // 逐库检索异步任务关联：将逻辑集合名称与对应 Future 绑定，便于汇总并行结果并定位单库失败。
         }
 
         List<RetrievalFuture> futures = collections.stream()

@@ -38,6 +38,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class StructuredDocument {
+    // 结构化文档实体类 表示经过解析后的结构化文档，包含文档的纯文本内容、章节结构、表格以及元数据等信息 通过结构化解析，可以更好地保留文档的原始结构信息。
 
     /**
      * 文档的纯文本内容
@@ -79,6 +80,7 @@ public class StructuredDocument {
     @AllArgsConstructor
     @Builder
     public static class StructuredSection {
+        // 文档章节结构：记录章节标题、级别、正文和原文起止位置，作为摄取上下文中的结构化信息传递。
 
         /**
          * 章节标题
@@ -115,6 +117,7 @@ public class StructuredDocument {
     @AllArgsConstructor
     @Builder
     public static class StructuredTable {
+        // 文档表格结构：记录表格标题、二维数据行及原文起止位置，供流水线保留和传递解析后的表格信息。
 
         /**
          * 表格标题或名称

@@ -27,6 +27,7 @@ import java.util.Date;
 @Data
 @TableName("t_query_term_mapping")
 public class QueryTermMappingDO {
+    // 术语映射规则持久化实体：承载记录 ID、所属领域、原始术语、目标术语、匹配方式等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

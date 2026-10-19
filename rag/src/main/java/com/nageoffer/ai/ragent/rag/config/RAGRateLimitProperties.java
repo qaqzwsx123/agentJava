@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Configuration;
 @Data
 @Configuration
 public class RAGRateLimitProperties {
+    // RAG 集群并发限流参数：定义总开关、最大并发、最长等待、许可租期和轮询间隔，供聊天排队与许可回收使用。
 
     /**
      * 是否启用全局限流

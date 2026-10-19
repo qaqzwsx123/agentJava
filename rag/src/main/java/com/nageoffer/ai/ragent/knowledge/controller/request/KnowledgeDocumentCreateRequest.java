@@ -21,6 +21,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeDocumentCreateRequest {
+    // 文档记录创建参数：绑定知识库、文档名称和已上传文件信息，并提供来源及处理配置，供服务层创建文档记录。
 
     /**
      * 所属知识库 ID

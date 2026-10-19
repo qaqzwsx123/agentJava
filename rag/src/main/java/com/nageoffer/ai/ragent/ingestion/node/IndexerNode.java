@@ -50,6 +50,7 @@ import java.util.Map;
 @Slf4j
 @Component
 public class IndexerNode implements IngestionNode {
+    // 索引节点：把已向量化的块写入向量存储 直接写块，元数据统一走块自己的序列化点，管道注入的字段（任务 ID、来源等）落进元数据扩展位；维度 校验不在此重复，向量化阶段已按部署级维度逐条校验，块类型本身也保证向量非空。
 
     private final ObjectMapper objectMapper;
     private final VectorStoreAdmin vectorStoreAdmin;

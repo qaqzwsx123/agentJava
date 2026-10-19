@@ -39,6 +39,7 @@ import org.springframework.context.annotation.Configuration;
 @Data
 @Configuration
 public class RAGConfigProperties {
+    // RAG 系统功能配置 用于管理 RAG 系统的各项功能开关，例如查询重写等。
 
     /**
      * 查询重写功能开关

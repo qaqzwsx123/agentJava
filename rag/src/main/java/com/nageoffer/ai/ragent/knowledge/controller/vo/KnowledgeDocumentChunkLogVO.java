@@ -26,6 +26,7 @@ import java.util.Date;
  */
 @Data
 public class KnowledgeDocumentChunkLogVO {
+    // 知识库文档分块日志 VO；组织记录 ID、文档 ID、状态、处理模式、解析档位等返回字段，供前端查询和展示。
 
     private String id;
 

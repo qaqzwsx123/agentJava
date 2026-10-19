@@ -52,4 +52,5 @@ public record BatchSubmitRequest(
         boolean enableFormula,
         String language
 ) {
+    // MinerU 单文件上传申请参数：携带文件名、业务数据 ID、OCR 开关、表格和公式提取开关及语言，用于申请批量上传接口的文件上传链接。
 }

@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ScheduleRunStatus {
+    // 定时刷新执行状态枚举：统一执行记录的状态编码，供刷新过程持久化状态并向管理页面展示结果。
 
     /**
      * 正在运行

@@ -23,6 +23,7 @@ import java.util.List;
  * 推荐追问生成结果
  */
 public record RecommendedQuestionsPayload(Status status, List<String> questions) {
+    // 推荐追问结果载荷：将生成状态与问题列表一起返回，区分生成成功、无合适问题和调用失败，供前端展示或重试。
 
     public RecommendedQuestionsPayload {
         // 序列化即弃的传输对象，只做 null 归一，不必防御性拷贝
@@ -56,6 +57,7 @@ public record RecommendedQuestionsPayload(Status status, List<String> questions)
     }
 
     public enum Status {
+        // 推荐追问生成状态：标识有推荐、无推荐或生成失败等结果，与问题列表一起决定前端展示行为。
         SUCCESS,
         EMPTY,
         FAILED

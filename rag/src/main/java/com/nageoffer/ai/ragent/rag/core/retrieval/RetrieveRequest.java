@@ -37,6 +37,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class RetrieveRequest {
+    // 向量检索请求参数： - 支持基础 query + topK - 支持指定 Milvus collectionName - 支持简单的 metadata 等值过滤（扩展用）。
 
     /**
      * 用户自然语言问题 / 查询语句

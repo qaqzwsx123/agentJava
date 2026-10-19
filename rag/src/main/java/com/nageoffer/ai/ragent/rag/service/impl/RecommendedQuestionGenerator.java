@@ -50,6 +50,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class RecommendedQuestionGenerator {
+    // 推荐追问问题生成器 答案完成后的 LLM 派生调用（FAST 档），通过独立接口触发，不在 chat 流式关键路径内 拆为独立 bean 是为了让 Spring AOP 的 RagTraceNode 拦截生效（同类 self-call 不触发 proxy）。
 
     private static final int DEFAULT_RECOMMEND_COUNT = 3;
     private static final int MAX_QUESTION_CHARS = 1000;

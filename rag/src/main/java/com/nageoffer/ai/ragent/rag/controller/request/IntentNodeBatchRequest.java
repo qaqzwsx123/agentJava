@@ -29,6 +29,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class IntentNodeBatchRequest {
+    // 意图节点批量操作参数：携带目标节点 ID 列表，供服务层统一校验后批量处理对应子树。
 
     /**
      * 节点 ID 列表

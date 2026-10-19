@@ -32,6 +32,7 @@ import java.util.Set;
 @Data
 @Builder
 public class RetrievalContext {
+    // 整轮知识检索上下文：保存格式化知识正文、按意图归组的证据块和获得证据准入的意图 ID，供来源装配和回答提示词消费。
 
     /**
      * KB 召回的上下文

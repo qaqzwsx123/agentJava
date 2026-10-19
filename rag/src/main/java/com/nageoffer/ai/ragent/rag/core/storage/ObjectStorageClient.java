@@ -27,6 +27,7 @@ import java.io.InputStream;
  * {@link com.nageoffer.ai.ragent.rag.service.impl.DefaultFileStorageService}，本接口只负责与具体存储对话
  */
 public interface ObjectStorageClient {
+    // 对象存储底层 SPI：只认 (bucket, key) 裸操作，不感知 namespace、key 组装与业务 DTO S3 兼容存储（rustfs / minio）与阿里云 OSS 各一实现，由 rag.storage.type 通过。
 
     /**
      * 流式上传（低内存）

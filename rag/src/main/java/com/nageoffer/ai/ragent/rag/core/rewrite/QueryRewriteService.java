@@ -25,6 +25,7 @@ import java.util.List;
  * 用户查询改写：将自然语言问题改写成适合 RAG 检索的查询语句
  */
 public interface QueryRewriteService {
+    // 用户查询改写：将自然语言问题改写成适合 RAG 检索的查询语句。
 
     /**
      * 将用户问题改写为适合向量 / 关键字检索的简洁查询

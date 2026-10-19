@@ -37,6 +37,7 @@ import org.springframework.stereotype.Component;
         consumerGroup = "message-feedback_cg${unique-name:}"
 )
 public class MessageFeedbackConsumer implements RocketMQListener<MessageWrapper<MessageFeedbackEvent>> {
+    // 消息反馈 MQ 消费者，负责将点赞/点踩事件异步持久化到数据库。
 
     private final MessageFeedbackService feedbackService;
 

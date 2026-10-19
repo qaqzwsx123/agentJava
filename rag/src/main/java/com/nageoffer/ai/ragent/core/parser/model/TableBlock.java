@@ -29,4 +29,5 @@ public record TableBlock(
         List<String> headers,
         List<List<String>> rows
 ) implements Block {
+    // 结构化表格单元：保存来源、表头和二维数据行；Excel 和 CSV 等解析器输出此类型，再由 TableChunker 生成展示表格与列名键值形式的向量正文。
 }

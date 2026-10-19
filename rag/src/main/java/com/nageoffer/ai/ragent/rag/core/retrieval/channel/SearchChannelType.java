@@ -21,6 +21,7 @@ package com.nageoffer.ai.ragent.rag.core.retrieval.channel;
  * 检索通道类型枚举
  */
 public enum SearchChannelType {
+    // 检索通道类型枚举：标识向量、关键词、图谱和联网等通道，供融合权重、统计日志与结果归因使用。
 
     /**
      * 向量检索

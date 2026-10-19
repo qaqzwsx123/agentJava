@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminService {
+    // 术语映射管理实现：校验并持久化规则的创建、修改、删除和启停，更新后清除归一化缓存并记录业务变更。
 
     private final QueryTermMappingMapper queryTermMappingMapper;
     private final QueryTermMappingCacheManager queryTermMappingCacheManager;

@@ -33,6 +33,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Component
 @RequiredArgsConstructor
 public class StreamCallbackFactory {
+    // StreamCallback 工厂 负责创建各种类型的 StreamCallback 实例。
 
     private final AIModelProperties modelProperties;
     private final ConversationMemoryService memoryService;

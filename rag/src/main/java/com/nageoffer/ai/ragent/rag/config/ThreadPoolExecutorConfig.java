@@ -34,6 +34,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 @Configuration
 public class ThreadPoolExecutorConfig {
+    // 线程池执行器配置类 为系统中不同的业务场景配置独立的线程池，提高并发处理能力。
 
     /**
      * CPU核心数，用于动态计算线程池大小

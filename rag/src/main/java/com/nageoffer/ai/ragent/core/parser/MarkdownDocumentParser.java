@@ -67,6 +67,7 @@ import java.util.Set;
  */
 @Component
 public class MarkdownDocumentParser implements DocumentParser {
+    // Markdown 结构化解析器：通过 commonmark 语法树提取标题、段落、代码、列表、表格、独立图片和 HTML 内容，保持文档顺序并附带文件来源。
 
     /**
      * commonmark 解析器，线程安全可共享
@@ -146,6 +147,7 @@ public class MarkdownDocumentParser implements DocumentParser {
      * （列表项内的代码块仍归 ListBlock）
      */
     private static final class BlockExtractingVisitor extends AbstractVisitor {
+        // Markdown 语法树访问器：把顶层语法节点转换为对应 Block，列表内部内容保留在列表项中；区分 HTML 表格、独立图片和普通段落，避免丢失结构。
 
         private final Provenance provenance;
         private final List<Block> blocks = new ArrayList<>();

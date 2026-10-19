@@ -38,6 +38,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 public class RagTraceController {
+    // RAG 调用链查询 HTTP 入口：提供运行分页、单轮详情和节点列表，将过滤条件交给追踪查询服务并返回统一响应。
 
     private final RagTraceQueryService ragTraceQueryService;
 

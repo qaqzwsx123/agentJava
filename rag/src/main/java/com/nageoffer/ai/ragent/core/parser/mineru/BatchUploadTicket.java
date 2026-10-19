@@ -30,4 +30,5 @@ public record BatchUploadTicket(
         String batchId,
         String uploadUrl
 ) {
+    // MinerU 上传票据：保存远端批次 ID 和预签名上传 URL；文件字节通过该 URL 上传，后续通过批次 ID 查询解析任务。
 }

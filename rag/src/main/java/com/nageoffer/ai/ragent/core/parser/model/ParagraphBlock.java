@@ -27,4 +27,5 @@ public record ParagraphBlock(
         Provenance provenance,
         String text
 ) implements Block {
+    // 普通段落结构单元：保存段落文字和来源信息，交给 ParagraphChunker 判断是否需要切分，并保留解析时提取的链接等行内内容。
 }

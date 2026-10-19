@@ -32,6 +32,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class ConversationCreateBO {
+    // 会话创建或更新业务参数：携带会话、用户、本轮提问和活跃时间，供会话服务初始化或刷新会话记录。
 
     /**
      * 会话ID

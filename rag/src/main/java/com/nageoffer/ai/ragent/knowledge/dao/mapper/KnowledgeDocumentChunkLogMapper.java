@@ -24,4 +24,5 @@ import com.nageoffer.ai.ragent.knowledge.dao.entity.KnowledgeDocumentChunkLogDO;
  * 知识库文档分块日志 Mapper
  */
 public interface KnowledgeDocumentChunkLogMapper extends BaseMapper<KnowledgeDocumentChunkLogDO> {
+    // 文档分块日志数据库访问接口：通过 MyBatis-Plus 映射对应实体，供服务层执行基础增删改查及接口中声明的业务查询。
 }

@@ -24,6 +24,7 @@ import java.util.List;
  * 用于在运行期快速获取意图树和节点信息
  */
 public interface IntentNodeRegistry {
+    // 运行期意图树访问接口：统一获取根节点和指定节点信息，供工具目录、澄清和其他运行期组件读取。
 
     /**
      * 根据节点 ID 获取节点

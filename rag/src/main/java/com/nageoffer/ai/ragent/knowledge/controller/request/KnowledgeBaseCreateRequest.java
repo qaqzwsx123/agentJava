@@ -21,6 +21,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeBaseCreateRequest {
+    // 知识库创建参数：指定名称、嵌入模型和逻辑集合名称，供服务层校验后建立知识库与检索空间的关联。
 
     /**
      * 知识库名称

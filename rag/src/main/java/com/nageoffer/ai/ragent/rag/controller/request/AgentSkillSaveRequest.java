@@ -26,6 +26,7 @@ import java.util.List;
  */
 @Data
 public class AgentSkillSaveRequest {
+    // 技能保存请求，新增与编辑共用；携带技能编码、名称、说明、正文、引用工具 ID等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 技能标识，模型按此名加载正文，创建后不可改

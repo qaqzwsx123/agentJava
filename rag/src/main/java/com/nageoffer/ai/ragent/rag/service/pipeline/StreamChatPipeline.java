@@ -62,6 +62,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class StreamChatPipeline {
+    // Workflow 问答编排流水线：依次加载记忆、改写拆分、识别意图、处理澄清、检索和组织提示词，最终调用流式模型并处理提前返回分支。
 
     private final ConversationMemoryService memoryService;
     private final QueryRewriteService queryRewriteService;

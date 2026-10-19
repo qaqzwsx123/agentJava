@@ -31,6 +31,7 @@ import java.util.List;
  * @param <B> 该 chunker 处理的 Block 子类型
  */
 public interface BlockChunker<B extends Block> {
+    // 各类型分块器的统一接口：blockType() 声明负责的 Block 类型，chunk() 将该结构单元转换为草稿；最终合并、编号和 ID 分配交给打包与装配阶段。
 
     /**
      * 注册键：本 chunker 处理的 Block 类型

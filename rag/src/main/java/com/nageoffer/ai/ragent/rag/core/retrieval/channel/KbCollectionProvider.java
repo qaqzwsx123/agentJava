@@ -36,6 +36,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class KbCollectionProvider {
+    // 有效知识库集合提供者：从知识库表读取未删除库的逻辑集合，作为各全局通道一致的检索范围，避免直接命中已删除库残留。
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
 

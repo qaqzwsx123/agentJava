@@ -34,6 +34,7 @@ import java.util.Date;
 @Service
 @RequiredArgsConstructor
 public class RagTraceRecordServiceImpl implements RagTraceRecordService {
+    // RAG 追踪写入实现：通过运行和节点 Mapper 保存开始记录及结束状态，持久化耗时、输出概况和异常，供后台追踪查询。
 
     private final RagTraceRunMapper runMapper;
     private final RagTraceNodeMapper nodeMapper;

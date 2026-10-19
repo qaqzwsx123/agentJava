@@ -56,6 +56,7 @@ import java.util.function.Predicate;
 @Component
 @ConditionalOnProperty(prefix = "rag.graph", name = "type", havingValue = "lightrag")
 public class LightRagClient {
+    // LightRAG HTTP 客户端：封装知识检索、图谱浏览及文档同步和删除，按文件来源解析知识库归属，并对远程失败采用对应降级处理。
 
     private static final MediaType JSON = MediaType.parse("application/json");
 

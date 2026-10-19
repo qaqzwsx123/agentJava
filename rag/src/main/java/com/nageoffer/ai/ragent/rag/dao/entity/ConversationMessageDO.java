@@ -46,6 +46,7 @@ import java.util.List;
 @Builder
 @TableName(value = "t_message", autoResultMap = true)
 public class ConversationMessageDO {
+    // 会话消息持久化实体：承载记录 ID、会话 ID、用户 ID、消息角色、正文等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * 主键 ID，采用雪花算法生成

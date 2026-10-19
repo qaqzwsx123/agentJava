@@ -32,6 +32,7 @@ import java.util.List;
  * 知识库分片服务接口
  */
 public interface KnowledgeChunkService {
+    // 知识库分块管理接口：提供文档内分块的分页、创建、编辑、删除和启停，统一关系库内容与检索索引维护入口。
 
     /**
      * 分页查询指定文档的分片列表

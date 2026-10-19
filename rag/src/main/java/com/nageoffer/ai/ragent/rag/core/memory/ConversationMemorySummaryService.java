@@ -20,6 +20,7 @@ package com.nageoffer.ai.ragent.rag.core.memory;
 import com.nageoffer.ai.ragent.framework.convention.ChatMessage;
 
 public interface ConversationMemorySummaryService {
+    // 会话摘要接口：定义按需压缩、最新摘要读取和摘要消息装饰，供记忆服务保留长对话关键信息并控制历史体量。
 
     void compressIfNeeded(String conversationId, String userId, ChatMessage message);
 

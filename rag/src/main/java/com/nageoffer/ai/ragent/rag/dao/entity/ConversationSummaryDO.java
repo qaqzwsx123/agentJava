@@ -41,6 +41,7 @@ import java.util.Date;
 @Accessors(chain = true)
 @TableName("t_conversation_summary")
 public class ConversationSummaryDO {
+    // 会话摘要持久化实体：承载记录 ID、会话 ID、用户 ID、正文、摘要覆盖的最后消息 ID等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * 主键 ID

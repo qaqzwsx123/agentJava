@@ -39,6 +39,7 @@ import java.util.List;
 @Builder
 @TableName(value = "t_intent_node", autoResultMap = true)
 public class IntentNodeDO {
+    // 意图树节点持久化实体：承载记录 ID、知识库 ID、意图编码、名称、意图层级等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

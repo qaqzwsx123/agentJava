@@ -50,6 +50,7 @@ import java.util.Set;
 @Slf4j
 @Component
 public class ExcelDocumentParser implements DocumentParser {
+    // Excel 快速解析器：使用 Apache POI 读取工作簿，跳过隐藏工作表，格式化单元格并规范化行列数据，为每张有效表输出工作表标题及 TableBlock。
 
     public static final String OPT_SOURCE_FILE = "sourceFile";
     public static final String OPT_HEADER_ROWS = "headerRows";

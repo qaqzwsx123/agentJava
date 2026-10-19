@@ -47,6 +47,7 @@ import java.util.Map;
  */
 @Component
 public class ParserNode implements IngestionNode {
+    // 文档解析节点 负责将输入的字节流（如 PDF、Word、Excel 等）解析为结构化的文本或文档对象。
 
     private final ObjectMapper objectMapper;
     private final ParserRegistry parserRegistry;

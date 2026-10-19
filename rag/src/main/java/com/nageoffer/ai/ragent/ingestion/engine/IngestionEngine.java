@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class IngestionEngine {
+    // 摄取流水线引擎：校验节点及连线配置，从起始节点沿 nextNodeId 执行，根据条件和节点结果决定继续、跳过或终止，并记录节点耗时和输出摘要。
 
     private final Map<String, IngestionNode> nodeMap;
     private final ConditionEvaluator conditionEvaluator;

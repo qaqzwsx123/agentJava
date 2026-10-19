@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class JdbcConversationMemoryStore implements ConversationMemoryStore {
+    // 会话历史存储实现：通过会话及消息服务从数据库读取指定用户的历史消息、追加新消息并维护对应读取状态。
 
     private final ConversationService conversationService;
     private final ConversationMessageService conversationMessageService;

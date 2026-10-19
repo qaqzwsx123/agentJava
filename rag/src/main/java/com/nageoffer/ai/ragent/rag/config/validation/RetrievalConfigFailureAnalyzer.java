@@ -31,6 +31,7 @@ import java.util.List;
  * 通过 {@code META-INF/spring.factories} 的 {@code org.springframework.boot.diagnostics.FailureAnalyzer} 注册
  */
 public class RetrievalConfigFailureAnalyzer extends AbstractFailureAnalyzer<RetrievalConfigException> {
+    // 检索配置启动诊断器：将一致性校验异常转成 Spring Boot 启动失败说明，逐项展示冲突配置和可选修正方式。
 
     @Override
     protected FailureAnalysis analyze(Throwable rootFailure, RetrievalConfigException cause) {

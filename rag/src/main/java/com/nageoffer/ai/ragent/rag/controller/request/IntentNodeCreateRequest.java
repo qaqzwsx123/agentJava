@@ -29,6 +29,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class IntentNodeCreateRequest {
+    // 意图节点创建参数：指定知识库集合、意图编码、名称、层级及父子关系等信息，供服务层建立新节点。
 
     private String kbId;
     private List<String> collectionNames;

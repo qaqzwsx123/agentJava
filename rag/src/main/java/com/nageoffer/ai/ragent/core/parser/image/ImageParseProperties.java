@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "rag.image-parse")
 public class ImageParseProperties {
+    // 图片解析配置：绑定 rag.image-parse 下的视觉描述提示词、输出 Token 上限和文档内嵌图片描述开关，供独立图片及 MinerU 内嵌图处理使用。
 
     /**
      * 图生文引导提示词:要求 VLM 输出中文描述 + 图中文字 OCR

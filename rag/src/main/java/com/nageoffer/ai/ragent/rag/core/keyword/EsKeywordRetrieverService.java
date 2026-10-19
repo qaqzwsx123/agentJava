@@ -49,6 +49,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "rag.keyword", name = "type", havingValue = "es")
 public class EsKeywordRetrieverService implements KeywordRetrieverService {
+    // Elasticsearch 关键词检索实现：在共享索引按正文执行 BM25 查询，用逻辑集合过滤范围，并将命中 ID、正文和分数转换为统一片段。
 
     private final ElasticsearchClient esClient;
     private final KeywordProperties keywordProperties;
@@ -109,6 +110,7 @@ public class EsKeywordRetrieverService implements KeywordRetrieverService {
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static class KeywordHitDocument {
+        // Elasticsearch 命中文档映射：接收关键词索引中的正文、逻辑集合和元数据，结合命中 ID 与得分转换为统一检索片段。
 
         private String content;
 

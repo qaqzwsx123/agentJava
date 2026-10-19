@@ -35,6 +35,7 @@ import java.util.Date;
 @Component
 @RequiredArgsConstructor
 public class ScheduleStateManager {
+    // 定时刷新状态管理器：仅在仍持有对应租约时更新刷新计划和执行记录，统一成功、失败及跳过状态、耗时和下次运行时间。
 
     private static final String LEASE_LOST_NOTE = "（调度锁已失效，未写回调度状态）";
 

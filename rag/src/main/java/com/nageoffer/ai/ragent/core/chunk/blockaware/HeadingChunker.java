@@ -33,6 +33,7 @@ import java.util.List;
  */
 @Component
 public class HeadingChunker implements BlockChunker<HeadingBlock> {
+    // 标题分块器：将标题文字生成草稿，展示内容保留 Markdown 标题级别，向量正文使用标题文字；设置标题标记，供打包器识别章节边界。
 
     private static final int MAX_LEVEL = 6;
 

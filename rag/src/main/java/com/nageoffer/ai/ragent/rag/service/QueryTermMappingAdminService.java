@@ -24,6 +24,7 @@ import com.nageoffer.ai.ragent.rag.controller.request.QueryTermMappingUpdateRequ
 import com.nageoffer.ai.ragent.rag.controller.vo.QueryTermMappingVO;
 
 public interface QueryTermMappingAdminService {
+    // 术语映射管理接口：提供映射规则的增删改查及启停，供后台维护问题归一化使用的原始词与目标词。
 
     /**
      * 创建映射规则

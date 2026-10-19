@@ -34,6 +34,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "rag.graph")
 public class GraphProperties {
+    // 图谱后端接入配置：选择是否启用 LightRAG，保存服务连接和图谱独立嵌入模型信息；通道开关及融合行为由检索配置另行控制。
 
     /**
      * 图谱检索后端类型
@@ -62,6 +63,7 @@ public class GraphProperties {
 
     @Data
     public static class LightRag {
+        // LightRAG 连接参数：保存服务地址、API Key 和查询模式，供图谱检索、文档同步和可视化查询使用。
 
         /**
          * LightRAG server 基址

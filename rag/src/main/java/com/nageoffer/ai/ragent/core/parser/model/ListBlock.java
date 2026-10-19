@@ -27,4 +27,5 @@ public record ListBlock(
         boolean ordered,
         List<String> items
 ) implements Block {
+    // 列表结构单元：保存来源、是否有序及各条目文字，交给 ListChunker 保留编号或无序标记并按完整条目分组。
 }

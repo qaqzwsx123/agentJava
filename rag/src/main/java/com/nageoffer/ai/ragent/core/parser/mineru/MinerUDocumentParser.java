@@ -49,6 +49,7 @@ import java.util.concurrent.TimeoutException;
 @Component
 @RequiredArgsConstructor
 public class MinerUDocumentParser implements DocumentParser {
+    // MinerU 文档解析器：按注册规则处理 PDF、Word、PPT 和保真档 Excel，取得分布式解析许可后依次上传文件、等待结果、下载并解包，最终归还许可。
 
     /**
      * 版面解析类：PDF / Word / PPT 只有 MinerU 一条路，两个档位都由它承担

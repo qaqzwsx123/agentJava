@@ -25,6 +25,7 @@ import com.nageoffer.ai.ragent.rag.service.bo.ConversationSummaryBO;
 import java.util.List;
 
 public interface ConversationMessageService {
+    // 会话消息业务接口：约定消息、摘要及历史记录的读写和查询，供对话执行、记忆服务和后台消息展示复用。
 
     /**
      * 新增对话消息

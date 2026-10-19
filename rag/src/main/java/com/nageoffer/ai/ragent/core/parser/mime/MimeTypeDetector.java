@@ -26,6 +26,7 @@ import org.apache.tika.Tika;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class MimeTypeDetector {
+    // 文件类型识别工具：使用 Apache Tika 根据文件字节和可选文件名探测 MIME，识别结果用于选择解析器；空文件字节不执行识别。
 
     private static final Tika TIKA = new Tika();
 

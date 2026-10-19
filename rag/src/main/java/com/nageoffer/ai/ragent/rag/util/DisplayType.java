@@ -32,6 +32,7 @@ import java.util.TreeSet;
  * "规范.md"在界面上就会显示成 txt；此枚举永不参与路由，解析器与分块器的选择只认 MIME
  */
 public enum DisplayType {
+    // 文件展示类型枚举：按原始文件名及必要的 MIME 辅助信息生成界面短标签，不参与解析器路由，避免 Markdown 等文件被错误显示为 txt。
 
     PDF("pdf"),
     WORD("doc"),

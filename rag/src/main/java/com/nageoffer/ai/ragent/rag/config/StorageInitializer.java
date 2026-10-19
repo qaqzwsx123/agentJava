@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class StorageInitializer {
+    // 对象存储启动初始化器：以分布式锁保护全局文档桶和资产桶的创建与权限设置，文档私有、资产按配置允许公开预览。
 
     private static final String LOCK_KEY_PREFIX = "ragent:storage:bucket:init:";
     private static final long LOCK_WAIT_SECONDS = 30;

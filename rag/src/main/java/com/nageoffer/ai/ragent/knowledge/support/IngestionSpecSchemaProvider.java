@@ -39,6 +39,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class IngestionSpecSchemaProvider {
+    // 文档摄取表单定义提供者：根据解析器注册情况及预算约束下发可用档位、字段范围、默认值和整篇哨兵，供前端动态渲染配置表单。
 
     /**
      * 档位选项在界面上的字段名：命名操作人员看得见的事实

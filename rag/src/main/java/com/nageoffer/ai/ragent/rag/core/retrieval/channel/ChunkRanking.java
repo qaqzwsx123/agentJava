@@ -29,6 +29,7 @@ import java.util.List;
  * 规则改动只落一处，不再有复制粘贴漏改一份的口子
  */
 public final class ChunkRanking {
+    // 通道出口的名次整理 「通道出口按相关性有序」是下游 RRF 按名次取分依赖的不变式，三条 KB 通道共用这一份实现， 规则改动只落一处，不再有复制粘贴漏改一份的口子。
 
     private ChunkRanking() {
         // 排序辅助能力通过静态方法使用，私有构造器阻止实例化。

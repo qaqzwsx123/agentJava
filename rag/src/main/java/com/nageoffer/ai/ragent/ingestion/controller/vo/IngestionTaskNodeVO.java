@@ -33,6 +33,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class IngestionTaskNodeVO {
+    // 摄取任务节点视图对象；组织记录 ID、任务 ID、流水线 ID、节点 ID、节点类型等返回字段，供前端查询和展示。
 
     /**
      * ID

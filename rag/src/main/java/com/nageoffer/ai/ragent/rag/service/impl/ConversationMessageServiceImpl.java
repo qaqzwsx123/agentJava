@@ -43,6 +43,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ConversationMessageServiceImpl implements ConversationMessageService {
+    // 会话消息管理实现：校验会话归属，保存、读取和删除消息及摘要，装配引用来源、推荐问题和用户反馈等返回信息。
 
     private final ConversationMessageMapper conversationMessageMapper;
     private final ConversationSummaryMapper conversationSummaryMapper;

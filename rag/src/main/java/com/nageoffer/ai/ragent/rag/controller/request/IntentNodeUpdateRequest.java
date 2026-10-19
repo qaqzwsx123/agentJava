@@ -29,6 +29,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class IntentNodeUpdateRequest {
+    // 意图节点更新参数：接收名称、层级、父节点、描述和知识库或工具绑定等配置，供意图树服务校验后更新。
 
     private String name;
     private Integer level;

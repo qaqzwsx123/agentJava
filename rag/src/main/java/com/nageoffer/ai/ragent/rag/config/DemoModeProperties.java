@@ -28,6 +28,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "ragent")
 public class DemoModeProperties {
+    // 演示只读模式配置：绑定 ragent.demo-mode，供拦截器判断是否限制演示环境中的写操作。
 
     /**
      * 是否开启体验环境只读模式，默认关闭

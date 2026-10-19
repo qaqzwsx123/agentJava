@@ -33,6 +33,7 @@ import java.util.List;
  * 知识库文档服务接口
  */
 public interface KnowledgeDocumentService {
+    // 知识库文档业务接口：约定文档创建、上传、查询、配置更新、分块和删除等操作，供控制器、消息消费者和定时刷新复用。
 
     /**
      * 上传文档

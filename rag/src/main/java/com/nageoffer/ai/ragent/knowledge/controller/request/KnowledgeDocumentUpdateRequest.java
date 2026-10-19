@@ -21,6 +21,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeDocumentUpdateRequest {
+    // 文档更新请求参数：携带文档名称、处理模式、摄取配置、流水线和来源地址等可编辑信息，供文档服务校验更新。
 
     /**
      * 文档名称

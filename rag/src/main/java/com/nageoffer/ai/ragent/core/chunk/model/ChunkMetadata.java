@@ -44,6 +44,7 @@ public record ChunkMetadata(
         Provenance provenance,
         Map<String, Object> extras
 ) {
+    // 分块元数据：记录章节路径、图片资产、来源文件或工作表及摘要和关键词等扩展信息；通过 toMap() 统一整理为各索引后端使用的字段映射。
 
     public static final String KEY_ASSETS = "assets";
     public static final String KEY_SOURCE_FILE = "source_file";

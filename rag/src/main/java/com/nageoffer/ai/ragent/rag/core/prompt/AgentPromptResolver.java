@@ -41,6 +41,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class AgentPromptResolver {
+    // 智能体提示词解析器 优先取激活智能体的槽位，空白则回落内置智能体；面向终端用户的提示词一律从此处读取。
 
     private final AgentProfileMapper agentProfileMapper;
     private final AgentPromptMapper agentPromptMapper;

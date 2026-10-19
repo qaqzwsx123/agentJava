@@ -45,6 +45,7 @@ import java.util.List;
 @Component
 @ConditionalOnProperty(name = "rag.storage.type", havingValue = "oss")
 public class OssObjectStorageClient implements ObjectStorageClient {
+    // 阿里云 OSS 底层存储实现：提供 bucket 和 key 级上传下载、流式写入、删除及地址签名等操作，供后端无关的文件服务调用。
 
     /**
      * OSS deleteObjects 单次上限 1000

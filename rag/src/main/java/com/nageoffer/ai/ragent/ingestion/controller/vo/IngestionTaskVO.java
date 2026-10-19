@@ -35,6 +35,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class IngestionTaskVO {
+    // 知识库摄取任务视图对象；组织记录 ID、流水线 ID、来源类型、来源地址、来源文件名等返回字段，供前端查询和展示。
 
     /**
      * 任务ID

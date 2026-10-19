@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class KnowledgeBaseController {
+    // 知识库管理 HTTP 入口：接收创建、更新、删除、详情及分页请求，调用 KnowledgeBaseService 并封装统一响应。
 
     private final KnowledgeBaseService knowledgeBaseService;
 

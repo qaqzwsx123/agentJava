@@ -36,6 +36,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class ChunkIndexWriter {
+    // 索引写入协调器：在事务回调中依次通知全部 ChunkSink 替换或删除文档分块；新增后端可注册新实现，外部索引是否参与数据库事务取决于具体实现。
 
     private final List<ChunkSink> sinks;
     private final TransactionOperations transactionOperations;

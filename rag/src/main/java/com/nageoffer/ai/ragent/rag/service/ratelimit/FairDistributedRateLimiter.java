@@ -53,6 +53,7 @@ import java.util.function.IntSupplier;
  */
 @Slf4j
 public final class FairDistributedRateLimiter {
+    // 分布式公平并发限流器：利用 Redis 排队和可过期许可协调多个实例，管理等待、领取、超时与取消，并在释放时通知排队请求重试。
 
     private static final String LUA_PATH = "lua/queue_claim_atomic.lua";
     /**
@@ -159,9 +160,13 @@ public final class FairDistributedRateLimiter {
      * 单 CAS 协调点。终态互斥：状态一旦从 PENDING 转走就不再变更，业务回调最多触发一次
      * 资源清理 ({@link Ticket#cleanup()}) 与状态机解耦，幂等执行
      */
-    private enum State {PENDING, GRANTED, TIMED_OUT, CANCELLED}
+    private enum State {
+        // 许可申请状态枚举：区分等待、已授予、超时和取消，通过原子状态转换确保一次申请只进入一个终态。
+        PENDING, GRANTED, TIMED_OUT, CANCELLED
+    }
 
     private final class Ticket {
+        // 单次许可申请票据：保存请求 ID、截止时间、回调和许可引用，通过原子状态竞争协调成功、超时、取消及资源清理。
         final String requestId = IdUtil.getSnowflakeNextIdStr();
         final long deadline;
         final AcquireRequest req;
@@ -528,6 +533,7 @@ public final class FairDistributedRateLimiter {
                                  Runnable onTimeout,
                                  Executor onAcquiredExecutor,
                                  Consumer<Runnable> cancelBinder) {
+        // 许可申请参数：绑定最大等待时间、领取成功回调、超时回调、业务执行器和取消动作注册入口，供限流器统一调度。
         public AcquireRequest {
             // 请求必须提供成功、超时回调及成功回调执行器，同时要求等待期限为正数。
             Objects.requireNonNull(onAcquired);
@@ -548,6 +554,7 @@ public final class FairDistributedRateLimiter {
      * 只触发一次扫描，避免风暴。复用外部 scheduler 执行扫描，无需独立线程
      */
     private static final class PollNotifier {
+        // 集群许可通知合并器：接收 Redis Topic 通知后唤醒本进程等待者，合并密集通知并复用调度资源，减少重复扫描。
 
         private final IntSupplier permitSupplier;
         private final Executor executor;

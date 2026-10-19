@@ -27,6 +27,7 @@ package com.nageoffer.ai.ragent.core.ingest;
  * @param filename 原始文件名，供类型识别与溯源，可为空（删除路径不需要）
  */
 public record DocumentRef(String docId, String kbId, String filename) {
+    // 文档身份信息：绑定文档 ID、知识库 ID 和原始文件名，供解析溯源、图片资产命名及索引归属使用；仅描述文档身份，不负责下载或读取文件。
 
     public DocumentRef {
         // 文档 ID 与知识库 ID 都必须有效，缺失时在进入解析或落库前明确拒绝。

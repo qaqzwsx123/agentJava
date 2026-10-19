@@ -39,6 +39,7 @@ import java.util.Date;
 @Builder
 @TableName("t_rag_trace_run")
 public class RagTraceRunDO {
+    // RAG 运行追踪持久化实体：承载记录 ID、追踪 ID、追踪名称、入口方法、会话 ID等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

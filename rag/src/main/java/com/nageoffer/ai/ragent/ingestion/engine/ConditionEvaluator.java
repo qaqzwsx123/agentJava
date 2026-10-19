@@ -37,6 +37,7 @@ import java.util.function.IntPredicate;
  */
 @Component
 public class ConditionEvaluator {
+    // 条件评估器 用于根据给定的 IngestionContext 上下文和 JsonNode 格式的条件配置来评估条件是否满足。
 
     private final ObjectMapper objectMapper;
     private final ExpressionParser parser = new SpelExpressionParser();

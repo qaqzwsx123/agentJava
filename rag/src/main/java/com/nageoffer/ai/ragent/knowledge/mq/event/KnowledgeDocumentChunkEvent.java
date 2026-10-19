@@ -33,6 +33,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 public class KnowledgeDocumentChunkEvent implements Serializable {
+    // 文档分块消息载荷：携带文档 ID、知识库 ID 和操作者，供消息消费者定位文档并异步执行解析、分块和向量入库。
 
     @Serial
     private static final long serialVersionUID = 1L;

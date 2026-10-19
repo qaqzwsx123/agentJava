@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
  */
 @Data
 public class KnowledgeDocumentVO {
+    // 知识库文档视图对象；组织记录 ID、知识库 ID、文档名称、来源类型、来源地址等返回字段，供前端查询和展示。
 
     /**
      * 文档唯一标识

@@ -23,6 +23,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 public final class EnhancerPromptManager {
+    // 文档增强提示词管理器：根据 EnhanceType 提供整篇文档增强任务的系统提示词，供 EnhancerNode 构造模型请求。
 
     private static final Map<EnhanceType, String> DEFAULT_SYSTEM_PROMPTS = new EnumMap<>(EnhanceType.class);
 

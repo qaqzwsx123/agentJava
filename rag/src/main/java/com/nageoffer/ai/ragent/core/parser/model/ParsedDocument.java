@@ -29,6 +29,7 @@ import java.util.Map;
  * @param metadata 文档级元数据，如来源、页数、解析器、耗时等
  */
 public record ParsedDocument(List<Block> blocks, Map<String, Object> metadata) {
+    // 解析结果容器：按原文顺序保存各种 Block，并携带解析器、文件来源等文档级元数据，作为解析阶段传给分块阶段的统一结果。
 
     /**
      * 组装结构化解析结果，将缺失的块列表和元数据规范为空集合，避免下游反复判空。

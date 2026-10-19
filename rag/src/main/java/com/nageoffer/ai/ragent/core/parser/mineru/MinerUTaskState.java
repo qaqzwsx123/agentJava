@@ -29,6 +29,7 @@ package com.nageoffer.ai.ragent.core.parser.mineru;
  * </ul>
  */
 public enum MinerUTaskState {
+    // MinerU 任务状态枚举：将远端的排队、转换和运行等状态统一为 RUNNING，成功为 DONE、失败为 FAILED，无法识别的状态为 UNKNOWN 并交轮询继续处理。
     RUNNING,
     DONE,
     FAILED,

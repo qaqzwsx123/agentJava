@@ -25,6 +25,7 @@ import lombok.NoArgsConstructor;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class TextCleanupUtil {
+    // 解析文本清理工具：去掉开头 BOM、清除行尾空格和制表符、压缩过多空行并去除首尾空白，使提取出的文本便于后续结构化处理。
 
     /**
      * 依次剥 BOM、去行尾空格与制表符、连续三个以上空行压成两个、去首尾空白

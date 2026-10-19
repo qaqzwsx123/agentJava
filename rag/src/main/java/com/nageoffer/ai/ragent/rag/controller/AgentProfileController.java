@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class AgentProfileController {
+    // 智能体管理 HTTP 入口：提供档案列表、创建更新、激活和提示词槽位配置读写，供后台管理智能体。
 
     private final AgentProfileAdminService agentProfileAdminService;
 

@@ -34,6 +34,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class DocumentStatusHelper {
+    // 文档处理状态辅助器：条件更新文档为运行中、标记失败和切换刷新后的文件元信息，并识别和恢复超时未完成的文档。
 
     private static final String SYSTEM_USER = "system";
 
@@ -115,5 +116,6 @@ public class DocumentStatusHelper {
     }
 
     public record StuckRecoveryResult(List<String> stuckDocIds, int actualRecovered) {
+        // 超时文档恢复结果：返回发现的卡住文档 ID 列表及实际更新成功数量，供调度任务统计恢复情况。
     }
 }

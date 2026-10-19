@@ -28,4 +28,5 @@ import com.nageoffer.ai.ragent.rag.core.intent.NodeScore;
  * @param nodeScores  子问题的意图候选
  */
 public record SubQuestionIntent(String subQuestion, List<NodeScore> nodeScores) {
+    // 子问题意图结果：将一个拆分后的问题与其候选意图分数列表绑定，供检索范围解析和提示词选择保持问题与意图同源。
 }

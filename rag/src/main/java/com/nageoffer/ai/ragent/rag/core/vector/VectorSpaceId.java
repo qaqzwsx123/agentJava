@@ -27,6 +27,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class VectorSpaceId {
+    // 物理向量空间标识：保存跨后端使用的空间名称及可选命名空间，供向量空间创建与校验使用，与知识库逻辑分区区分。
 
     /**
      * 逻辑名称：对业务层暴露的名字，跨引擎保持一致

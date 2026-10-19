@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "rag.vector.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusVectorRetrieverService implements VectorRetrieverService {
+    // Milvus 向量检索实现：生成并归一化查询向量，按逻辑集合及过滤条件执行相似度查询，转换为统一的 RetrievedChunk。
 
     private final EmbeddingService embeddingService;
     private final MilvusClientV2 milvusClient;

@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum DocumentStatus {
+    // 知识库文档处理状态枚举：统一等待、运行、成功或失败等处理状态的编码，供上传、分块、定时刷新和页面查询使用。
 
     /**
      * 文档待处理

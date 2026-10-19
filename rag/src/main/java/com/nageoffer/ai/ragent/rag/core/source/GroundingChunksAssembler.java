@@ -42,6 +42,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class GroundingChunksAssembler {
+    // 推荐追问证据装配器：按文档去重并选择高分检索片段，限制数量后随助手消息保存，为后续推荐问题生成提供真实资料。
 
     /**
      * grounding 片段条数上限 控制存储与 prompt 体积（文档已去重，8 篇足够支撑 3 条追问的发散）

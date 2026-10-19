@@ -34,6 +34,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "rag.search")
 public class SearchChannelProperties implements InitializingBean {
+    // RAG 检索配置：统一召回预算、重排候选上限、最终条数、作用域、通道和融合门槛，并在启动时检查预算顺序及参数范围。
 
     /**
      * 默认最终进 LLM 的条数（检索预算的 contextTopK 段）
@@ -143,6 +144,7 @@ public class SearchChannelProperties implements InitializingBean {
      */
     @Data
     public static class Scope {
+        // 检索范围策略：保存最低意图分、定向置信度和未命中库补充比例，由各通道共享，避免同一子问题采用不同范围。
 
         /**
          * 最低意图分数
@@ -170,6 +172,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class Channels {
+        // 各检索通道配置集合：保存通道级超时及向量、关键词、图谱和联网配置，供引擎筛选和并行执行通道。
 
         /**
          * 单通道超时上限（毫秒）
@@ -200,6 +203,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class Vector {
+        // 向量通道开关：控制是否参与向量召回，检索范围和预算仍由请求共享的作用域及漏斗配置决定。
 
         /**
          * 是否启用
@@ -210,6 +214,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class Keyword {
+        // 关键词通道开关：控制是否参与全文召回，真正生效还要求对应关键词后端已经装配。
 
         /**
          * 是否启用
@@ -220,6 +225,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class Graph {
+        // 图谱通道开关：控制是否参与图谱召回，真正生效还要求 LightRAG 等对应后端已经装配。
 
         /**
          * 是否启用
@@ -230,6 +236,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class WebSearch {
+        // 联网召回参数：保存启用状态、返回数量、请求超时、API Key 和搜索地址，供 You.com 通道构造外部请求。
 
         /**
          * 是否启用
@@ -263,6 +270,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class Fusion {
+        // 多通道融合参数：定义策略、RRF 平滑参数、候选池上限和各通道权重，供融合处理器计算排名及截断。
 
         /**
          * 融合策略
@@ -296,6 +304,7 @@ public class SearchChannelProperties implements InitializingBean {
 
     @Data
     public static class ChannelWeights {
+        // RRF 通道贡献权重：分别配置向量、关键词、图谱和联网的排名贡献，使融合按权重累加而非直接比较不同量纲原始分。
 
         /**
          * 向量权重
@@ -332,6 +341,7 @@ public class SearchChannelProperties implements InitializingBean {
      */
     @Data
     public static class Evidence {
+        // 证据相关性门槛：配置最低重排分，供 EvidenceGatePostProcessor 在整批最高分不足时过滤无关证据。
 
         /**
          * 最低精排分 0~1

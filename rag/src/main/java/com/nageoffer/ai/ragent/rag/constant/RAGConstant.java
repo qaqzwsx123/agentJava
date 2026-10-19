@@ -37,6 +37,7 @@ package com.nageoffer.ai.ragent.rag.constant;
  * </p>
  */
 public class RAGConstant {
+    // RAG 公共常量：集中定义意图筛选阈值、候选数量及提示词资源路径等共享值，供改写、意图、检索和回答编排使用。
 
     /**
      * 意图识别最低分数阈值

@@ -33,6 +33,7 @@ import java.util.List;
  */
 @Slf4j
 public class KeywordSyncingVectorStoreService implements VectorStoreService {
+    // 关键词同步装饰器：包装向量写入服务，在向量写入、更新和删除后同步关键词索引；同步失败记录日志，不回滚已完成的向量操作。
 
     private final VectorStoreService delegate;
     private final KeywordIndexService keywordIndexService;

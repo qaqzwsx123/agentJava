@@ -34,6 +34,7 @@ public record AgentSkill(
         String description,
         String content,
         List<String> toolIds) {
+    // 运行期技能，供 Agent 侧读取，不含控制台才关心的审计字段。
 
     public AgentSkill {
         // 把工具 ID 列表复制为只读列表，缺省为空，避免外部修改技能已经登记的能力范围。

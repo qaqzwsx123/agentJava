@@ -28,6 +28,7 @@ package com.nageoffer.ai.ragent.core.ingest;
  * @param dimension      向量维度，取自部署级配置，全局硬约束
  */
 public record VectorTarget(String partition, String embeddingModel, int dimension) {
+    // 向量写入目标：显式绑定知识库逻辑分区、嵌入模型 ID 和要求的向量维度，供向量化及索引写入共同使用，避免落入错误分区或不兼容的向量空间。
 
     public VectorTarget {
         // 分区、嵌入模型和正数维度必须显式绑定，禁止缺少知识库约束时擅自回落到默认模型。

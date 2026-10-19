@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 public class DefaultFileStorageService implements FileStorageService {
+    // 文件存储门面实现：组织知识库目录和对象键，区分私有文档与公开资产，探测类型并装配 StoredFileDTO，底层操作交给 S3 或 OSS 客户端。
 
     private static final Tika TIKA = new Tika();
     private static final String LOCK_KEY_PREFIX = "ragent:kb:space:init:";

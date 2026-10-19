@@ -38,6 +38,7 @@ import java.util.Set;
  * 归因键统一由 {@link RetrievedChunkKey} 生成，避免通道去重、融合和归因采用不同的身份规则
  */
 final class ChannelAttribution {
+    // 检索通道归因工具：使用统一块键从各通道原始结果反查证据来源，统计融合和重排后的贡献与存活情况，不修改片段模型。
 
     private ChannelAttribution() {
         // 通道归因统计通过静态方法复用，私有构造器阻止实例化。

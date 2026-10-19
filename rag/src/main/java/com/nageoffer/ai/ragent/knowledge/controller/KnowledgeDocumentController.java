@@ -63,6 +63,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Validated
 public class KnowledgeDocumentController {
+    // 知识库文档管理控制器 提供文档的上传、分块、删除、查询、启用/禁用等功能。
 
     private final KnowledgeDocumentService documentService;
     private final FileStorageService fileStorageService;

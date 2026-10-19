@@ -24,6 +24,7 @@ import lombok.Data;
  */
 @Data
 public class KnowledgeChunkUpdateRequest {
+    // 知识库 Chunk 更新请求；携带正文等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 分块正文内容

@@ -41,6 +41,7 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class GraphQueryService {
+    // 知识图谱可视化服务：通过 LightRAG 查询子图和实体标签，按知识库及文档范围过滤并转换为前端节点边结构，未启用后端时返回业务提示。
 
     private final ObjectProvider<LightRagClient> lightRagClientProvider;
 

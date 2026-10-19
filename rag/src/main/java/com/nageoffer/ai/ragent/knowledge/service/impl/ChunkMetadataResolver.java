@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ChunkMetadataResolver {
+    // 分块元数据解析器 检索命中的 chunkId（等于向量库主键，也等于 t_knowledge_chunk.id）批量回表， 补齐其所属文档信息（文档ID、文档内序号、文档标题），供上下文组装时按文档聚合与标注来源 只对已截断的最终结果集回表，行数小，两次批量查询开销可忽略。
 
     private final KnowledgeChunkMapper chunkMapper;
     private final KnowledgeDocumentMapper documentMapper;
@@ -51,6 +52,7 @@ public class ChunkMetadataResolver {
      * 分块所属文档的元数据
      */
     public record ChunkMeta(String docId, Integer chunkIndex, String docName) {
+        // 分块文档归属信息：记录文档 ID、文档内块序号和文档名称，供检索结果补充元数据及按文档组装上下文。
     }
 
     /**

@@ -32,6 +32,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Getter
 @Builder
 public class StreamChatHandlerParams {
+    // StreamChatEventHandler 构建参数 使用参数对象模式，将多个参数封装成一个对象。
 
     /**
      * SSE 发射器

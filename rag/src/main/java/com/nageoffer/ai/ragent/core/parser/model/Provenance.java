@@ -26,6 +26,7 @@ package com.nageoffer.ai.ragent.core.parser.model;
  * @param sheetName  Excel sheet 名，非 Excel 来源为 null
  */
 public record Provenance(String sourceFile, String sheetName) {
+    // 结构单元来源信息：记录原始文件标识及可选 Excel 工作表名，随分块元数据传递，便于定位内容来自哪个文件和工作表。
 
     /**
      * 构造文件级溯源信息，不指定工作表。

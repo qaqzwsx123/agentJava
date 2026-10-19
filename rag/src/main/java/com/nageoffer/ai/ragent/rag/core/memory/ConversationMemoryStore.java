@@ -26,6 +26,7 @@ import java.util.List;
  * 提供对话历史记录的加载、追加和缓存刷新功能
  */
 public interface ConversationMemoryStore {
+    // 对话记忆存储接口 提供对话历史记录的加载、追加和缓存刷新功能。
 
     /**
      * 加载对话历史记录

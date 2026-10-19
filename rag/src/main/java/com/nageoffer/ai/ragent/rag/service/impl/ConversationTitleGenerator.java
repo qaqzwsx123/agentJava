@@ -44,6 +44,7 @@ import static com.nageoffer.ai.ragent.rag.constant.RAGConstant.CONVERSATION_TITL
 @Component
 @RequiredArgsConstructor
 public class ConversationTitleGenerator {
+    // 会话标题生成器：根据用户问题和标题配置调用模型生成简短标题，作为独立组件参与 RAG 调用链追踪。
 
     private final MemoryProperties memoryProperties;
     private final PromptTemplateLoader promptTemplateLoader;

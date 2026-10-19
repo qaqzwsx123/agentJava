@@ -46,6 +46,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "rag.keyword", name = "type", havingValue = "es")
 public class EsKeywordIndexService implements KeywordIndexService {
+    // Elasticsearch 关键词写入实现：在共享索引保存正文、集合和元数据，以 chunkId 作为文档主键，并同步更新或删除对应文档块。
 
     private static final int MAX_CONTENT_LENGTH = 65535;
 

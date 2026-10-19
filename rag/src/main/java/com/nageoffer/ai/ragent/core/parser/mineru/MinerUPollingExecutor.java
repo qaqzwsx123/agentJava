@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @Component
 public class MinerUPollingExecutor {
+    // MinerU 任务轮询器：用共享调度线程池定期查询批次状态，通过 CompletableFuture 返回成功、失败或超时；调用方仍可阻塞等待，结束后取消后续轮询。
 
     private static final int SCHEDULER_THREADS = 4;
     private static final long SHUTDOWN_AWAIT_SECONDS = 10;

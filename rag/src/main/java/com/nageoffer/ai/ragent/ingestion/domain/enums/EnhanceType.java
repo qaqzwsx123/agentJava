@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum EnhanceType {
+    // 文档增强类型枚举 定义对整个文档内容进行增强处理的类型，用于提升文档的检索和理解质量 类型值使用小写 snake_case，如 context_enhance、keywords。
 
     /**
      * 上下文增强 - 为文本添加上下文信息，提升理解能力

@@ -28,6 +28,7 @@ import java.util.List;
 @Data
 @Builder
 public class RagTraceDetailVO {
+    // RAG Trace 详情；组织节点配置等返回字段，供前端查询和展示。
 
     private RagTraceRunVO run;
 

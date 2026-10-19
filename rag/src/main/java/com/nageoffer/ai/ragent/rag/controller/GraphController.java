@@ -39,6 +39,7 @@ import java.util.List;
 @RequestMapping("/admin/kg")
 @RequiredArgsConstructor
 public class GraphController {
+    // 知识图谱可视化控制器 提供后台图谱浏览：拉取子图、检索实体标签 图谱通道未启用时，服务层以业务异常提示，前端据此给出「未启用」引导，路由本身始终存在。
 
     private final GraphQueryService graphQueryService;
 

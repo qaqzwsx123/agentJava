@@ -26,6 +26,7 @@ import java.util.List;
  */
 @Data
 public class KnowledgeChunkBatchRequest {
+    // 知识库 Chunk 批量操作请求；携带分块 ID 列表等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * Chunk ID 列表（可选，不传则操作文档下所有 chunk）

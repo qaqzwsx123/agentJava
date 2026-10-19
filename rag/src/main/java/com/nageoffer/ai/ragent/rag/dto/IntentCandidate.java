@@ -26,4 +26,5 @@ import com.nageoffer.ai.ragent.rag.core.intent.NodeScore;
  * @param nodeScore        意图候选分数
  */
 public record IntentCandidate(int subQuestionIndex, NodeScore nodeScore) {
+    // 意图候选与子问题索引的绑定：记录一个候选属于哪个拆分问题，供整轮候选名额限制时保留各问题的有效意图。
 }

@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ConversationServiceImpl implements ConversationService {
+    // 会话服务实现类 处理会话的创建、更新、重命名和删除等业务逻辑。
 
     private final ConversationMapper conversationMapper;
     private final ConversationMessageMapper messageMapper;

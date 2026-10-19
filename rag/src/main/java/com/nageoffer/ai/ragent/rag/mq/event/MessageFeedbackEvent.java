@@ -33,6 +33,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MessageFeedbackEvent implements Serializable {
+    // 消息反馈异步事件：携带消息 ID、用户、点赞点踩值及原因和评论，供消费者幂等写入或撤销反馈记录。
 
     @Serial
     private static final long serialVersionUID = 1L;

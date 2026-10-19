@@ -38,6 +38,7 @@ import java.util.concurrent.RejectedExecutionException;
 @Component
 @RequiredArgsConstructor
 public class KnowledgeDocumentScheduleJob {
+    // 文档定时刷新扫描任务：批量找出到期计划，申请分布式锁后交给工作线程执行刷新，并参与恢复长时间停留在处理中的任务。
 
     private final KnowledgeDocumentScheduleMapper scheduleMapper;
     private final Executor knowledgeChunkExecutor;

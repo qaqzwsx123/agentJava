@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class AgentPromptCacheManager {
+    // 智能体提示词缓存管理器 缓存的是激活智能体叠加自定义提示词之后的结果，命中即可直接取用。
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;

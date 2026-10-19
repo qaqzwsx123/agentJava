@@ -25,6 +25,7 @@ import lombok.Data;
  */
 @Data
 public class QueryTermMappingPageRequest extends Page {
+    // 关键词映射分页查询请求；携带检索关键词等参数，供控制器接收并交给服务层校验和处理。
 
     /**
      * 关键词（支持匹配 sourceTerm/targetTerm）

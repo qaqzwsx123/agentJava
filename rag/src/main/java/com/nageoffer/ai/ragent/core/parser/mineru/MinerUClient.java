@@ -51,6 +51,7 @@ import java.io.IOException;
 @Slf4j
 @Component
 public class MinerUClient {
+    // MinerU HTTP 客户端：负责申请上传票据、上传文件字节、查询任务状态及下载结果 ZIP，并处理鉴权、响应解析和远端错误。
 
     private static final MediaType JSON_MEDIA = MediaType.parse("application/json; charset=utf-8");
 

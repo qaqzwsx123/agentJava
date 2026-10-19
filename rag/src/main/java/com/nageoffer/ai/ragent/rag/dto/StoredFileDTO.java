@@ -27,6 +27,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class StoredFileDTO {
+    // 文件存储结果：返回存储引用、展示类型、MIME、大小及文件名等信息，供文档记录创建、下载和前端预览使用。
 
     private String url;
 

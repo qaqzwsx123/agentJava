@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum SourceType {
+    // 流水线文档来源枚举：统一上传文件、HTTP 地址和飞书来源的编码及解析，供 FetcherNode 选择对应获取策略。
 
     /**
      * 本地文件 - 文档来源为本地文件系统

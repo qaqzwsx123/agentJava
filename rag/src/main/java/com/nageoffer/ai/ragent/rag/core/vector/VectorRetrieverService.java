@@ -44,6 +44,7 @@ import java.util.List;
  * - 建议对 vector 维度进行校验，避免与向量库 schema 不匹配
  */
 public interface VectorRetrieverService {
+    // 向量检索统一接口：约定生成归一化查询向量以及按向量、集合和过滤条件召回 RetrievedChunk，屏蔽具体向量后端。
 
     /**
      * 根据自然语言 Query 进行检索

@@ -32,6 +32,7 @@ import java.util.Set;
  */
 @Getter
 public enum AgentPromptSlot {
+    // 智能体提示词槽位，是槽位元数据的唯一权威源 槽位按功能命名而非按架构命名：生效范围会随 v1/v2 演进变化，不编码进标识符。
 
     SYSTEM_CHAT("闲聊应答", Group.WORKFLOW,
             Set.of(OrchestrationMode.WORKFLOW),
@@ -172,6 +173,7 @@ public enum AgentPromptSlot {
      */
     @Getter
     public enum Group {
+        // 提示词槽位展示分组：根据槽位的生效范围组织控制台编辑栏目，并提供对应的分组展示名称。
 
         WORKFLOW("WorkFlow专属"),
         AGENT("Agent专属"),

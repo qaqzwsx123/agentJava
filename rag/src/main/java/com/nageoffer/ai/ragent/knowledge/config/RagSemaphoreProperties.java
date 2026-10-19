@@ -33,12 +33,14 @@ import org.springframework.validation.annotation.Validated;
 @Configuration
 @ConfigurationProperties(prefix = "rag.semaphore")
 public class RagSemaphoreProperties {
+    // 上传分布式信号量配置：绑定许可名称、最大并发、等待时长和自动释放租期，供初始化器及上传限流过滤器共同读取。
 
     @Valid
     private PermitExpirableConfig documentUpload = new PermitExpirableConfig();
 
     @Data
     public static class PermitExpirableConfig {
+        // 可过期并发许可参数：保存信号量名称、最大并发数、等待秒数和租期秒数，避免上传请求长期占用集群许可。
 
         /**
          * Redisson 信号量名称

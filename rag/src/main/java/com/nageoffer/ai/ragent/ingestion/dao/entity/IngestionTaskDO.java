@@ -40,6 +40,7 @@ import java.util.Date;
 @Builder
 @TableName("t_ingestion_task")
 public class IngestionTaskDO {
+    // 摄取任务持久化实体：承载记录 ID、流水线 ID、来源类型、来源地址、来源文件名等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * 主键 ID

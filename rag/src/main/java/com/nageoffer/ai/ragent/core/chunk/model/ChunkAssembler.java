@@ -30,6 +30,7 @@ import java.util.List;
  * 再拼一份合成前缀等于篡改原文
  */
 public final class ChunkAssembler {
+    // 正式分块装配器：将已打包的 ChunkDraft 转成 Chunk，生成雪花 ID、顺序编号，并在向量文本中补齐缺失章节；也支持保留已有 ID 的装配和从存储字段恢复分块。
 
     private static final String CONTEXT_SEPARATOR = "\n";
 

@@ -45,6 +45,7 @@ import org.springframework.stereotype.Component;
         consumerGroup = "knowledge-base-cleanup_cg${unique-name:}"
 )
 public class KnowledgeBaseCleanupConsumer implements RocketMQListener<MessageWrapper<KnowledgeBaseCleanupEvent>> {
+    // 知识库删除清理 MQ 消费者 负责异步回收知识库独占的底层物理资源：向量数据、bucket、ES 关键词索引、知识图谱数据 各清理项 best-effort 互不影响，存在失败项则抛异常触发重试；所有操作均幂等，重试安全。
 
     private final VectorStoreAdmin vectorStoreAdmin;
     private final FileStorageService fileStorageService;

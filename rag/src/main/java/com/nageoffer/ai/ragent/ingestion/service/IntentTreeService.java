@@ -24,6 +24,7 @@ import com.nageoffer.ai.ragent.rag.controller.request.IntentNodeUpdateRequest;
 import java.util.List;
 
 public interface IntentTreeService {
+    // 意图树管理服务接口：提供树查询及节点新增、修改、删除和批量操作，统一知识库集合绑定与节点配置的业务入口。
 
     /**
      * 查询整棵意图树（包含 RAG + SYSTEM）

@@ -33,6 +33,7 @@ import java.util.List;
  */
 @Component
 public class ListChunker implements BlockChunker<ListBlock> {
+    // 列表分块器：保留有序编号或无序标记，按渲染后的字符体量将完整列表项分组；不从条目中间切断，单个超长条目仍整项保留。
 
     @Override
     public Class<ListBlock> blockType() {

@@ -26,6 +26,7 @@ import java.util.Date;
  * RAG Trace 记录服务
  */
 public interface RagTraceRecordService {
+    // RAG 追踪写入接口：约定整轮运行及内部节点的开始和结束记录，供切面和流式回调统一持久化状态、错误与耗时。
 
     void startRun(RagTraceRunDO run);
 

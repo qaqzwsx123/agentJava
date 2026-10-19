@@ -32,6 +32,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class IngestionResult {
+    // 摄取结果实体类 表示文档摄取任务执行完成后的结果信息，包含任务状态、分块数量等概要数据。
 
     /**
      * 摄取任务的唯一标识符

@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @Data
 public class NodeScore {
+    // 意图匹配评分：将运行期意图节点与模型返回的相关度分数绑定，供筛选、排序和确定检索范围。
 
     /**
      * 意图节点

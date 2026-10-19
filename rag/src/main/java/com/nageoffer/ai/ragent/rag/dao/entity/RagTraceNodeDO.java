@@ -39,6 +39,7 @@ import java.util.Date;
 @Builder
 @TableName("t_rag_trace_node")
 public class RagTraceNodeDO {
+    // RAG 节点追踪持久化实体：承载记录 ID、追踪 ID、节点 ID、父节点 ID、节点深度等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     @TableId(type = IdType.ASSIGN_ID)
     private String id;

@@ -36,6 +36,7 @@ public record IngestionSpecSchemaVO(String parseProfileLabel,
                                     List<String> parseProfileExtensions,
                                     List<BudgetField> budgetFields,
                                     int wholeDocumentSentinel) {
+    // 文档摄取表单定义：下发解析档位及适用格式、分块预算字段、推荐范围和整篇哨兵值，供前端按后端约束动态渲染配置表单。
 
     /**
      * @param value 提交值
@@ -43,6 +44,7 @@ public record IngestionSpecSchemaVO(String parseProfileLabel,
      * @param hint  说明
      */
     public record Option(String value, String label, String hint) {
+        // 摄取配置表单选项：携带提交值、展示名和提示说明，供前端按后端下发的定义渲染解析档位等可选项。
     }
 
     /**
@@ -58,5 +60,6 @@ public record IngestionSpecSchemaVO(String parseProfileLabel,
      */
     public record BudgetField(String key, String label, int defaultValue, int min, int max,
                               int recommendedMin, int recommendedMax, String hint, String detail) {
+        // 分块预算表单字段：携带提交键、名称、默认值、允许范围、推荐范围和调参说明，供前端动态生成并校验预算输入。
     }
 }

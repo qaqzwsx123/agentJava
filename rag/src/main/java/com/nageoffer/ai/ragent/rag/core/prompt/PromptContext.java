@@ -31,6 +31,7 @@ import java.util.Set;
 @Data
 @Builder
 public class PromptContext {
+    // Prompt 构建上下文，封装一次 RAG 请求中用于组装提示词的全部输入数据。
 
     /**
      * 知识库检索返回的上下文文本（已格式化）

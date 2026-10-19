@@ -39,6 +39,7 @@ import java.util.List;
  */
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class BlockTextRenderer {
+    // 结构块文本渲染器：按原顺序把标题、段落、表格、图片、代码和列表转换为可读文本，保留图片描述及链接，供整篇模式和兼容文本处理路径复用。
 
     /**
      * 把 Block 列表渲染为纯文本

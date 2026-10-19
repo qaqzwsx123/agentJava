@@ -32,6 +32,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class QueryTermMappingVO {
+    // 关键词映射视图对象；组织记录 ID、原始术语、目标术语、匹配方式、优先级等返回字段，供前端查询和展示。
 
     private String id;
     private String sourceTerm;

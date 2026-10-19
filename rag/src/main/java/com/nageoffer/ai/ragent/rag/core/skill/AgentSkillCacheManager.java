@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class AgentSkillCacheManager {
+    // 技能缓存管理器 缓存已启用技能的全量清单，每轮对话都要读，不宜每次落库。
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;

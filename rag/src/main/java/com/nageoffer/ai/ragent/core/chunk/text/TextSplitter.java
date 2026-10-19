@@ -29,6 +29,7 @@ import java.util.List;
  * 换用裸 {@code substring} 会把句子、URL、数字腰斩
  */
 public final class TextSplitter {
+    // 长文本切分工具：按字符预算和重叠量拆分，切口优先靠近换行、中文句末和英文句末；同时修复部分 URL 折行和中文软换行，减少句子被硬切及上下文丢失。
 
     private TextSplitter() {
         // 切分能力通过静态方法使用，私有构造器阻止创建无状态实例。

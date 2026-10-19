@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum IntentKind {
+    // 意图业务类型枚举：区分知识库、工具和系统等意图，供候选筛选、知识检索及系统回答分支判断。
 
     /**
      * 知识库类，走 RAG

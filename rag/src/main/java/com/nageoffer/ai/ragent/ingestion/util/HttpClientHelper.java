@@ -39,6 +39,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class HttpClientHelper {
+    // 远程资源 HTTP 工具：提供 HEAD 预检、完整下载和流式下载，解析文件名、类型及缓存标记，并按配置限制实际读取的字节数。
 
     @Qualifier("syncHttpClient")
     private final OkHttpClient client;
@@ -293,6 +294,7 @@ public class HttpClientHelper {
                                     String etag,
                                     String lastModified,
                                     Long contentLength) {
+        // 完整 HTTP 下载结果：保存响应字节、内容类型、文件名、ETag、最后修改时间和声明长度，供抓取器构建文档输入。
     }
 
     public record HttpFetchStream(Response response,
@@ -302,6 +304,7 @@ public class HttpClientHelper {
                                   String etag,
                                   String lastModified,
                                   Long contentLength) implements AutoCloseable {
+        // 流式 HTTP 下载结果：持有响应对象和受大小限制的输入流，携带文件及缓存元信息，并通过 close() 释放下载连接。
 
         @Override
         public void close() {
@@ -312,5 +315,6 @@ public class HttpClientHelper {
 
     public record HttpHeadResponse(String etag, String lastModified, String contentType, Long contentLength,
                                    String fileName) {
+        // HTTP HEAD 预检结果：保存 ETag、修改时间、文件类型、声明长度和文件名，用于下载前检查体积以及判断远程文件是否变化。
     }
 }

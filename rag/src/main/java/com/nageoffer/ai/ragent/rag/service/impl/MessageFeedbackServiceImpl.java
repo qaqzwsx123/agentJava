@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MessageFeedbackServiceImpl implements MessageFeedbackService {
+    // 消息反馈业务实现：校验消息与用户归属，通过消息队列提交反馈或撤销事件，并在消费侧幂等更新反馈记录。
 
     private final MessageFeedbackMapper feedbackMapper;
     private final ConversationMessageMapper conversationMessageMapper;

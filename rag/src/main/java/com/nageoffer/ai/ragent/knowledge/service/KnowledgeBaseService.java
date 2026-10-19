@@ -27,6 +27,7 @@ import com.nageoffer.ai.ragent.knowledge.controller.vo.KnowledgeBaseVO;
  * 知识库服务接口
  */
 public interface KnowledgeBaseService {
+    // 知识库管理接口：提供知识库创建、查询、更新和删除，隔离控制器与向量空间、文件存储及异步清理等实现细节。
 
     /**
      * 创建知识库

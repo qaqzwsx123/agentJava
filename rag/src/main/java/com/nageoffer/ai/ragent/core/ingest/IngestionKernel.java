@@ -29,6 +29,7 @@ package com.nageoffer.ai.ragent.core.ingest;
  * 取数是内核之前的事；任务状态流转与摄取日志归外层
  */
 public interface IngestionKernel {
+    // 摄取流程统一接口：接收文档身份、文件字节、解析与分块配置以及向量目标，约定执行类型识别、解析、分块、向量化和索引写入，并返回处理结果。
 
     /**
      * 执行一次完整摄取：解析 → 分块 → 向量化 → 落库

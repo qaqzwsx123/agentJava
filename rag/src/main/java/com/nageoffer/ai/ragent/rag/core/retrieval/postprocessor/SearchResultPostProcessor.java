@@ -35,6 +35,7 @@ import java.util.List;
  * 处理器按照 order 顺序依次执行，形成处理链
  */
 public interface SearchResultPostProcessor {
+    // 检索结果后置处理器接口 对多通道检索结果进行统一的后处理，例如： - 去重 - 版本过滤 - 分数归一化 - Rerank 处理器按照 order 顺序依次执行，形成处理链。
 
     /**
      * 处理器名称

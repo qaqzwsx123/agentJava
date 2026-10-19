@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 public class QueryTermMappingCacheManager {
+    // 术语映射缓存管理器 负责术语映射规则在 Redis 中的缓存管理。
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;

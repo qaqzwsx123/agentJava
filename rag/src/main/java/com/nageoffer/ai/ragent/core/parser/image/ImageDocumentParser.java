@@ -53,6 +53,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class ImageDocumentParser implements DocumentParser {
+    // 图片文档解析器：处理 PNG、JPEG 和 SVG，必要时先将 SVG 转为 PNG，再调用视觉模型生成描述和图中文字，上传图片资产并输出带描述的 ImageBlock。
 
     public static final String OPT_SOURCE_FILE = "sourceFile";
     public static final String OPT_DOCUMENT_ID = "documentId";

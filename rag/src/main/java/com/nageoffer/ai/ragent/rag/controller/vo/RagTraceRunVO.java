@@ -28,6 +28,7 @@ import java.util.Date;
 @Data
 @Builder
 public class RagTraceRunVO {
+    // RAG Trace 运行记录；组织追踪 ID、追踪名称、入口方法、会话 ID、任务 ID等返回字段，供前端查询和展示。
 
     private String traceId;
 

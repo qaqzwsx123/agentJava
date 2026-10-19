@@ -32,6 +32,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class AgentProfileVO {
+    // 智能体视图对象；组织记录 ID、名称、说明、头像、是否内置等返回字段，供前端查询和展示。
 
     private String id;
     private String name;

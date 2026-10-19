@@ -21,6 +21,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeBaseUpdateRequest {
+    // 知识库更新参数：携带知识库 ID、名称及嵌入模型配置，供服务层校验并更新知识库信息。
 
     private String id;
 

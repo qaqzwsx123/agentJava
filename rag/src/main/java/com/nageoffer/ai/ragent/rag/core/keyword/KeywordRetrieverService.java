@@ -33,6 +33,7 @@ import java.util.List;
  * 返回类型复用 {@link RetrievedChunk}，与向量结果在通道出口处同构，融合层无需区分来源
  */
 public interface KeywordRetrieverService {
+    // 关键词全文检索接口：按查询文本、集合范围和候选数召回片段，返回统一 RetrievedChunk，供关键词通道与向量通道共同参与融合。
 
     /**
      * 在共享索引内做关键词检索，按 collection 过滤

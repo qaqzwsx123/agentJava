@@ -27,6 +27,7 @@ import java.util.Set;
  * 上下文格式化器，负责将知识库检索结果格式化为可嵌入 Prompt 的文本
  */
 public interface ContextFormatter {
+    // 上下文格式化器，负责将知识库检索结果格式化为可嵌入 Prompt 的文本。
 
     /**
      * 格式化知识库检索上下文

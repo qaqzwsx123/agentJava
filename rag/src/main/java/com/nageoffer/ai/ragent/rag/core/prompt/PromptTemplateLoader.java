@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @RequiredArgsConstructor
 public class PromptTemplateLoader {
+    // 提示模板加载器 负责从类路径下加载提示模板文件，并支持模板变量填充功能。
 
     private final ResourceLoader resourceLoader;
     private final Map<String, String> cache = new ConcurrentHashMap<>();

@@ -48,6 +48,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 public class IngestionTaskController {
+    // 摄取任务接口入口：接收来源配置或上传文件，启动指定流水线，并提供任务详情、节点执行日志和任务分页查询。
 
     private final IngestionTaskService taskService;
 

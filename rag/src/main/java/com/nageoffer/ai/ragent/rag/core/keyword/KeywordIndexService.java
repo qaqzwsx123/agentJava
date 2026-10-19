@@ -30,6 +30,7 @@ import java.util.List;
  * {@code rag.keyword.type} 选择，none 时无实现注册，写侧装饰器也随之不注册
  */
 public interface KeywordIndexService {
+    // 关键词索引写入接口：定义文档块写入、更新和删除，保持关键词文档 ID 与分块 ID 一致，供跨通道去重及融合对齐。
 
     /**
      * 批量建立文档分块的关键词索引

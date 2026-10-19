@@ -22,6 +22,7 @@ import lombok.Data;
 
 @Data
 public class KnowledgeChunkPageRequest extends Page {
+    // 分块分页查询参数：在文档范围内按分页信息和启用状态筛选分块，用于后台分块列表。
 
     private Integer enabled;
 }

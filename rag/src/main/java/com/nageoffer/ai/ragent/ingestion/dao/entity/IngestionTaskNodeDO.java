@@ -39,6 +39,7 @@ import java.util.Date;
 @Builder
 @TableName("t_ingestion_task_node")
 public class IngestionTaskNodeDO {
+    // 摄取任务节点持久化实体：承载记录 ID、任务 ID、流水线 ID、节点 ID、节点类型等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * ID

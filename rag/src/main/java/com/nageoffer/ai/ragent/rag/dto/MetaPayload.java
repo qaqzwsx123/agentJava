@@ -18,4 +18,5 @@
 package com.nageoffer.ai.ragent.rag.dto;
 
 public record MetaPayload(String conversationId, String taskId) {
+    // 流式会话元事件载荷：向前端返回本轮会话 ID 和任务 ID，使后续输出关联会话，并支持按任务取消。
 }

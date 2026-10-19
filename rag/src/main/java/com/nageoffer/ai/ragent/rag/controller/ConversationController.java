@@ -43,6 +43,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 public class ConversationController {
+    // 会话控制器 提供会话相关的REST API接口，包括会话列表获取、重命名、删除以及会话消息列表获取等功能。
 
     private final ConversationService conversationService;
     private final ConversationMessageService conversationMessageService;

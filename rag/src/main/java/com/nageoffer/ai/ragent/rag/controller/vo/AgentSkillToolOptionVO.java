@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class AgentSkillToolOptionVO {
+    // 技能可引用的工具选项，来自意图树里已启用的 MCP 节点；组织工具 ID、名称、说明等返回字段，供前端查询和展示。
 
     private String toolId;
 

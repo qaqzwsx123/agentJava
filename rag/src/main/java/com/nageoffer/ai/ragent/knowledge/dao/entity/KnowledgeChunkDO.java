@@ -39,6 +39,7 @@ import java.util.Date;
 @AllArgsConstructor
 @TableName("t_knowledge_chunk")
 public class KnowledgeChunkDO {
+    // 知识库分块持久化实体：承载记录 ID、知识库 ID、文档 ID、分块序号、正文等数据库字段，供 Mapper 读写并与接口返回对象分离。
 
     /**
      * ID

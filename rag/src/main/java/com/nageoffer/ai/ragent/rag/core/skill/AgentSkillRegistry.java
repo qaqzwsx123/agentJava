@@ -33,6 +33,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class AgentSkillRegistry {
+    // 运行期技能注册表：优先读取缓存，必要时加载数据库中已启用技能，向 Agent 提供可加载的技能目录和正文。
 
     private final AgentSkillMapper agentSkillMapper;
     private final AgentSkillCacheManager cacheManager;

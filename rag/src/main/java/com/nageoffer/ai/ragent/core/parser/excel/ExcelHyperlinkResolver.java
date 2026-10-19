@@ -29,6 +29,7 @@ import org.apache.poi.ss.usermodel.Hyperlink;
  * MinerU 等 OCR / 版面识别工具无法拿到此元数据 —— 这是 Excel 必须走 POI 的核心原因
  */
 public final class ExcelHyperlinkResolver {
+    // Excel 超链接保留工具：读取单元格底层 hyperlink，将显示文字与真实 URL 组合成 Markdown 链接；没有显示文字时依次回落到链接标签和 URL。
 
     private ExcelHyperlinkResolver() {
         // 链接转换通过静态方法使用，禁止实例化工具类。

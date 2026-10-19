@@ -29,4 +29,5 @@ public record HtmlTableBlock(
         Provenance provenance,
         String html
 ) implements Block {
+    // HTML 表格结构单元：保存原始表格 HTML 和来源信息，保留合并单元格等版面结构，由 HtmlTableChunker 按完整表格行处理。
 }

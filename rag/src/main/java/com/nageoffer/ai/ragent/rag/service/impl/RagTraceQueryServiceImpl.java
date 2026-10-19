@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RagTraceQueryServiceImpl implements RagTraceQueryService {
+    // RAG 追踪查询实现：按条件分页查询运行记录，装配用户信息以及单轮节点明细，返回后台调用链分析视图。
 
     private final RagTraceRunMapper runMapper;
     private final RagTraceNodeMapper nodeMapper;

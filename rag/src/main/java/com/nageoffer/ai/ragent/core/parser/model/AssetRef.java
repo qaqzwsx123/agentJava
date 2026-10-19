@@ -23,4 +23,5 @@ package com.nageoffer.ai.ragent.core.parser.model;
  * @param publicUrl 浏览器可直连的公开预览 URL，形如 <a href="http://localhost:9000/ragent-assets/xxx.png">...</a>（资产桶已开公共读）
  */
 public record AssetRef(String publicUrl, String mime) {
+    // 二进制资产引用：保存图片等资源的公开访问 URL 和 MIME 类型，随图片结构块及分块元数据传递，使检索结果能够关联和展示原始资产。
 }

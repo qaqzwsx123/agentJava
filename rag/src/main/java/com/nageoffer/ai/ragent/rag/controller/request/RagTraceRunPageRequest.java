@@ -25,6 +25,7 @@ import lombok.Data;
  */
 @Data
 public class RagTraceRunPageRequest extends Page {
+    // RAG Trace 运行记录分页请求；携带追踪 ID、会话 ID、任务 ID、状态等参数，供控制器接收并交给服务层校验和处理。
 
     private String traceId;
 

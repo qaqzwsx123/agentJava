@@ -31,6 +31,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class NodeResult {
+    // 节点执行结果实体类 表示管道中单个节点执行完成后的结果信息，包含执行状态、是否继续执行后续节点等信息。
 
     /**
      * 节点是否执行成功

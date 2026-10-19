@@ -48,6 +48,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RelationalChunkSink implements ChunkSink {
+    // 关系库落点：写 t_knowledge_chunk，展示文本与向量文本一并落库 embedding_text 落库不是为了展示：它让换嵌入模型时可以直接重嵌入而不必重新解析（省掉版面 解析与视觉模型的重复成本），也让人工编辑单块后能正确重算向量文本。
 
     private final KnowledgeChunkMapper chunkMapper;
     private final TokenCounterService tokenCounterService;

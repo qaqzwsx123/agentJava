@@ -41,6 +41,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class KeywordSyncVectorStorePostProcessor implements BeanPostProcessor {
+    // 关键词同步装饰器装配器：容器存在关键词索引实现时，将向量服务 Bean 包装为 KeywordSyncingVectorStoreService，统一覆盖写入调用点。
 
     private final ObjectProvider<KeywordIndexService> keywordIndexServiceProvider;
 

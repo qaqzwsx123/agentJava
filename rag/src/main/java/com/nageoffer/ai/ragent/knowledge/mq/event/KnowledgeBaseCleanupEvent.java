@@ -34,6 +34,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 public class KnowledgeBaseCleanupEvent implements Serializable {
+    // 知识库删除清理任务事件 负责异步回收知识库独占的底层物理资源（Milvus collection / bucket / 残留向量）。
 
     @Serial
     private static final long serialVersionUID = 1L;
