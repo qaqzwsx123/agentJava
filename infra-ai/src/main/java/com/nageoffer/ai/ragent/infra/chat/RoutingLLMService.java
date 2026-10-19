@@ -44,10 +44,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@Primary
+@Primary //RoutingLLMService 上的 @Primary 注解，就是将其指定为 LLMService 接口的默认实现，让系统在绝大多数情况下自动使用这个具备路由与故障转移能力的高级服务
 public class RoutingLLMService implements LLMService {
-    // LLMService 的主要实现。根据档位、思考开关和健康状态选择候选；同步调用通过执行器处理切换，流式调用还要等待首包探测。
 
+    // LLMService 的主要实现。根据档位、思考开关和健康状态选择候选；同步调用通过执行器处理切换，流式调用还要等待首包探测。
     private static final String STREAM_INTERRUPTED_MESSAGE = "流式请求被中断";
     private static final String STREAM_NO_PROVIDER_MESSAGE = "无可用大模型提供者";
     private static final String STREAM_START_FAILED_MESSAGE = "流式请求启动失败";
@@ -72,7 +72,7 @@ public class RoutingLLMService implements LLMService {
         this.healthStore = healthStore;
         this.executor = executor;
         this.firstPacketProbe = firstPacketProbe;
-        this.clientsByProvider = clients.stream()
+        this.clientsByProvider = clients.stream() //把 List<ChatClient>变成流，将流中的每个元素变成map， 转换成一个 Map<String, ChatClient>，其中 key 是每个客户端的 provider() 返回值，value 是客户端对象本身
                 .collect(Collectors.toMap(ChatClient::provider, Function.identity()));
     }
 

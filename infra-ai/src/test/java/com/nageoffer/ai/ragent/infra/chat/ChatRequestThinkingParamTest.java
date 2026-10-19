@@ -107,6 +107,21 @@ class ChatRequestThinkingParamTest {
         assertFalse(buildBody(new OllamaChatClient(), Boolean.FALSE).has(FIELD));
     }
 
+    @Test
+    void ollamaShouldExplicitlyDisableServerThinkingForNonThinkingRequests() {
+        for (Boolean thinking : new Boolean[]{Boolean.FALSE, null}) {
+            JsonObject body = buildBody(new OllamaChatClient(), thinking);
+            assertEquals("none", body.get("reasoning_effort").getAsString());
+            assertFalse(body.has(FIELD));
+            assertFalse(body.has(THINKING_OBJECT));
+        }
+        assertEquals("medium", buildBody(new OllamaChatClient(), Boolean.TRUE)
+                .get("reasoning_effort").getAsString());
+        JsonObject streamBody = new OllamaChatClient().buildRequestBody(request(Boolean.FALSE), target(), true);
+        assertEquals("none", streamBody.get("reasoning_effort").getAsString());
+        assertTrue(streamBody.get("stream").getAsBoolean());
+    }
+
     /**
      * thinking 对象同样是私有扩展，只许发给 DeepSeek
      */
