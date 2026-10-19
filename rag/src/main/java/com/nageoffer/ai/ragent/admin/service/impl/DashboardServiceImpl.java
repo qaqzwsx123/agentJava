@@ -54,7 +54,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@ConditionalOnProperty(prefix = "ragent.engine", name = "type", havingValue = "workflow", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "ragent.engine", name = "type", havingValue = "workflow", matchIfMissing = true) // 如果配置文件里没写这个配置，是否默认生效
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
 

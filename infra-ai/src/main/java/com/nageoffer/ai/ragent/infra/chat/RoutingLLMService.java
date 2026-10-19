@@ -74,19 +74,45 @@ public class RoutingLLMService implements LLMService {
         this.firstPacketProbe = firstPacketProbe;
         this.clientsByProvider = clients.stream() //把 List<ChatClient>变成流，将流中的每个元素变成map， 转换成一个 Map<String, ChatClient>，其中 key 是每个客户端的 provider() 返回值，value 是客户端对象本身
                 .collect(Collectors.toMap(ChatClient::provider, Function.identity()));
+        //当 Spring 准备创建 RoutingLLMService 这个 Bean 时，它发现构造函数需要一个 List<ChatClient> 参数。它的内部工作流程是这样的：
+        //    Spring 去自己的容器里翻找：“谁实现了 ChatClient 接口？”
+        //    它找到了 7 个带有 @Service 的类（OllamaChatClient、BaiLianChatClient 等）。
+        //    Spring 把这 7 个对象打包放进一个 ArrayList 里。
+        //    Spring 把这个 List 塞进 RoutingLLMService 的构造函数里，完成实例化。
     }
+    //因为 chat 有多个重载，且都标了同样的 name 和 type，所以无论走哪个重载，
+    // 在追踪里都会被识别为同一个“LLM 聊天路由”节点类型。
+    //name = "llm-chat-routing"：这个节点在追踪链路上显示为“LLM 聊天路由”，方便人看。
+    //type = "LLM_ROUTING"：这个节点属于 LLM_ROUTING 类型，方便按类型聚合统计，比如统计所有 LLM 路由节点的平均耗时、失败率。
 
     /**
      * 按思考开关、可选档位及优先模型选择候选，再交给执行器依次尝试同步调用；无优先模型时使用普通档位选择。
      */
     @Override
     @RagTraceNode(name = "llm-chat-routing", type = "LLM_ROUTING")
+    //把 chat / streamChat 方法标记为 RAG 链路中的一个追踪节点，节点展示名为“llm-chat-routing”，归类为“LLM_ROUTING”类型；方法执行时由 RagTraceAspect 切面自动记录耗时、结果和异常，用于全链路追踪与统计。
     public String chat(ChatRequest request) {
-        // 使用默认档位规则选择候选，thinking 显式开启时仍优先走深度思考档，再交统一执行器切换失败候选。
+        // 这里使用了统一的执行器（executor）去执行带降级/容错（Fallback）的调用逻辑。
+        // 相当于告诉执行器：“我要做一个聊天任务，这是备选名单，这是找客户端的规则，这是发请求的动作。”
         return executor.executeWithFallback(
+                // 参数 1：业务能力标识（ModelCapability.CHAT）
+                // 告诉执行器，本次调用的能力是“聊天”。执行器内部可能会用它来做监控、打点统计。
                 ModelCapability.CHAT,
+
+                // 参数 2：候选模型列表（由 selector 决定）
+                // 1. request.getThinking() 判断是否需要深度思考。
+                // 2. selector 会根据这个布尔值，结合配置的档位（Tier），查出一批可用的模型目标（ModelTarget）。
+                // 返回的是一个排好序的 List<ModelTarget>，排在前面的优先尝试。
                 selector.selectChatCandidates(Boolean.TRUE.equals(request.getThinking())),
+
+                // 参数 3：客户端查找器（Function）
+                // 作用：给定一个模型目标（target），如何找到对应的 ChatClient 实例。
+                // 这里直接去我们之前讲的 clientsByProvider 这个 Map 里，根据 provider 名字（如 "bailian"）把对应的实例拿出来。
                 target -> clientsByProvider.get(target.candidate().getProvider()),
+
+                // 参数 4：具体执行逻辑（BiFunction）
+                // 作用：当执行器拿到了具体的 client 和 target 后，如何真正发起请求。
+                // 这里直接调用具体实现类的同步 chat 方法（比如 BaiLianChatClient.chat）。
                 (client, target) -> client.chat(request, target)
         );
     }
