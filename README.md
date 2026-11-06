@@ -22,8 +22,6 @@ Agent 也可直接回答普通问题或多次调用工具。知识库文档的 P
 
 ## 功能拆解记录
 
-[Git 历史重建说明](HISTORY_RECONSTRUCTION.md) · [每日文件与来源映射](docs/reconstructed-history.json)
-
 ### 2026 年 6 月
 
 - 6月1日：工程构建与模块配置（.gitattributes、.gitignore等）。
@@ -378,9 +376,3 @@ Agent 也可直接回答普通问题或多次调用工具。知识库文档的 P
 - 开启 ragent.eval.enabled=true 后，可用 GET /rag/eval?question=... 观察检索证据和耗时；不生成最终答案，不能代替完整 Agent 评测。
 - 分块默认目标 1024 字符、超长切分重叠 128 字符，允许结构容忍空间；更换嵌入模型需验证查询与文档向量兼容。
 - 通道按配置启用，不把已实现当成每次实际参与；无答案、实体丢失和图谱残留需单独验证。
-
-## 来源和许可证
-
-基于 [nageoffer/ragent](https://github.com/nageoffer/ragent) 学习和改进，采用 Apache-2.0，详见 [LICENSE](LICENSE)，保留原代码版权声明。
-
-[原 README 存档](docs/upstream-readme.md) 保留原说明，存档内相对链接按原仓库根目录解析。
