@@ -2,8 +2,6 @@
 
 面向企业员工和知识库管理员的资料问答项目，处理制度、流程和项目说明分散、人工查找繁琐的问题。管理员上传后，系统解析、分块并建立索引；用户提问时，由 Agent 按需调用知识库工具，结合资料生成回答，通过 SSE 返回文本与工具状态。
 
-本仓库由 **qaqzwsx123** 基于 [nageoffer/ragent](https://github.com/nageoffer/ragent) 学习和改进，重点是本地模型接入、知识库问答和异常处理。原有架构和功能不表述为本人独立开发，目前以本地搭建和验证为主，没有企业上线效果数据。
-
 主要技术栈及用途：
 
 - **后端与管理：** Java、Spring Boot、MyBatis-Plus、Sa-Token，处理接口、认证、持久化和管理业务，具体版本以 pom.xml 为准。
@@ -24,151 +22,147 @@ Agent 也可直接回答普通问题或多次调用工具。知识库文档的 P
 
 ## 功能拆解记录
 
-本节与重建后的 123 次提交逐日对应。**日期是人为编排的回顾日期，不是当天实际开发时间。** 初始整仓导入按职责拆分，后续重放已有差异，不改变上游版权和贡献来源。
-
 [Git 历史重建说明](HISTORY_RECONSTRUCTION.md) · [每日文件与来源映射](docs/reconstructed-history.json)
 
 ### 2026 年 6 月
 
-- 6月1日：回溯导入：工程构建与模块配置（.gitattributes、.gitignore等）。
-- 6月2日：回溯导入：公共框架（snowflake_init）。
-- 6月3日：回溯导入：公共框架-cache（RedisKeySerializer）。
-- 6月4日：回溯导入：公共框架-cancellation（TaskCancellation、TaskCancellationTest）。
-- 6月5日：回溯导入：公共框架-config（DataBaseConfiguration、RocketMQAutoConfiguration等）。
-- 6月6日：回溯导入：公共框架-context（ApplicationContextHolder、LoginUser等）。
-- 6月7日：回溯导入：公共框架-convention（ChatMessage、ChatRequest等）。
-- 6月8日：回溯导入：公共框架-database（JsonbTypeHandler、MyMetaObjectHandler）。
-- 6月9日：回溯导入：公共框架-distributedid（CustomIdentifierGenerator、SnowflakeIdInitializer）。
-- 6月10日：回溯导入：公共框架-errorcode（BaseErrorCode、IErrorCode）。
-- 6月11日：回溯导入：公共框架-exception（AbstractException、ClientException等）。
-- 6月12日：回溯导入：公共框架-idempotent（IdempotentConsume、IdempotentConsumeAspect等）。
-- 6月13日：回溯导入：公共框架-mq（MessageWrapper、DelegatingTransactionListener等）。
-- 6月14日：回溯导入：公共框架-trace（RagStreamTraceSupport、RagTraceContext等）。
-- 6月15日：回溯导入：公共框架-validation（ChatQuestion、ChatQuestionTest）。
-- 6月16日：回溯导入：公共框架-web（GlobalExceptionHandler、Results等）。
-- 6月17日：回溯导入：认证与系统管理（BizChangeLogController、BizChangeLogService等）。
-- 6月18日：回溯导入：认证与系统管理（SampleQuestionService、AuthController等）。
-- 6月19日：回溯导入：认证与系统管理（AuthService、UserService等）。
-- 6月20日：回溯导入：模型接入-chat（LLMService、AIHubMixChatClient等）。
-- 6月21日：回溯导入：模型接入-chat（RoutingLLMService、ProbeStreamBridge等）。
-- 6月22日：回溯导入：模型接入-config（AIModelProperties）。
-- 6月23日：回溯导入：模型接入-embedding（EmbeddingService、RoutingEmbeddingService等）。
-- 6月24日：回溯导入：模型接入-enums（ModelCapability、ModelProvider等）。
-- 6月25日：回溯导入：模型接入-http（HttpMediaTypes、HttpResponseHelper等）。
-- 6月26日：回溯导入：模型接入-model（ChatTierConfigValidator、ModelCaller等）。
-- 6月27日：回溯导入：模型接入-rerank（RerankService、RoutingRerankService等）。
-- 6月28日：回溯导入：模型接入-token（HeuristicTokenCounterService、TokenCounterService）。
-- 6月29日：回溯导入：模型接入-util（LLMResponseCleaner、LogSafe）。
-- 6月30日：回溯导入：模型接入-vlm（RoutingVlmService、VlmService）。
+- 6月1日：工程构建与模块配置（.gitattributes、.gitignore等）。
+- 6月2日：公共框架（snowflake_init）。
+- 6月3日：公共框架-cache（RedisKeySerializer）。
+- 6月4日：公共框架-cancellation（TaskCancellation、TaskCancellationTest）。
+- 6月5日：公共框架-config（DataBaseConfiguration、RocketMQAutoConfiguration等）。
+- 6月6日：公共框架-context（ApplicationContextHolder、LoginUser等）。
+- 6月7日：公共框架-convention（ChatMessage、ChatRequest等）。
+- 6月8日：公共框架-database（JsonbTypeHandler、MyMetaObjectHandler）。
+- 6月9日：公共框架-distributedid（CustomIdentifierGenerator、SnowflakeIdInitializer）。
+- 6月10日：公共框架-errorcode（BaseErrorCode、IErrorCode）。
+- 6月11日：公共框架-exception（AbstractException、ClientException等）。
+- 6月12日：公共框架-idempotent（IdempotentConsume、IdempotentConsumeAspect等）。
+- 6月13日：公共框架-mq（MessageWrapper、DelegatingTransactionListener等）。
+- 6月14日：公共框架-trace（RagStreamTraceSupport、RagTraceContext等）。
+- 6月15日：公共框架-validation（ChatQuestion、ChatQuestionTest）。
+- 6月16日：公共框架-web（GlobalExceptionHandler、Results等）。
+- 6月17日：认证与系统管理（BizChangeLogController、BizChangeLogService等）。
+- 6月18日：认证与系统管理（SampleQuestionService、AuthController等）。
+- 6月19日：认证与系统管理（AuthService、UserService等）。
+- 6月20日：模型接入-chat（LLMService、AIHubMixChatClient等）。
+- 6月21日：模型接入-chat（RoutingLLMService、ProbeStreamBridge等）。
+- 6月22日：模型接入-config（AIModelProperties）。
+- 6月23日：模型接入-embedding（EmbeddingService、RoutingEmbeddingService等）。
+- 6月24日：模型接入-enums（ModelCapability、ModelProvider等）。
+- 6月25日：模型接入-http（HttpMediaTypes、HttpResponseHelper等）。
+- 6月26日：模型接入-model（ChatTierConfigValidator、ModelCaller等）。
+- 6月27日：模型接入-rerank（RerankService、RoutingRerankService等）。
+- 6月28日：模型接入-token（HeuristicTokenCounterService、TokenCounterService）。
+- 6月29日：模型接入-util（LLMResponseCleaner、LogSafe）。
+- 6月30日：模型接入-vlm（RoutingVlmService、VlmService）。
 
 ### 2026 年 7 月
 
-- 7月1日：回溯导入：文档解析（BlockTextRenderer、CsvDocumentParser等）。
-- 7月2日：回溯导入：文档解析（MinerUPollingExecutor、MinerUProperties等）。
-- 7月3日：回溯导入：结构感知分块（ChunkingService、BlockAwareChunkerDispatcher等）。
-- 7月4日：回溯导入：结构感知分块（ListChunker、ParagraphChunker等）。
-- 7月5日：回溯导入：固定入库内核（ChunkEmbeddingService、DefaultIngestionKernel等）。
-- 7月6日：回溯导入：知识库与文档管理（KnowledgeBaseController、KnowledgeChunkController等）。
-- 7月7日：回溯导入：知识库与文档管理（KnowledgeChunkDO、KnowledgeDocumentChunkLogDO等）。
-- 7月8日：回溯导入：知识库与文档管理（KnowledgeBaseService、KnowledgeChunkService等）。
-- 7月9日：回溯导入：知识库与文档管理（员工培训、招聘信息等）。
-- 7月10日：回溯导入：知识库与文档管理（退换货条件、退换货流程与申请方式等）。
-- 7月11日：回溯导入：知识库与文档管理（MAC-MINI、MAC-STUDIO等）。
-- 7月12日：回溯导入：可配置节点流水线（IngestionPipelineController、IngestionTaskController等）。
-- 7月13日：回溯导入：可配置节点流水线（StructuredDocument、ChunkEnrichType等）。
-- 7月14日：回溯导入：可配置节点流水线（IngestionPipelineService、IngestionTaskService等）。
-- 7月15日：回溯导入：RAG能力-graph（GraphQueryService、GraphEvidence等）。
-- 7月16日：回溯导入：RAG能力-guidance（IntentGuidanceService、AmbiguityLLMChecker等）。
-- 7月17日：回溯导入：RAG能力-intent（DefaultIntentClassifier、IntentClassifier等）。
-- 7月18日：回溯导入：RAG能力-keyword（EsKeywordIndexService、EsKeywordRetrieverService等）。
-- 7月19日：回溯导入：RAG能力-memory（ConversationMemoryService、ConversationMemorySummaryService等）。
-- 7月20日：回溯导入：RAG能力-prompt（RAGPromptService、AgentPromptCacheManager等）。
-- 7月21日：回溯导入：RAG能力-rewrite（MultiQuestionRewriteService、QueryRewriteService等）。
-- 7月22日：回溯导入：RAG能力-skill（AgentSkill、AgentSkillCacheManager等）。
-- 7月23日：回溯导入：RAG能力-source（CitationContextEnricher、CitationMarkup等）。
-- 7月24日：回溯导入：RAG能力-storage（ObjectStorageClient、OssObjectStorageClient等）。
-- 7月25日：回溯导入：RAG能力-vector（MilvusVectorRetrieverService、MilvusVectorStoreService等）。
-- 7月26日：回溯导入：RAG能力-vector（VectorStoreService、GraphSyncingVectorStoreService等）。
-- 7月27日：回溯导入：多通道召回与后处理（KnowledgeRetrievalResult、MultiChannelRetrievalEngine等）。
-- 7月28日：回溯导入：多通道召回与后处理（ChannelAttribution、DeduplicationPostProcessor等）。
-- 7月29日：回溯导入：Workflow接口与管理（DashboardController、DashboardService等）。
-- 7月30日：回溯导入：Workflow接口与管理（AgentProfileController、AgentSkillController等）。
-- 7月31日：回溯导入：Workflow接口与管理（AgentSkillPageRequest、AgentSkillSaveRequest等）。
+- 7月1日：文档解析（BlockTextRenderer、CsvDocumentParser等）。
+- 7月2日：文档解析（MinerUPollingExecutor、MinerUProperties等）。
+- 7月3日：结构感知分块（ChunkingService、BlockAwareChunkerDispatcher等）。
+- 7月4日：结构感知分块（ListChunker、ParagraphChunker等）。
+- 7月5日：固定入库内核（ChunkEmbeddingService、DefaultIngestionKernel等）。
+- 7月6日：知识库与文档管理（KnowledgeBaseController、KnowledgeChunkController等）。
+- 7月7日：知识库与文档管理（KnowledgeChunkDO、KnowledgeDocumentChunkLogDO等）。
+- 7月8日：知识库与文档管理（KnowledgeBaseService、KnowledgeChunkService等）。
+- 7月9日：知识库与文档管理（员工培训、招聘信息等）。
+- 7月10日：知识库与文档管理（退换货条件、退换货流程与申请方式等）。
+- 7月11日：知识库与文档管理（MAC-MINI、MAC-STUDIO等）。
+- 7月12日：可配置节点流水线（IngestionPipelineController、IngestionTaskController等）。
+- 7月13日：可配置节点流水线（StructuredDocument、ChunkEnrichType等）。
+- 7月14日：可配置节点流水线（IngestionPipelineService、IngestionTaskService等）。
+- 7月15日：RAG能力-graph（GraphQueryService、GraphEvidence等）。
+- 7月16日：RAG能力-guidance（IntentGuidanceService、AmbiguityLLMChecker等）。
+- 7月17日：RAG能力-intent（DefaultIntentClassifier、IntentClassifier等）。
+- 7月18日：RAG能力-keyword（EsKeywordIndexService、EsKeywordRetrieverService等）。
+- 7月19日：RAG能力-memory（ConversationMemoryService、ConversationMemorySummaryService等）。
+- 7月20日：RAG能力-prompt（RAGPromptService、AgentPromptCacheManager等）。
+- 7月21日：RAG能力-rewrite（MultiQuestionRewriteService、QueryRewriteService等）。
+- 7月22日：RAG能力-skill（AgentSkill、AgentSkillCacheManager等）。
+- 7月23日：RAG能力-source（CitationContextEnricher、CitationMarkup等）。
+- 7月24日：RAG能力-storage（ObjectStorageClient、OssObjectStorageClient等）。
+- 7月25日：RAG能力-vector（MilvusVectorRetrieverService、MilvusVectorStoreService等）。
+- 7月26日：RAG能力-vector（VectorStoreService、GraphSyncingVectorStoreService等）。
+- 7月27日：多通道召回与后处理（KnowledgeRetrievalResult、MultiChannelRetrievalEngine等）。
+- 7月28日：多通道召回与后处理（ChannelAttribution、DeduplicationPostProcessor等）。
+- 7月29日：Workflow接口与管理（DashboardController、DashboardService等）。
+- 7月30日：Workflow接口与管理（AgentProfileController、AgentSkillController等）。
+- 7月31日：Workflow接口与管理（AgentSkillPageRequest、AgentSkillSaveRequest等）。
 
 ### 2026 年 8 月
 
-- 8月1日：回溯导入：Workflow接口与管理（ConversationDO、ConversationMessageDO等）。
-- 8月2日：回溯导入：Workflow接口与管理（EvalController、AgentProfileAdminService等）。
-- 8月3日：回溯导入：Workflow接口与管理（DefaultFileStorageService、ConversationMessageServiceImpl等）。
-- 8月4日：回溯导入：Workflow接口与管理（RagentCoreApplicationTests、TestRagentApplication等）。
-- 8月5日：回溯导入：智能体-admin（AgentDashboardService、AgentDashboardPerformance等）。
-- 8月6日：回溯导入：智能体-config（AgentEngineConfiguration、AgentProperties等）。
-- 8月7日：回溯导入：智能体-confirm（AgentConfirmDenialMiddleware）。
-- 8月8日：回溯导入：智能体-controller（AgentChatController、AgentConversationController等）。
-- 8月9日：回溯导入：智能体-dao（AgentContextCompactionDO、AgentConversationDO等）。
-- 8月10日：回溯导入：智能体-dto（AgentBlock、AgentCompletionPayload等）。
-- 8月11日：回溯导入：智能体-enums（AgentMemoryExtractionStatus、AgentMemorySourceType等）。
-- 8月12日：回溯导入：智能体-memory（AgentContextChars、AgentContextCompactionMiddleware等）。
-- 8月13日：回溯导入：智能体-memory（AgentMemoryDecision、AgentMemoryItem等）。
-- 8月14日：回溯导入：智能体-service（AgentChatService、AgentConversationService等）。
-- 8月15日：回溯导入：智能体-skill（AgentSkillMaskingMiddleware、SkillLoadTool等）。
-- 8月16日：回溯导入：智能体-state（PgAgentStateStore）。
-- 8月17日：回溯导入：智能体-tool（AgentMcpClients、AgentMcpMeta等）。
-- 8月18日：回溯导入：智能体-trace（AgentErrorTypes、AgentRunTracer等）。
-- 8月19日：回溯导入：智能体-trace（RagentOtelTracingMiddleware、AgentRunTracerTest等）。
-- 8月20日：回溯导入：MCP工具服务（McpServerApplication、McpServerConfig等）。
-- 8月21日：回溯导入：MCP工具服务（AfterSaleMapper、CartMapper等）。
-- 8月22日：回溯导入：MCP工具服务（BitAfterSaleQueryMcpExecutor、BitCartQueryMcpExecutor等）。
-- 8月23日：回溯导入：MCP工具服务（AssetMcpExecutor、AssetRenewalMcpExecutor等）。
-- 8月24日：回溯导入：前端-组件与工程（.env、.eslintrc等）。
-- 8月25日：回溯导入：前端-组件与工程（App、RelativeTime等）。
-- 8月26日：回溯导入：前端-组件与工程（ThinkingIndicator、ThumbIcons等）。
-- 8月27日：回溯导入：前端-组件与工程（textarea、tooltip等）。
-- 8月28日：回溯导入：前端-组件与工程（sessionService、settingsService等）。
-- 8月29日：回溯导入：前端-页面（AgentChatPage、ChangeLogsPage等）。
-- 8月30日：回溯导入：前端-页面（WorkflowDashboard、IntentEditPage等）。
-- 8月31日：回溯导入：应用启动与部署配置（RagentApplication、application）。
+- 8月1日：Workflow接口与管理（ConversationDO、ConversationMessageDO等）。
+- 8月2日：Workflow接口与管理（EvalController、AgentProfileAdminService等）。
+- 8月3日：Workflow接口与管理（DefaultFileStorageService、ConversationMessageServiceImpl等）。
+- 8月4日：Workflow接口与管理（RagentCoreApplicationTests、TestRagentApplication等）。
+- 8月5日：智能体-admin（AgentDashboardService、AgentDashboardPerformance等）。
+- 8月6日：智能体-config（AgentEngineConfiguration、AgentProperties等）。
+- 8月7日：智能体-confirm（AgentConfirmDenialMiddleware）。
+- 8月8日：智能体-controller（AgentChatController、AgentConversationController等）。
+- 8月9日：智能体-dao（AgentContextCompactionDO、AgentConversationDO等）。
+- 8月10日：智能体-dto（AgentBlock、AgentCompletionPayload等）。
+- 8月11日：智能体-enums（AgentMemoryExtractionStatus、AgentMemorySourceType等）。
+- 8月12日：智能体-memory（AgentContextChars、AgentContextCompactionMiddleware等）。
+- 8月13日：智能体-memory（AgentMemoryDecision、AgentMemoryItem等）。
+- 8月14日：智能体-service（AgentChatService、AgentConversationService等）。
+- 8月15日：智能体-skill（AgentSkillMaskingMiddleware、SkillLoadTool等）。
+- 8月16日：智能体-state（PgAgentStateStore）。
+- 8月17日：智能体-tool（AgentMcpClients、AgentMcpMeta等）。
+- 8月18日：智能体-trace（AgentErrorTypes、AgentRunTracer等）。
+- 8月19日：智能体-trace（RagentOtelTracingMiddleware、AgentRunTracerTest等）。
+- 8月20日：MCP工具服务（McpServerApplication、McpServerConfig等）。
+- 8月21日：MCP工具服务（AfterSaleMapper、CartMapper等）。
+- 8月22日：MCP工具服务（BitAfterSaleQueryMcpExecutor、BitCartQueryMcpExecutor等）。
+- 8月23日：MCP工具服务（AssetMcpExecutor、AssetRenewalMcpExecutor等）。
+- 8月24日：前端-组件与工程（.env、.eslintrc等）。
+- 8月25日：前端-组件与工程（App、RelativeTime等）。
+- 8月26日：前端-组件与工程（ThinkingIndicator、ThumbIcons等）。
+- 8月27日：前端-组件与工程（textarea、tooltip等）。
+- 8月28日：前端-组件与工程（sessionService、settingsService等）。
+- 8月29日：前端-页面（AgentChatPage、ChangeLogsPage等）。
+- 8月30日：前端-页面（WorkflowDashboard、IntentEditPage等）。
+- 8月31日：应用启动与部署配置（RagentApplication、application）。
 
 ### 2026 年 9 月
 
-- 9月1日：回溯导入：数据库与部署资源（README、init_data等）。
-- 9月2日：回溯导入：数据库与部署资源（AgentProfileInitMain、AgentSkillInitMain等）。
-- 9月3日：回溯导入：数据库与部署资源（110-support-presale、111-support-presale-recommend等）。
-- 9月4日：回溯导入：数据库与部署资源（ApplicationYamlConfig、InitializationActions等）。
-- 9月5日：回溯导入：数据库与部署资源（SimpleJson、AgentSkillInitMain等）。
-- 9月6日：回溯导入：数据库与部署资源（AgentChatClient、AgentMemoryMechanismMain等）。
-- 9月7日：回溯导入：文档与展示资源（admin-datasets、admin-knowledge-base等）。
-- 9月8日：回溯导入：文档与展示资源（multi-channel-retrieval、qa-answer等）。
-- 9月9日：回溯导入：文档与展示资源（ragent-framework-v2、ragent-framework等）。
-- 9月10日：回溯重放：本地 Ollama 模型接入配置。
-- 9月11日：回溯重放：业务代码学习注释。
-- 9月12日：回溯重放：Controller 和 ServiceImpl 调用说明。
-- 9月13日：回溯重放：Controller 调用链及异步回调注释。
-- 9月14日：回溯重放：业务理解注释。
-- 9月15日：回溯重放：Agent 会话记忆方法与字段说明。
-- 9月16日：回溯重放：工具调用和 Trace 注释。
-- 9月17日：回溯重放：framework 方法注释。
-- 9月18日：回溯重放：infra-ai 模型客户端方法注释。
-- 9月19日：回溯重放：MCP 方法和 Mapper SQL 说明。
-- 9月20日：回溯重放：rag 解析、入库、检索与聊天注释。
-- 9月21日：回溯重放：Langfuse 链路追踪配置。
-- 9月22日：回溯重放：LightRAG 图谱测试配置。
-- 9月23日：回溯重放：百炼模型与 1024 维向量配置。
-- 9月24日：回溯重放：文档轮询、LightRAG 405 与 MQ 超时修复。
-- 9月25日：回溯重放：framework 类职责说明。
-- 9月26日：回溯重放：framework 剩余类职责说明。
-- 9月27日：回溯重放：infra-ai 类型职责说明。
-- 9月28日：回溯重放：Ollama 思考参数、辅助超时与资料回退修复。
-- 9月29日：回溯重放：看板管理类职责说明。
-- 9月30日：回溯重放：ingestion、knowledge、rag 类职责说明。
+- 9月1日：数据库与部署资源（README、init_data等）。
+- 9月2日：数据库与部署资源（AgentProfileInitMain、AgentSkillInitMain等）。
+- 9月3日：数据库与部署资源（110-support-presale、111-support-presale-recommend等）。
+- 9月4日：数据库与部署资源（ApplicationYamlConfig、InitializationActions等）。
+- 9月5日：数据库与部署资源（SimpleJson、AgentSkillInitMain等）。
+- 9月6日：数据库与部署资源（AgentChatClient、AgentMemoryMechanismMain等）。
+- 9月7日：文档与展示资源（admin-datasets、admin-knowledge-base等）。
+- 9月8日：文档与展示资源（multi-channel-retrieval、qa-answer等）。
+- 9月9日：文档与展示资源（ragent-framework-v2、ragent-framework等）。
+- 9月10日：本地 Ollama 模型接入配置。
+- 9月11日：业务代码学习注释。
+- 9月12日：Controller 和 ServiceImpl 调用说明。
+- 9月13日：Controller 调用链及异步回调注释。
+- 9月14日：业务理解注释。
+- 9月15日：Agent 会话记忆方法与字段说明。
+- 9月16日：工具调用和 Trace 注释。
+- 9月17日：framework 方法注释。
+- 9月18日：infra-ai 模型客户端方法注释。
+- 9月19日：MCP 方法和 Mapper SQL 说明。
+- 9月20日：rag 解析、入库、检索与聊天注释。
+- 9月21日：Langfuse 链路追踪配置。
+- 9月22日：LightRAG 图谱测试配置。
+- 9月23日：百炼模型与 1024 维向量配置。
+- 9月24日：文档轮询、LightRAG 405 与 MQ 超时修复。
+- 9月25日：framework 类职责说明。
+- 9月26日：framework 剩余类职责说明。
+- 9月27日：infra-ai 类型职责说明。
+- 9月28日：Ollama 思考参数、辅助超时与资料回退修复。
+- 9月29日：看板管理类职责说明。
+- 9月30日：ingestion、knowledge、rag 类职责说明。
 
 ### 2026 年 10 月
 
-- 10月1日：回溯重放：项目 README、每日拆解和原说明存档。
+- 10月1日：项目 README、每日拆解和原说明存档。
 
 ## 问题排查与处理记录
-
-以下日期对应上面的回顾编排；实际修改时间以备份分支中的原提交为准，不把编排日期当成开发事实。
 
 ### 9月24日回顾：分块完成，列表仍显示 running
 
